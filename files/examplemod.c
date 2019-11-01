@@ -8,7 +8,7 @@ ModuleHeader MOD_HEADER
   = {
 	"third/examplemod", /* name */
 	"1.0.0", /* version */
-	"This is a simple module test", /* description */
+	"This is a simple test module", /* description */
 	"Bram Matthys (Syzop)", /* author */
 	"unrealircd-5",
 };
