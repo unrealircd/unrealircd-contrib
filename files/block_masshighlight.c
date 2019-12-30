@@ -29,7 +29,7 @@ module {
 
 // Channel mode for exempting from highlight checks
 #define IsNocheckHighlights(channel) (channel->mode.extmode & extcmode_nocheck_masshl)
-#define CHMODE_CHAR 'h'
+#define CHMODE_CHAR 'B'
 
 // Dem macros yo
 #define CheckAPIError(apistr, apiobj) \
