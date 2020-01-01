@@ -6,6 +6,12 @@
 #undef USE_MYSQL
 // change #undef to #define to enable mysql support
 
+/* Copyright (C) All Rights Reserved
+** Written by rocket & k4be
+** Website: https://github.com/pirc-pl/unrealircd-modules/
+** License: GPLv3 https://www.gnu.org/licenses/gpl-3.0.html
+*/
+
 /*** <<<MODULE MANAGER START>>>
 module
 {
@@ -331,7 +337,7 @@ ModuleHeader MOD_HEADER = {
 	"third/wwwstats",   /* Name of module */
 	"5.0", /* Version */
 	"Provides data for network stats", /* Short description of module */
-	"k4be@PIRC",
+	"rocket, k4be@PIRC",
 	"unrealircd-5"
 };
 
@@ -757,7 +763,7 @@ char *json_escape(char *d, const char *a) {
 	int i, j;
 	char buf[7];
     for(i=0; a[i]; i++) {
-        if(a[i] == '"' || a[i] == '\\' || ('\x00' <= a[i] && a[i] <= '\x1f')) { // unicode chars don't need to be escaped
+        if(a[i] == '"' || a[i] == '\\' || a[i] <= '\x1f') { // unicode chars don't need to be escaped
         	sprintf(buf, "\\u%04x", (int)a[i]);
         	for(j=0; j<6; j++){
 	        	d[diff+i] = buf[j];
