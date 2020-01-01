@@ -1,3 +1,9 @@
+/* Copyright (C) All Rights Reserved
+** Written by k4be
+** Website: https://github.com/pirc-pl/unrealircd-modules/
+** License: GPLv3 https://www.gnu.org/licenses/gpl-3.0.html
+*/
+
 /*** <<<MODULE MANAGER START>>>
 module
 {

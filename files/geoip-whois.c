@@ -1,3 +1,9 @@
+/* Copyright (C) All Rights Reserved
+** Written by k4be
+** Website: https://github.com/pirc-pl/unrealircd-modules/
+** License: GPLv3 https://www.gnu.org/licenses/gpl-3.0.html
+*/
+
 /*** <<<MODULE MANAGER START>>>
 module
 {
@@ -16,20 +22,19 @@ module
 *** <<<MODULE MANAGER END>>>
 */
 
-#include "unrealircd.h"
-
-#define BUFLEN 8191
-
 /*
 // Config example:
 geoip-whois {
-	countries-file "GeoLite2-Country-Locations-en.csv";
 	display-name; // Poland
 	display-code; // PL
 	display-continent; // EU
 	info-string "connected from "; // remember the trailing space!
 };
 */
+
+#include "unrealircd.h"
+
+#define BUFLEN 8191
 
 #define MYCONF "geoip-whois"
 
