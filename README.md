@@ -2,8 +2,10 @@ This is the unrealircd-contrib repository. It makes it easy to
 install 3rd party modules in UnrealIRCd 5 on *NIX.
 
 Note that 3rd party modules are NOT written by the UnrealIRCd team.
-Use these modules at your own risk. In case of problems, contact
-the author of the module.
+Use these modules at your own risk. **In case of problems, contact
+the author of the module.** Only if you do not receive a response
+from the module author and there are grave issues then you can
+contact the UnrealIRCd team for removal of the module.
 
 ## For end-users
 Use the [UnrealIRCd 5 module manager](https://www.unrealircd.org/docs/Module_manager)
