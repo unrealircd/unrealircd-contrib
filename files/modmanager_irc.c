@@ -401,7 +401,7 @@ CMD_FUNC(modmanager_irc) {
 		}
 		p = modname;
 		while(*p) {
-			// I could use isalpha() but it's locale-dependant so we *might* accept e.g. Arabic shit as valid too, and let's not do that =]
+			// I could use isalpha() but it's locale-dependent so we *might* accept e.g. Arabic shit as valid too, and let's not do that =]
 			if(*p < 45 || // Absolute lower boundary: -
 				*p > 122 || // Absolute upper boundary: z
 				*p == 47 || // The / character is inbetween the dot and zero
