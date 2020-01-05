@@ -16,6 +16,7 @@ module
                 "loadmodule \"third/geoip-base\";";
   				"And /REHASH the IRCd.";
 				"Remember that you need other \"geoip\" module to make a real use of this one.";
+				"DON'T load the \"geoip-transfer\" module on this server.";
 				"Detailed documentation is available on https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md";
         }
 }
@@ -99,7 +100,7 @@ void geoip_moddata_unserialize(char *str, ModData *m);
 
 ModuleHeader MOD_HEADER = {
 	"third/geoip-base",   /* Name of module */
-	"5.0", /* Version */
+	"5.0.1", /* Version */
 	"GeoIP data provider module", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5"
@@ -742,7 +743,7 @@ MOD_INIT(){
 	mreq.unserialize = geoip_moddata_unserialize;
 	geoipMD = ModDataAdd(modinfo->handle, mreq);
 	if(!geoipMD){
-		config_error("%s: critical error for ModDataAdd: %s", MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle));
+		config_error("%s: critical error for ModDataAdd: %s. Don't load geoip-base and geoip-transfer on the same server. Remove the 'loadmodule \"third/geoip-transfer\";' line from your config.", MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle));
 		return MOD_FAILED;
 	}
 	return MOD_SUCCESS;
