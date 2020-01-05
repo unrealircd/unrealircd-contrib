@@ -14,6 +14,7 @@ module
                 "The module is installed. Now you need to add a loadmodule line:";
                 "loadmodule \"third/geoip-whois\";";
   				"And /REHASH the IRCd.";
+  				"It'll take care of users on all servers in your network.";
 				"Remember that you need \"geoip-base\" module installed on this server";
 				"for geoip-whois to work.";
 				"Detailed documentation is available on https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md";
@@ -49,6 +50,7 @@ struct country {
 int display_name = 0, display_code = 0, display_continent = 0;
 int have_config = 0;
 char *info_string = NULL;
+int suppress_null_warning = 0;
 ModuleInfo *geoip_modinfo;
 
 // function declarations here
@@ -57,16 +59,14 @@ static char *get_country_text(Client *);
 int geoip_whois_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int geoip_whois_configposttest(int *errs);
 int geoip_whois_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
-void geoip_moddata_free(ModData *m);
-char *geoip_moddata_serialize(ModData *m);
-void geoip_moddata_unserialize(char *str, ModData *m);
 EVENT(set_existing_users_evt);
-EVENT(set_new_user_evt);
+EVENT(allow_next_warning_evt);
+CMD_OVERRIDE_FUNC(geoip_whois_overridemd);
 
 ModuleHeader MOD_HEADER = {
 	"third/geoip-whois",   /* Name of module */
-	"5.0", /* Version */
-	"add country info to /whois", /* Short description of module */
+	"5.0.1", /* Version */
+	"Add country info to /whois", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5"
 };
@@ -184,11 +184,25 @@ int geoip_whois_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 	return 1; // We good
 }
 
+#define WARNING_SUPPRESS_TIME 24 // hours
+
 static char *get_country_text(Client *cptr){
 	static char buf[BUFLEN];
 	struct country *curr_country;
 	
 	if(!cptr) return NULL;
+	
+	// detecting local / private IP addresses so we don't send unneeded warnings
+	unsigned int e[8];
+	if(cptr->ip && strchr(cptr->ip, '.')){ // ipv4
+		if(sscanf(cptr->ip, "%u.%u.%u.%u", &e[0], &e[1], &e[2], &e[3]) == 4){
+			if(e[0] == 127 || e[0] == 10 || (e[0] == 192 && e[1] == 168) || (e[0] == 172 && e[1] >= 16 && e[2] <= 31)) return NULL;
+		}
+	} else if(cptr->ip && strchr(cptr->ip, ':')){ // ipv6
+		if(sscanf(cptr->ip, "%x:%x:%x:%x:%x:%x:%x:%x", &e[0], &e[1], &e[2], &e[3], &e[4], &e[5], &e[6], &e[7]) == 8){
+			if(e[0] == 0xfd00 || (e[0] == 0 && e[1] == 0 && e[2] == 0 && e[3] == 0 && e[4] == 0 && e[5] == 0 && e[6] == 0 && e[7] == 1)) return NULL;
+		}
+	}
 	
 	ModDataInfo *md = findmoddata_byname("geoip", MODDATATYPE_CLIENT);
 	
@@ -201,37 +215,18 @@ static char *get_country_text(Client *cptr){
 	
 	curr_country = moddata_client(cptr, md).ptr;
 	if(!curr_country){
-		sendto_realops("geoip-whois: curr_country is NULL for %s, perhaps no geoip-base module available on the network, or incomplete/outdated database?", cptr->name);
+		if(!suppress_null_warning){
+			sendto_realops("geoip-whois: curr_country is NULL for %s (%s), perhaps no geoip-base module available on this server, or incomplete/outdated database?", cptr->name, cptr->ip);
+			sendto_realops("geoip-whois: Please note that the warning won't reappear for the next %d hours.", WARNING_SUPPRESS_TIME);
+			suppress_null_warning = 1;
+			EventAdd(geoip_modinfo->handle, "allow_next_warning", allow_next_warning_evt, NULL, (long)WARNING_SUPPRESS_TIME * 60 * 60 * 1000, 1);
+		}
 		return NULL;
 	}
 	if(display_name) strcpy(buf, curr_country->name);
 	if(display_code) sprintf(buf + strlen(buf), "%s(%s)", display_name?" ":"", curr_country->code);
 	if(display_continent) sprintf(buf + strlen(buf), "%s%s", (display_name || display_code)?", ":"", curr_country->continent);
 	return buf;
-}
-
-void geoip_moddata_free(ModData *m){
-	if(m->ptr) safe_free(m->ptr);
-	m->ptr = NULL;
-}
-
-char *geoip_moddata_serialize(ModData *m){
-	static char buf[140];
-	if(!m->ptr) return NULL;
-	struct country *country = (struct country *)m->ptr;
-	ircsnprintf(buf, 140, "%s!%s!%s", country->code, country->name, country->continent);
-	return buf;
-}
-
-void geoip_moddata_unserialize(char *str, ModData *m){
-	if(m->ptr) safe_free(m->ptr);
-	struct country *country = safe_alloc(sizeof(struct country));
-	if(sscanf(str, "%[^!]!%[^!]!%[^!]", country->code, country->name, country->continent) != 3){ // invalid argument
-		safe_free(country);
-		m->ptr = NULL;
-	} else {
-		m->ptr = country;
-	}
 }
 
 MOD_TEST(){
@@ -249,7 +244,7 @@ MOD_INIT(){
 
 MOD_LOAD(){
 	if(!have_config){
-		sendto_realops("Warning: no configuration for geoip-whois, using default options");
+		sendto_realops("geoip-whois: warning: no configuration, using default options");
 		display_name = 1;
 		display_code = 1;
 	}
@@ -258,6 +253,10 @@ MOD_LOAD(){
 	geoip_modinfo = modinfo;
 
 	EventAdd(geoip_modinfo->handle, "set_existing_users", set_existing_users_evt, NULL, 1000, 1);
+	if(!CommandOverrideAddEx(modinfo->handle, "MD", 0, geoip_whois_overridemd)){
+		config_error("%s: CommandOverrideAddEx failed: %s", MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle));
+		return MOD_FAILED;
+	}
 	return MOD_SUCCESS;
 }
 
@@ -267,11 +266,17 @@ MOD_UNLOAD(){
 		if (!IsUser(acptr)) continue;
 		swhois_delete(acptr, "geoip", "*", &me, NULL); // delete info when unloading 
 	}
+	safe_free(info_string);
 	return MOD_SUCCESS;
 }
 
 static int geoip_whois_userconnect(Client *cptr) {
-	EventAdd(geoip_modinfo->handle, "set_new_user", set_new_user_evt, cptr, 1000, 1);
+	if(!cptr) return HOOK_CONTINUE; // is it possible?
+	char *cdata = get_country_text(cptr);
+	if(!cdata) return HOOK_CONTINUE; // no country data for this user
+	char buf[BUFLEN+1];
+	sprintf(buf, "%s%s", info_string, cdata);
+	swhois_add(cptr, "geoip", 0, buf, &me, NULL);
 	return HOOK_CONTINUE;
 }
 
@@ -283,15 +288,18 @@ EVENT(set_existing_users_evt){
 	}
 }
 
-EVENT(set_new_user_evt){
-	Client *cptr = (Client *) data;
-	if(!cptr) return;
-	char *cdata = get_country_text(cptr);
-	if(!cdata) return;
-	char buf[BUFLEN+1];
-	sprintf(buf, "%s%s", info_string, cdata);
-	swhois_delete(cptr, "geoip", "*", &me, NULL); //somehow has it already set
-	swhois_add(cptr, "geoip", 0, buf, &me, NULL);
-	return;
+EVENT(allow_next_warning_evt){
+	suppress_null_warning = 0;
+}
+
+CMD_OVERRIDE_FUNC(geoip_whois_overridemd){ // this is needed when the local db is outdated or someone installed -transfer instead of -base
+	int i;
+
+	CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function
+
+	if(parc == 5 && !strcasecmp(parv[1], "client") && !strcasecmp(parv[3], "geoip")){
+		Client *target = find_client(parv[2], NULL);
+		geoip_whois_userconnect(target); // we try again if other server is sending a geoip moddata
+	}
 }
 
