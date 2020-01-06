@@ -44,7 +44,7 @@ void debug_operclasses(Client *client);
 int recurseOC(OperClass *oc);
 int recurseOCACL(OperClassACL *acls);
 
-extern MODVAR ConfigItem_operclass *conf_operclass; // Need access to the global var conf_operclass =]
+extern ConfigItem_operclass *conf_operclass; // Need access to the global var conf_operclass =]
 Command *debugCmd; // Pointer to the command we're gonna add
 
 // Help string in case someone does just /DBG
@@ -86,7 +86,7 @@ MOD_INIT() {
 
 	MARK_AS_GLOBAL_MODULE(modinfo);
 
-	conf_operclass = NULL; // Otherwise we get duplicates after every rehash lol
+	conf_operclass = NULL; // Otherwise we get duplicates after every rehash lol (is safe in INIT cuz we haven't actually loaded the config yet =])
 	return MOD_SUCCESS;
 }
 
