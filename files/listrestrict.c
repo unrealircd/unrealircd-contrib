@@ -31,8 +31,8 @@ module {
 #define FCHAN_DEFUSERS 2 // Let 2 users be the default for a fake channel
 #define FCHAN_DEFTOPIC "DO NOT JOIN" // Also topic
 
-#define LR_DELAYFAIL(x) (muhDelay > 0 && (x)->local && TStime() - (x)->local->firsttime < muhDelay)
-#define LR_AUTHFAIL(x) (needAuth && !IsLoggedIn((x)))
+#define LR_DELAYFAIL(x) (muhcfg.connect_delay > 0 && (x)->local && TStime() - (x)->local->firsttime < muhcfg.connect_delay)
+#define LR_AUTHFAIL(x) (muhcfg.need_auth && !IsLoggedIn((x)))
 
 #define CheckAPIError(apistr, apiobj) \
 	do { \
@@ -63,35 +63,41 @@ struct t_fakechans {
 	char *name;
 	char *topic;
 	int users;
-	unsigned short glinem;
+	BanAction banact;
 	fakeChannel *next;
 };
 
 // Quality fowod declarations
+void setcfg(void);
+fakeChannel *find_fakechan(char *name);
 void checkem_exceptions(Client *client, unsigned short *connect, unsigned short *auth, unsigned short *fakechans);
 CMD_OVERRIDE_FUNC(listrestrict_overridelist);
 CMD_OVERRIDE_FUNC(listrestrict_overridejoin);
 int listrestrict_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int listrestrict_configposttest(int *errs);
 int listrestrict_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
-int listrestrict_rehash(void);
+
+struct cfgstruct {
+	int connect_delay;
+	unsigned short need_auth;
+	unsigned short fake_channels;
+	unsigned short auth_is_enough;
+	time_t ban_time; // Defaults to 1 day
+
+	unsigned short got_fake_channels;
+	int got_connect_delay;
+	unsigned short got_need_auth;
+};
+static struct cfgstruct muhcfg;
 
 restrictExcept *exceptList = NULL; // Stores exceptions yo
 fakeChannel *fakechanList = NULL; // Also fake channels
 int fakechanCount = 0;
-unsigned short conf_fakechans = 0;
-
-// Deez defaults
-int muhDelay = 0; // Default to off yo
-unsigned short needAuth = 0; // Must be identified w/ NickServ (in addition to passing the delay check)
-unsigned short fakeChans = 0; // Send fake channels list
-unsigned short authIsEnough = 0; // Only NickServ auth is enough to be exempt
-time_t glineTime = 86400; // Default to 1 day
 
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/listrestrict", // Module name
-	"2.0", // Version
+	"2.1", // Version
 	"Impose certain restrictions on /LIST usage", // Description
 	"Gottem / k4be", // Author
 	"unrealircd-5", // Modversion
@@ -99,6 +105,8 @@ ModuleHeader MOD_HEADER = {
 
 // Configuration testing-related hewks go in testing phase obv
 MOD_TEST() {
+	memset(&muhcfg, 0, sizeof(muhcfg)); // Zero-initialise config
+
 	// We have our own config block so we need to checkem config obv m9
 	// Priorities don't really matter here
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGTEST, 0, listrestrict_configtest);
@@ -110,7 +118,7 @@ MOD_TEST() {
 MOD_INIT() {
 	MARK_AS_GLOBAL_MODULE(modinfo);
 
-	HookAdd(modinfo->handle, HOOKTYPE_REHASH, 0, listrestrict_rehash);
+	setcfg();
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGRUN, 0, listrestrict_configrun);
 	return MOD_SUCCESS;
 }
@@ -152,6 +160,22 @@ MOD_UNLOAD() {
 	return MOD_SUCCESS; // We good
 }
 
+void setcfg(void) {
+	muhcfg.ban_time = 86400; // Default to 1 day
+}
+
+fakeChannel *find_fakechan(char *name) {
+	fakeChannel *fchanEntry;
+	if(!name)
+		return NULL;
+
+	for(fchanEntry = fakechanList; fchanEntry; fchanEntry = fchanEntry->next) {
+		if(!strcasecmp(fchanEntry->name, name))
+			return fchanEntry;
+	}
+	return NULL;
+}
+
 void checkem_exceptions(Client *client, unsigned short *connect, unsigned short *auth, unsigned short *fakechans) {
 	restrictExcept *exEntry; // For iteration yo
 	for(exEntry = exceptList; exEntry; exEntry = exEntry->next) {
@@ -174,10 +198,10 @@ void checkem_exceptions(Client *client, unsigned short *connect, unsigned short 
 				default:
 					break;
 			}
-			// Keep checking entries to support just whitelisting 2 instead of 1 or all ;]
+			// Keep checking entries to support just whitelisting 2 types instead of only 1 or all ;]
 		}
 	}
-	if(authIsEnough && (*auth || IsLoggedIn(client)))
+	if(muhcfg.auth_is_enough && (*auth || IsLoggedIn(client)))
 		*connect = 1;
 }
 
@@ -205,7 +229,7 @@ CMD_OVERRIDE_FUNC(listrestrict_overridelist) {
 	checkem_exceptions(client, &except_connect, &except_auth, &except_fakechans);
 	delayFail = (!except_connect && LR_DELAYFAIL(client)); // Sanity check + delay check =]
 	authFail = (!except_auth && LR_AUTHFAIL(client)); // Need identified check ;];;]
-	fakechanFail = (!except_fakechans && fakeChans);
+	fakechanFail = (!except_fakechans && muhcfg.fake_channels);
 
 	// Send fake list if necessary
 	if(fakechanFail && (delayFail || authFail)) {
@@ -216,7 +240,7 @@ CMD_OVERRIDE_FUNC(listrestrict_overridelist) {
 	}
 
 	if(delayFail) {
-		sendnotice(client, "You have to be connected for at least %d seconds before being able to /%s%s", muhDelay, OVR_LIST, (fakechanFail ? ", please ignore the fake output above" : ""));
+		sendnotice(client, "You have to be connected for at least %d seconds before being able to /%s%s", muhcfg.connect_delay, OVR_LIST, (fakechanFail ? ", please ignore the fake output above" : ""));
 		return;
 	}
 
@@ -229,8 +253,7 @@ CMD_OVERRIDE_FUNC(listrestrict_overridelist) {
 }
 
 CMD_OVERRIDE_FUNC(listrestrict_overridejoin) {
-	// Doing the G-Line thing in an override too so we run _before_ the channel is actually created, plus we need to return FLUSH_BUFFER
-	// which isn't supported by HOOKTYPE_PRE_LOCAL_JOIN and might crash shit =]
+	// Doing the *-Line thing in an override too so we run _before_ the channel is actually created
 	fakeChannel *fchanEntry;
 	unsigned short except_connect;
 	unsigned short except_auth;
@@ -238,32 +261,27 @@ CMD_OVERRIDE_FUNC(listrestrict_overridejoin) {
 	unsigned short delayFail;
 	unsigned short authFail;
 	unsigned short fakechanFail;
-	unsigned short glinem;
 	char *chan, *tmp, *p; // Pointers for getting multiple channel names
 
 	// Only act on local joins etc
-	if(BadPtr(parv[1]) || !MyUser(client) || IsOper(client) || IsULine(client) || !fakeChans) {
+	if(BadPtr(parv[1]) || !MyUser(client) || IsOper(client) || IsULine(client) || !muhcfg.fake_channels) {
 		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
 		return;
 	}
 
-	glinem = 0;
 	tmp = strdup(parv[1]);
 	fchanEntry = NULL;
-	for(chan = strtoken(&p, tmp, ","); !glinem && chan; chan = strtoken(&p, NULL, ",")) {
-		for(fchanEntry = fakechanList; fchanEntry; fchanEntry = fchanEntry->next) {
-			if(chan && !strcasecmp(chan, fchanEntry->name)) {
-				// Should only be one channel per unique name, so break regardless of gline flag
-				if(fchanEntry->glinem)
-					glinem = 1;
-				break;
-			}
-		}
+	for(chan = strtoken(&p, tmp, ","); chan; chan = strtoken(&p, NULL, ",")) {
+		if(!valid_channelname(chan)) // Just let CallCommandOverride handle invalid channels in case we don't need to take a ban-action =]
+			continue;
+
+		if((fchanEntry = find_fakechan(chan)))
+			break;
 	}
 	safe_free(tmp);
 
-	// Check if we got an entry matching this channel AND the gline flag is enabled
-	if(!fchanEntry || !glinem) {
+	// Check if we got an entry matching this channel AND the ban-action flag was set
+	if(!fchanEntry || !fchanEntry->banact) {
 		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
 		return;
 	}
@@ -278,7 +296,7 @@ CMD_OVERRIDE_FUNC(listrestrict_overridejoin) {
 
 	// Place ban if necessary =]
 	if(fakechanFail && (delayFail || authFail)) {
-		place_host_ban(client, BAN_ACT_GLINE, "Invalid channel", glineTime);
+		place_host_ban(client, fchanEntry->banact, "Invalid channel", muhcfg.ban_time);
 		return;
 	}
 	CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
@@ -287,8 +305,9 @@ CMD_OVERRIDE_FUNC(listrestrict_overridejoin) {
 int listrestrict_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 	ConfigEntry *cep, *cep2; // For looping through our bl0cc, nested
 	int errors = 0; // Error count
-	int i; // iter8or m8
+	int i;
 	int have_fchanname;
+	BanAction banact;
 
 	// Since we'll add a new top-level block to unrealircd.conf, need to filter on CONFIG_MAIN lmao
 	if(type != CONFIG_MAIN)
@@ -311,12 +330,15 @@ int listrestrict_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs
 			continue; // Next iteration imo tbh
 		}
 
-		if(!strcmp(cep->ce_varname, "connectdelay")) {
+		if(!strcmp(cep->ce_varname, "connect-delay")) {
+			muhcfg.got_connect_delay = 1;
+
 			if(!cep->ce_vardata) {
 				config_error("%s:%i: %s::%s must be an integer of 10 or larger m8", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
 				errors++; // Increment err0r count fam
 				continue; // Next iteration imo tbh
 			}
+
 			// Should be an integer yo
 			for(i = 0; cep->ce_vardata[i]; i++) {
 				if(!isdigit(cep->ce_vardata[i])) {
@@ -325,14 +347,28 @@ int listrestrict_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs
 					break;
 				}
 			}
-			if(!errors && atoi(cep->ce_vardata) < 10) {
+			if(errors)
+				continue;
+
+			 if(atoi(cep->ce_vardata) < 10) {
 				config_error("%s:%i: %s::%s must be an integer of 10 or larger m8", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
 				errors++; // Increment err0r count fam
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "needauth")) {
+		if(!strcmp(cep->ce_varname, "need-auth")) {
+			muhcfg.got_need_auth = 1;
+			if(!cep->ce_vardata || (strcmp(cep->ce_vardata, "0") && strcmp(cep->ce_vardata, "1"))) {
+				config_error("%s:%i: %s::%s must be either 0 or 1 fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+				errors++; // Increment err0r count fam
+				continue;
+			}
+			muhcfg.got_need_auth = atoi(cep->ce_vardata); // Check for this and connect-delay being specified/zero in posttest y0
+			continue;
+		}
+
+		if(!strcmp(cep->ce_varname, "auth-is-enough")) {
 			if(!cep->ce_vardata || (strcmp(cep->ce_vardata, "0") && strcmp(cep->ce_vardata, "1"))) {
 				config_error("%s:%i: %s::%s must be either 0 or 1 fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
 				errors++; // Increment err0r count fam
@@ -340,25 +376,17 @@ int listrestrict_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "authisenough")) {
+		if(!strcmp(cep->ce_varname, "fake-channels")) {
 			if(!cep->ce_vardata || (strcmp(cep->ce_vardata, "0") && strcmp(cep->ce_vardata, "1"))) {
 				config_error("%s:%i: %s::%s must be either 0 or 1 fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
 				errors++; // Increment err0r count fam
+				continue;
 			}
+			muhcfg.got_fake_channels = atoi(cep->ce_vardata);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "fakechans")) {
-			if(!cep->ce_vardata || (strcmp(cep->ce_vardata, "0") && strcmp(cep->ce_vardata, "1"))) {
-				config_error("%s:%i: %s::%s must be either 0 or 1 fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
-				errors++; // Increment err0r count fam
-			}
-			else
-				conf_fakechans = atoi(cep->ce_vardata);
-			continue;
-		}
-
-		if(!strcmp(cep->ce_varname, "glinetime")) {
+		if(!strcmp(cep->ce_varname, "ban-time")) {
 			// Should be a time string imo (7d10s etc, or just 20)
 			if(!cep->ce_vardata || config_checkval(cep->ce_vardata, CFG_TIME) <= 0) {
 				config_error("%s:%i: %s::%s must be a time string like '7d10m' or simply '20'", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
@@ -377,8 +405,8 @@ int listrestrict_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs
 					continue; // Next iteration imo tbh
 				}
 
-				if(strcmp(cep2->ce_varname, "all") && strcmp(cep2->ce_varname, "connect") && strcmp(cep2->ce_varname, "auth") && strcmp(cep2->ce_varname, "fakechans")) {
-					config_error("%s:%i: invalid %s::exceptions type (must be one of: connect, auth, fakechans, all)", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF); // Rep0t error
+				if(strcmp(cep2->ce_varname, "all") && strcmp(cep2->ce_varname, "connect") && strcmp(cep2->ce_varname, "auth") && strcmp(cep2->ce_varname, "fake-channels")) {
+					config_error("%s:%i: invalid %s::exceptions type (must be one of: auth, connect, fake-channels, all)", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF); // Rep0t error
 					errors++; // Increment err0r count fam
 					continue; // Next iteration imo tbh
 				}
@@ -393,78 +421,72 @@ int listrestrict_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs
 		}
 
 		// Here comes another nested block =]
-		if(!strcmp(cep->ce_varname, "fakechannel")) {
+		if(!strcmp(cep->ce_varname, "fake-channel")) {
 			have_fchanname = 0;
 			for(cep2 = cep->ce_entries; cep2; cep2 = cep2->ce_next) {
 				if(!cep2->ce_varname || !cep2->ce_vardata) {
-					config_error("%s:%i: blank/incomplete %s::fakechannel entry", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF); // Rep0t error
-					errors++; // Increment err0r count fam
-					continue; // Next iteration imo tbh
-				}
-
-				if(strcmp(cep2->ce_varname, "name") && strcmp(cep2->ce_varname, "topic") && strcmp(cep2->ce_varname, "users") && strcmp(cep2->ce_varname, "gline")) {
-					config_error("%s:%i: invalid %s::fakechannel attribute (must be one of: name, topic, users, gline)", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF); // Rep0t error
+					config_error("%s:%i: blank/incomplete %s::fake-channel entry", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF); // Rep0t error
 					errors++; // Increment err0r count fam
 					continue; // Next iteration imo tbh
 				}
 
 				if(!strcmp(cep2->ce_varname, "name")) {
 					have_fchanname = 1;
-					if(cep2->ce_vardata[0] != '#') {
-						config_error("%s:%i: invalid %s::fakechannel::%s (channel name must start with a #)", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname); // Rep0t error
+					if(!valid_channelname(cep2->ce_vardata)) {
+						config_error("%s:%i: invalid %s::fake-channel::%s (must start with # and max length is %i characters)", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname, CHANNELLEN); // Rep0t error
 						errors++;
-						continue;
 					}
-					if(strchr(cep2->ce_vardata, ',') || strchr(cep2->ce_vardata, ' ')) {
-						config_error("%s:%i: invalid %s::fakechannel::%s (contains space or comma)", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname); // Rep0t error
-						errors++;
-						continue;
-					}
-					if(strlen(cep2->ce_vardata) > CHANNELLEN) {
-						config_error("%s:%i: invalid %s::fakechannel::%s (too long), max length is %i characters", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname, CHANNELLEN); // Rep0t error
-						errors++;
-						continue;
-					}
+					continue;
 				}
 
 				if(!strcmp(cep2->ce_varname, "topic")) {
 					if(strlen(cep2->ce_vardata) > MAXTOPICLEN) {
-						config_error("%s:%i: invalid %s::fakechannel::%s (too long), absolute max length is %i characters", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname, MAXTOPICLEN); // Rep0t error
+						config_error("%s:%i: invalid %s::fake-channel::%s (too long), absolute max length is %i characters", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname, MAXTOPICLEN); // Rep0t error
 						errors++;
-						continue;
 					}
+					continue;
 				}
 
 				if(!strcmp(cep2->ce_varname, "users")) {
 					if(!cep2->ce_vardata) {
-						config_error("%s:%i: %s::fakechannel::%s must be an integer of 1 or larger m8", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname);
+						config_error("%s:%i: %s::fake-channel::%s must be an integer of 1 or larger m8", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname);
 						errors++; // Increment err0r count fam
 						continue;
 					}
 					for(i = 0; cep2->ce_vardata[i]; i++) {
 						if(!isdigit(cep2->ce_vardata[i])) {
-							config_error("%s:%i: %s::fakechannel::%s must be an integer of 1 or larger m8", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname);
+							config_error("%s:%i: %s::fake-channel::%s must be an integer of 1 or larger m8", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname);
 							errors++; // Increment err0r count fam
 							break;
 						}
 					}
 					if(!errors && atoi(cep2->ce_vardata) < 1) {
-						config_error("%s:%i: %s::fakechannel::%s must be an integer of 1 or larger m8", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname);
+						config_error("%s:%i: %s::fake-channel::%s must be an integer of 1 or larger m8", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname);
 						errors++; // Increment err0r count fam
 					}
 					continue;
 				}
 
-				if(!strcmp(cep2->ce_varname, "gline")) {
-					if(!cep2->ce_vardata || (strcmp(cep2->ce_vardata, "0") && strcmp(cep2->ce_vardata, "1"))) {
-						config_error("%s:%i: %s::fakechannel::%s must be either 0 or 1 fam", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname);
+				if(!strcmp(cep2->ce_varname, "ban-action")) {
+					banact = banact_stringtoval(cep2->ce_vardata);
+					if(!banact) {
+						config_error("%s:%i: unknown %s::fake-channel::%s", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname);
+						errors++; // Increment err0r count fam
+						continue;
+					}
+
+					if(IsSoftBanAction(banact) || banact == BAN_ACT_WARN) {
+						config_error("%s:%i: invalid %s::fake-channel::%s (cannot be a soft action, block or warn)", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname);
 						errors++; // Increment err0r count fam
 					}
 					continue;
 				}
+
+				config_error("%s:%i: invalid %s::fake-channel attribute %s (must be one of: name, topic, users, ban-action)", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname); // Rep0t error
+				errors++; // Increment err0r count fam
 			}
 			if(!have_fchanname) {
-				config_error("%s:%i: invalid %s::fakechannel entry (must contain a channel name)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+				config_error("%s:%i: invalid %s::fake-channel entry (must contain a channel name)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
 				errors++;
 				continue;
 			}
@@ -482,8 +504,12 @@ int listrestrict_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs
 
 int listrestrict_configposttest(int *errs) {
 	int errors = 0;
-	if(conf_fakechans && !fakechanCount) {
-		config_error("[%s] %s::fakechans was enabled but there aren't any configured channels (fakechannel {} block)", MOD_HEADER.name, MYCONF);
+	if(muhcfg.got_fake_channels && !fakechanCount) {
+		config_error("[%s] %s::fake-channels was enabled but there aren't any configured channels (fake-channel {} block)", MOD_HEADER.name, MYCONF);
+		errors++;
+	}
+	if(!muhcfg.got_connect_delay && !muhcfg.got_need_auth) {
+		config_error("[%s] Neither %s::connect-delay nor %s::need-auth were specified or enabled", MOD_HEADER.name, MYCONF, MYCONF);
 		errors++;
 	}
 	*errs = errors;
@@ -498,11 +524,11 @@ int listrestrict_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 	restrictExcept **exEntry = &exceptList; // Hecks so the ->next chain stays intact
 	fakeChannel **fchanEntry = &fakechanList;
 	exceptType etype = LRE_UNKNOWN; // Just a lil' default =]
-	char fchanName[BUFSIZE];
-	char fchanTopic[BUFSIZE];
+	char fchanName[CHANNELLEN + 1];
+	char fchanTopic[MAXTOPICLEN + 1]; // Just use absolute maximum topic length here ;]
 	int fchanUsers;
-	int fchanGlinem;
-	size_t tlen;
+	BanAction fchanBanact;
+	size_t len;
 	int topiclen;
 
 	// Since we'll add a new top-level block to unrealircd.conf, need to filter on CONFIG_MAIN lmao
@@ -523,28 +549,28 @@ int listrestrict_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		if(!cep->ce_varname)
 			continue; // Next iteration imo tbh
 
-		if(cep->ce_vardata && !strcmp(cep->ce_varname, "connectdelay")) {
-			muhDelay = atoi(cep->ce_vardata);
+		if(!strcmp(cep->ce_varname, "connect-delay")) {
+			muhcfg.connect_delay = atoi(cep->ce_vardata);
 			continue;
 		}
 
-		if(cep->ce_vardata && !strcmp(cep->ce_varname, "needauth")) {
-			needAuth = atoi(cep->ce_vardata);
+		if(!strcmp(cep->ce_varname, "need-auth")) {
+			muhcfg.need_auth = atoi(cep->ce_vardata);
 			continue;
 		}
 
-		if(cep->ce_vardata && !strcmp(cep->ce_varname, "authisenough")) {
-			authIsEnough = atoi(cep->ce_vardata);
+		if(!strcmp(cep->ce_varname, "auth-is-enough")) {
+			muhcfg.auth_is_enough = atoi(cep->ce_vardata);
 			continue;
 		}
 
-		if(cep->ce_vardata && !strcmp(cep->ce_varname, "fakechans")) {
-			fakeChans = atoi(cep->ce_vardata);
+		if(!strcmp(cep->ce_varname, "fake-channels")) {
+			muhcfg.fake_channels = atoi(cep->ce_vardata);
 			continue;
 		}
 
-		if(cep->ce_vardata && !strcmp(cep->ce_varname, "glinetime")) {
-			glineTime = config_checkval(cep->ce_vardata, CFG_TIME);
+		if(!strcmp(cep->ce_varname, "ban-time")) {
+			muhcfg.ban_time = config_checkval(cep->ce_vardata, CFG_TIME);
 			continue;
 		}
 
@@ -560,7 +586,7 @@ int listrestrict_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 					etype = LRE_CONNECT;
 				else if(!strcmp(cep2->ce_varname, "auth"))
 					etype = LRE_AUTH;
-				else if(!strcmp(cep2->ce_varname, "fakechans"))
+				else if(!strcmp(cep2->ce_varname, "fake-channels"))
 					etype = LRE_FAKECHANS;
 
 				// Allocate mem0ry for the current entry
@@ -582,12 +608,12 @@ int listrestrict_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "fakechannel")) {
+		if(!strcmp(cep->ce_varname, "fake-channel")) {
 			// Gotta reset values imo
 			fchanName[0] = '\0';
 			fchanTopic[0] = '\0';
 			fchanUsers = 0;
-			fchanGlinem = 0;
+			fchanBanact = 0;
 
 			// Loop through parameters of a single fakechan
 			for(cep2 = cep->ce_entries; cep2; cep2 = cep2->ce_next) {
@@ -595,22 +621,16 @@ int listrestrict_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 					continue; // Next iteration imo tbh
 
 				if(!strcmp(cep2->ce_varname, "name")) {
-					if(valid_channelname(cep2->ce_vardata)) {
-						strlcpy(fchanName, cep2->ce_vardata, sizeof(fchanName));
-						continue;
-					}
-					else {
-						config_error("%s:%i: invalid %s::fakechannel::%s '%s' (not a valid channel name), skipping it", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname, cep2->ce_vardata);
-						break;
-					}
+					strlcpy(fchanName, cep2->ce_vardata, sizeof(fchanName));
+					continue;
 				}
 
 				if(!strcmp(cep2->ce_varname, "topic")) {
-					if((tlen = strlen(cep2->ce_vardata)) > 0) {
+					if((len = strlen(cep2->ce_vardata)) > 0) {
 						topiclen = (iConf.topic_length > 0 ? iConf.topic_length : tempiConf.topic_length);
-						if(tlen > topiclen)
-							config_warn("%s:%i: %s::fakechannel::%s exceeds maximum allowed length (%d chars), truncating it", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname, topiclen);
-						strlcpy(fchanTopic, cep2->ce_vardata, topiclen + 1);
+						if(len > topiclen)
+							config_warn("%s:%i: %s::fake-channel::%s exceeds maximum allowed length (%d chars), truncating it", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep2->ce_varname, topiclen);
+						strlcpy(fchanTopic, cep2->ce_vardata, sizeof(fchanTopic));
 					}
 					continue;
 				}
@@ -620,8 +640,8 @@ int listrestrict_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 					continue;
 				}
 
-				if(!strcmp(cep2->ce_varname, "gline")) {
-					fchanGlinem = atoi(cep2->ce_vardata);
+				if(!strcmp(cep2->ce_varname, "ban-action")) {
+					fchanBanact = banact_stringtoval(cep2->ce_vardata);
 					continue;
 				}
 			}
@@ -630,13 +650,18 @@ int listrestrict_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 			if(!fchanName[0])
 				continue;
 
+			if(find_fakechan(fchanName)) {
+				config_warn("%s:%i: duplicate %s::fake-channel::name, ignoring the entire channel", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF);
+				continue;
+			}
+
 			// Allocate mem0ry for the current entry
 			*fchanEntry = safe_alloc(sizeof(fakeChannel));
 
 			(*fchanEntry)->name = strdup(fchanName);
 			(*fchanEntry)->topic = (fchanTopic[0] ? strdup(fchanTopic) : strdup(FCHAN_DEFTOPIC));
 			(*fchanEntry)->users = (fchanUsers <= 0 ? FCHAN_DEFUSERS : fchanUsers);
-			(*fchanEntry)->glinem = fchanGlinem;
+			(*fchanEntry)->banact = fchanBanact;
 
 			if(fchanLast)
 				fchanLast->next = *fchanEntry;
@@ -649,15 +674,3 @@ int listrestrict_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 
 	return 1; // We good
 }
-
-int listrestrict_rehash(void) {
-	// Reset config defaults
-	muhDelay = 0;
-	needAuth = 0;
-	fakeChans = 0;
-	authIsEnough = 0;
-	glineTime = 86400;
-	conf_fakechans = 0;
-	return HOOK_CONTINUE;
-}
-
