@@ -23,24 +23,28 @@ module {
 
 #include "unrealircd.h"
 
-typedef struct _conf_operflag OperFlag;
-typedef struct _chansnoflag ChanSnoFlag;
+typedef struct t_chansnoentry ChanSnoEntry;
+typedef struct t_chansnoflag ChanSnoFlag;
 
-struct _conf_operflag {
-	long flag;
-	char *name;
-};
-
-struct _chansnoflag {
-	ChanSnoFlag *prev, *next;
+struct t_chansnoentry {
+	ChanSnoEntry *prev, *next;
 	char *channel;
 	long flags;
 };
 
-extern OperFlag *config_binary_flags_search(OperFlag *table, char *cmd, int size);
+struct t_chansnoflag {
+	long flag;
+	char *name;
+};
+
+#define BACKPORT_HAS_TKLDEL
+#if (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR <= 1)
+	#undef BACKPORT_HAS_TKLDEL
+#endif
+
+ChanSnoFlag *find_chansnoflag_byname(char *name);
 
 #define MSG_CHANSNO "CHANSNO"
-#define CHSNO_TABLESIZE sizeof(_ChanSnoFlags) / sizeof(_ChanSnoFlags[0])
 #define MaxSize(x) (sizeof(x) - strlen(x) - 1)
 
 #define IsParam(x) (parc > (x) && !BadPtr(parv[(x)]))
@@ -73,6 +77,10 @@ extern OperFlag *config_binary_flags_search(OperFlag *table, char *cmd, int size
 #define CHSNO_SPAMFILTER 0x4000
 #define CHSNO_TKL_ADD 0x8000
 
+#ifdef BACKPORT_HAS_TKLDEL
+	#define CHSNO_TKL_DEL 0x8000000
+#endif
+
 #define CheckAPIError(apistr, apiobj) \
 	do { \
 		if(!(apiobj)) { \
@@ -81,8 +89,8 @@ extern OperFlag *config_binary_flags_search(OperFlag *table, char *cmd, int size
 		} \
 	} while(0)
 
-// This MUST be alphabetised
-OperFlag _ChanSnoFlags[] = {
+// Dis list doesn't necessarily have to be alphabetised but it's easier to read ;]
+ChanSnoFlag _ChanSnoFlags[] = {
 	{ CHSNO_CHANNEL_CREATE,  "channel-creations" },
 	{ CHSNO_CHANNEL_DESTROY, "channel-destructions" },
 	{ CHSNO_CONNECT, "connects" },
@@ -97,8 +105,12 @@ OperFlag _ChanSnoFlags[] = {
 	{ CHSNO_SPAMFILTER, "spamfilter-hits" },
 	{ CHSNO_SQUIT, "squits" },
 	{ CHSNO_TKL_ADD, "tkl-add" },
+#ifdef BACKPORT_HAS_TKLDEL
+	{ CHSNO_TKL_DEL, "tkl-del" },
+#endif
 	{ CHSNO_TOPIC, "topics" },
-	{ CHSNO_UNKUSER_QUIT, "unknown-users" }
+	{ CHSNO_UNKUSER_QUIT, "unknown-users" },
+	{ 0, NULL }, // Terminating nulls so we don't shit our panties ;]
 };
 
 CMD_FUNC(chansno);
@@ -122,6 +134,10 @@ int chansno_hook_channeldestroy(Channel *channel, int *should_destroy);
 int chansno_hook_spamfilter(Client *acptr, char *str, char *str_in, int type, char *target, TKL *tkl);
 CMD_OVERRIDE_FUNC(chansno_override_oper);
 int chansno_hook_tkladd(Client *client, TKL *tkl);
+#ifdef BACKPORT_HAS_TKLDEL
+	int chansno_hook_tkldel(Client *client, TKL *tkl);
+#endif
+int chansno_hook_tklmain(Client *client, TKL *tkl, char direction);
 
 static void InitConf(void);
 static void FreeConf(void);
@@ -132,14 +148,14 @@ static u_int find_sno_channel(Channel *channel);
 static void SendNotice_simple(long type, int local);
 static void SendNotice_channel(Channel *channel, long type, int local);
 
-ChanSnoFlag *ConfChanSno;
+ChanSnoEntry *ConfChanSno;
 
 u_int msgtype = MT_PRIVMSG;
 char msgbuf[BUFSIZE];
 
 ModuleHeader MOD_HEADER = {
 	"third/chansno",
-	"2.0",
+	"2.1",
 	"Allows opers to assign channels for specific server notifications (sort of like snomasks)",
 	"Gottem / jesopo", // Author
 	"unrealircd-5", // Modversion
@@ -179,6 +195,9 @@ MOD_INIT() {
 	HookAdd(modinfo->handle, HOOKTYPE_CHANNEL_DESTROY, 0, chansno_hook_channeldestroy);
 	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_SPAMFILTER, 0, chansno_hook_spamfilter);
 	HookAdd(modinfo->handle, HOOKTYPE_TKL_ADD, 0, chansno_hook_tkladd);
+#ifdef BACKPORT_HAS_TKLDEL
+	HookAdd(modinfo->handle, HOOKTYPE_TKL_DEL, 0, chansno_hook_tkldel);
+#endif
 
 	return MOD_SUCCESS;
 }
@@ -203,10 +222,10 @@ static void InitConf(void) {
 }
 
 static void FreeConf(void) {
-	ChanSnoFlag *c;
+	ChanSnoEntry *c;
 	ListStruct *next;
 
-	for(c = ConfChanSno; c; c = (ChanSnoFlag *) next) {
+	for(c = ConfChanSno; c; c = (ChanSnoEntry *) next) {
 		next = (ListStruct *)c->next;
 		DelListItem(c, ConfChanSno);
 		safe_free(c->channel);
@@ -257,7 +276,7 @@ int chansno_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 					errors++;
 					continue;
 				}
-				if(!config_binary_flags_search(_ChanSnoFlags, cep2->ce_varname, CHSNO_TABLESIZE)) {
+				if(!find_chansnoflag_byname(cep2->ce_varname)) {
 					config_error("%s:%i: unknown chansno::channel flag '%s'", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, cep2->ce_varname);
 					errors++;
 				}
@@ -280,8 +299,8 @@ int chansno_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 
 int chansno_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 	ConfigEntry *cep, *cep2;
-	OperFlag *ofp;
-	ChanSnoFlag *ca;
+	ChanSnoFlag *ofp;
+	ChanSnoEntry *ca;
 
 	if(type != CONFIG_MAIN)
 		return 0;
@@ -291,11 +310,11 @@ int chansno_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 
 	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
 		if(!strcmp(cep->ce_varname, "channel")) {
-			ca = safe_alloc(sizeof(ChanSnoFlag));
+			ca = safe_alloc(sizeof(ChanSnoEntry));
 			safe_strdup(ca->channel, cep->ce_vardata);
 
 			for(cep2 = cep->ce_entries; cep2; cep2 = cep2->ce_next) {
-				if((ofp = config_binary_flags_search(_ChanSnoFlags, cep2->ce_varname, CHSNO_TABLESIZE)))
+				if((ofp = find_chansnoflag_byname(cep2->ce_varname)))
 					ca->flags |= ofp->flag;
 			}
 
@@ -315,18 +334,28 @@ int chansno_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 // Functions used by chansno
 // ===============================================================
 
-static char *get_flag_names(long flags) {
-	u_int i, found = 0;
-	memset(&msgbuf, 0, sizeof(msgbuf));
+ChanSnoFlag *find_chansnoflag_byname(char *name) {
+	ChanSnoFlag *t;
+	for(t = _ChanSnoFlags; t->flag; t++) {
+		if(!strcmp(t->name, name))
+			return t;
+	}
+	return NULL;
+}
 
-	for(i = 0; i < CHSNO_TABLESIZE; i++) {
-		if(flags & _ChanSnoFlags[i].flag) {
+static char *get_flag_names(long flags) {
+	ChanSnoFlag *t;
+	u_int found;
+
+	found = 0;
+	memset(&msgbuf, 0, sizeof(msgbuf));
+	for(t = _ChanSnoFlags; t->flag; t++) {
+		if((flags & t->flag)) {
 			if(found)
 				strncat(msgbuf, ", ", MaxSize(msgbuf));
 			else
 				found = 1;
-
-			strncat(msgbuf, _ChanSnoFlags[i].name, MaxSize(msgbuf));
+			strncat(msgbuf, t->name, MaxSize(msgbuf));
 		}
 	}
 
@@ -337,7 +366,7 @@ static char *get_flag_names(long flags) {
 }
 
 static void stats_chansno_channels(Client *client) {
-	ChanSnoFlag *c;
+	ChanSnoEntry *c;
 	for(c = ConfChanSno; c; c = c->next)
 		sendnumericfmt(client, RPL_TEXT, ":channel %s: %s", c->channel, get_flag_names(c->flags));
 	sendnumeric(client, RPL_ENDOFSTATS, 'S');
@@ -393,7 +422,7 @@ CMD_FUNC(chansno) {
 // ===============================================================
 
 static u_int find_sno_channel(Channel *channel) {
-	ChanSnoFlag *c;
+	ChanSnoEntry *c;
 
 	for(c = ConfChanSno; c; c = c->next) {
 		if(!strcasecmp(channel->chname, c->channel))
@@ -404,7 +433,7 @@ static u_int find_sno_channel(Channel *channel) {
 }
 
 static void SendNotice_simple(long type, int local) {
-	ChanSnoFlag *c;
+	ChanSnoEntry *c;
 	Channel *channel;
 	MessageTag *mtags = NULL;
 
@@ -428,7 +457,7 @@ static void SendNotice_simple(long type, int local) {
 }
 
 static void SendNotice_channel(Channel *channel, long type, int local) {
-	ChanSnoFlag *c;
+	ChanSnoEntry *c;
 	Channel *channel2;
 	MessageTag *mtags = NULL;
 
@@ -567,29 +596,42 @@ CMD_OVERRIDE_FUNC(chansno_override_oper) {
 	char *operclass;
 	ConfigItem_oper *oper;
 
-	CallCommandOverride(ovr, client, recv_mtags, parc, parv);
+	if(!MyUser(client) || IsOper(client)) {
+		CallCommandOverride(ovr, client, recv_mtags, parc, parv);
+		return;
+	}
 
-	if(!MyUser(client) || IsOper(client))
+	CallCommandOverride(ovr, client, recv_mtags, parc, parv);
+	if(!IsOper(client))
 		return;
 
-	if(IsOper(client)) {
-		oper = find_oper(client->user->operlogin);
-		if(oper && oper->operclass)
-			operclass = oper->operclass;
+	oper = find_oper(client->user->operlogin);
+	if(oper && oper->operclass)
+		operclass = oper->operclass;
 
-		snprintf(msgbuf, sizeof(msgbuf), "Oper-up by %s (%s@%s) [%s] (operclass: %s)", client->name, UserName(client), RealHost(client), parv[1], operclass);
-		SendNotice_simple(CHSNO_OPER, 0);
-	}
+	snprintf(msgbuf, sizeof(msgbuf), "Oper-up by %s (%s@%s) (login: %s, operclass: %s)", client->name, UserName(client), RealHost(client), client->user->operlogin, operclass);
+	SendNotice_simple(CHSNO_OPER, 0);
 }
 
-// Added by jesopo
 int chansno_hook_tkladd(Client *client, TKL *tkl) {
+	return chansno_hook_tklmain(client, tkl, '+');
+}
+
+#ifdef BACKPORT_HAS_TKLDEL
+	int chansno_hook_tkldel(Client *client, TKL *tkl) {
+		return chansno_hook_tklmain(client, tkl, '-');
+	}
+#endif
+
+int chansno_hook_tklmain(Client *client, TKL *tkl, char direction) {
+	// This function was originally added by jesopo as chansno_hook_tkladd(), but modifications were needed to also support TKL_DEL, E-Lines and soft ban actions =]]]
 	char setby[NICKLEN + USERLEN + HOSTLEN + 6];
 	char *name;
 	Client *setter;
-	char txt[256];
+	char tkltxt[256];
 	char set_at[128];
 	char expire_at[128];
+	char *dirtxt;
 
 	strncpy(setby, tkl->set_by, sizeof(setby));
 	name = strtok(setby, "!");
@@ -600,76 +642,111 @@ int chansno_hook_tkladd(Client *client, TKL *tkl) {
 
 	switch(tkl->type) {
 		case TKL_KILL:
-			strlcpy(txt, "K-Line", sizeof(txt));
+			strlcpy(tkltxt, "K-Line", sizeof(tkltxt));
 			break;
 		case TKL_ZAP:
-			strlcpy(txt, "Z-Line", sizeof(txt));
+			strlcpy(tkltxt, "Z-Line", sizeof(tkltxt));
 			break;
 		case TKL_KILL | TKL_GLOBAL:
-			strlcpy(txt, "G-Line", sizeof(txt));
+			strlcpy(tkltxt, "G-Line", sizeof(tkltxt));
 			break;
 		case TKL_ZAP | TKL_GLOBAL:
-			strlcpy(txt, "Global Z-Line", sizeof(txt));
+			strlcpy(tkltxt, "Global Z-Line", sizeof(tkltxt));
 			break;
 		case TKL_SHUN | TKL_GLOBAL:
-			strlcpy(txt, "Shun", sizeof(txt));
+			strlcpy(tkltxt, "Shun", sizeof(tkltxt));
 			break;
 		case TKL_NAME | TKL_GLOBAL:
-			strlcpy(txt, "Global Q-Line", sizeof(txt));
+			strlcpy(tkltxt, "Global Q-Line", sizeof(tkltxt));
 			break;
 		case TKL_NAME:
-			strlcpy(txt, "Q-Line", sizeof(txt));
+			strlcpy(tkltxt, "Q-Line", sizeof(tkltxt));
 			break;
 		case TKL_SPAMF | TKL_GLOBAL:
-			strlcpy(txt, "Global Spamfilter", sizeof(txt));
+			strlcpy(tkltxt, "Global Spamfilter", sizeof(tkltxt));
 			break;
 		case TKL_EXCEPTION | TKL_GLOBAL:
-			strlcpy(txt, "Global TKL Exception (E-Line)", sizeof(txt));
+			strlcpy(tkltxt, "Global TKL Exception (E-Line)", sizeof(tkltxt));
 			break;
 		default:
-			strlcpy(txt, "Unknown *-Line", sizeof(txt));
+			strlcpy(tkltxt, "Unknown *-Line", sizeof(tkltxt));
 			break;
 	}
 
+	dirtxt = (direction == '-' ? "removed" : "added");
 	*set_at = '\0';
 	short_date(tkl->set_at, set_at);
 
+	// Some *-Lines have soft actions so need to check for that too lol
 	if(tkl->expire_at != 0) {
 		*expire_at = '\0';
 		short_date(tkl->expire_at, expire_at);
 
-		if(TKLIsNameBan(tkl) && tkl->ptr.nameban)
-			snprintf(msgbuf, sizeof(msgbuf), "%s added for %s on %s GMT (from %s to expire at %s GMT: %s)", txt, tkl->ptr.nameban->name, set_at, tkl->set_by, expire_at, tkl->ptr.nameban->reason);
+		if(TKLIsNameBan(tkl) && tkl->ptr.nameban) {
+			snprintf(msgbuf, sizeof(msgbuf), "%s %s for %s on %s GMT (from %s to expire at %s GMT: %s)",
+				tkltxt, dirtxt, tkl->ptr.nameban->name, set_at, tkl->set_by, expire_at, tkl->ptr.nameban->reason);
+		}
 
-		else if(TKLIsSpamfilter(tkl) && tkl->ptr.spamfilter)
-			snprintf(msgbuf, sizeof(msgbuf), "%s added for %s on %s GMT (from %s to expire at %s GMT: %s)", txt, tkl->ptr.spamfilter->match->str, set_at, tkl->set_by, expire_at, tkl->ptr.spamfilter->tkl_reason);
+		else if(TKLIsSpamfilter(tkl) && tkl->ptr.spamfilter) {
+			snprintf(msgbuf, sizeof(msgbuf), "%s%s %s for %s on %s GMT (from %s to expire at %s GMT: %s)",
+				(IsSoftBanAction(tkl->ptr.spamfilter->action) ? "Soft " : ""), tkltxt, dirtxt, tkl->ptr.spamfilter->match->str,
+				set_at, tkl->set_by, expire_at, tkl->ptr.spamfilter->tkl_reason);
+		}
 
-		else if(TKLIsServerBan(tkl) && tkl->ptr.serverban)
-			snprintf(msgbuf, sizeof(msgbuf), "%s added for %s@%s on %s GMT (from %s to expire at %s GMT: %s)", txt, tkl->ptr.serverban->usermask, tkl->ptr.serverban->hostmask, set_at, tkl->set_by, expire_at, tkl->ptr.serverban->reason);
+		else if(TKLIsServerBan(tkl) && tkl->ptr.serverban) {
+			snprintf(msgbuf, sizeof(msgbuf), "%s%s %s for %s@%s on %s GMT (from %s to expire at %s GMT: %s)",
+				((tkl->ptr.serverban->subtype & TKL_SUBTYPE_SOFT) ? "Soft " : ""), tkltxt, dirtxt, tkl->ptr.serverban->usermask, tkl->ptr.serverban->hostmask,
+				set_at, tkl->set_by, expire_at, tkl->ptr.serverban->reason);
+		}
 
-		else if(TKLIsBanException(tkl) && tkl->ptr.banexception)
-			snprintf(msgbuf, sizeof(msgbuf), "%s added for %s@%s on %s GMT (from %s to expire at %s GMT: %s)", txt, tkl->ptr.banexception->usermask, tkl->ptr.banexception->hostmask, set_at, tkl->set_by, expire_at, tkl->ptr.banexception->reason);
+		else if(TKLIsBanException(tkl) && tkl->ptr.banexception) {
+			snprintf(msgbuf, sizeof(msgbuf), "%s%s %s for %s@%s on %s GMT (from %s to expire at %s GMT: %s)",
+				((tkl->ptr.banexception->subtype & TKL_SUBTYPE_SOFT) ? "Soft " : ""), tkltxt, dirtxt, tkl->ptr.banexception->usermask, tkl->ptr.banexception->hostmask,
+				set_at, tkl->set_by, expire_at, tkl->ptr.banexception->reason);
+		}
 
-		else
-			snprintf(msgbuf, sizeof(msgbuf), "%s (%d) added on %s GMT (from %s to expire at %s GMT: UNKNOWN REASON)", txt, tkl->type, set_at, tkl->set_by, expire_at);
+		else {
+			snprintf(msgbuf, sizeof(msgbuf), "%s (%d) %s on %s GMT (from %s to expire at %s GMT: UNKNOWN REASON)",
+				tkltxt, tkl->type, dirtxt, set_at, tkl->set_by, expire_at);
+		}
 	}
 	else {
-		if(TKLIsNameBan(tkl) && tkl->ptr.nameban)
-			snprintf(msgbuf, sizeof(msgbuf), "Permanent %s added for %s on %s GMT (from %s: %s)", txt, tkl->ptr.nameban->name, set_at, tkl->set_by, tkl->ptr.nameban->reason);
+		if(TKLIsNameBan(tkl) && tkl->ptr.nameban) {
+			snprintf(msgbuf, sizeof(msgbuf), "Permanent %s %s for %s on %s GMT (from %s: %s)",
+				tkltxt, dirtxt, tkl->ptr.nameban->name, set_at, tkl->set_by, tkl->ptr.nameban->reason);
+		}
 
-		else if(TKLIsSpamfilter(tkl) && tkl->ptr.spamfilter)
-			snprintf(msgbuf, sizeof(msgbuf), "Permanent %s added for %s on %s GMT (from %s: %s)", txt, tkl->ptr.spamfilter->match->str, set_at, tkl->set_by, tkl->ptr.spamfilter->tkl_reason);
+		else if(TKLIsSpamfilter(tkl) && tkl->ptr.spamfilter) {
+			snprintf(msgbuf, sizeof(msgbuf), "Permanent %s%s %s for %s on %s GMT (from %s: %s)",
+				(IsSoftBanAction(tkl->ptr.spamfilter->action) ? "Soft " : ""), tkltxt, dirtxt, tkl->ptr.spamfilter->match->str,
+				set_at, tkl->set_by, tkl->ptr.spamfilter->tkl_reason);
+		}
 
-		else if(TKLIsServerBan(tkl) && tkl->ptr.serverban)
-			snprintf(msgbuf, sizeof(msgbuf), "Permanent %s added for %s@%s on %s GMT (from %s: %s)", txt, tkl->ptr.serverban->usermask, tkl->ptr.serverban->hostmask, set_at, tkl->set_by, tkl->ptr.serverban->reason);
+		else if(TKLIsServerBan(tkl) && tkl->ptr.serverban) {
+			snprintf(msgbuf, sizeof(msgbuf), "Permanent %s%s %s for %s@%s on %s GMT (from %s: %s)",
+				((tkl->ptr.serverban->subtype & TKL_SUBTYPE_SOFT) ? "Soft " : ""), tkltxt, dirtxt, tkl->ptr.serverban->usermask, tkl->ptr.serverban->hostmask,
+				set_at, tkl->set_by, tkl->ptr.serverban->reason);
+		}
 
-		else if(TKLIsBanException(tkl) && tkl->ptr.banexception)
-			snprintf(msgbuf, sizeof(msgbuf), "Permanent %s added for %s@%s on %s GMT (from %s: %s)", txt, tkl->ptr.banexception->usermask, tkl->ptr.banexception->hostmask, set_at, tkl->set_by, tkl->ptr.banexception->reason);
+		else if(TKLIsBanException(tkl) && tkl->ptr.banexception) {
+			snprintf(msgbuf, sizeof(msgbuf), "Permanent %s%s %s for %s@%s on %s GMT (from %s: %s)",
+				((tkl->ptr.banexception->subtype & TKL_SUBTYPE_SOFT) ? "Soft " : ""), tkltxt, dirtxt, tkl->ptr.banexception->usermask, tkl->ptr.banexception->hostmask,
+				set_at, tkl->set_by, tkl->ptr.banexception->reason);
+		}
 
-		else
-			snprintf(msgbuf, sizeof(msgbuf), "Permanent %s (%d) added on %s GMT (from %s: UNKNOWN REASON)", txt, tkl->type, set_at, tkl->set_by);
+		else {
+			snprintf(msgbuf, sizeof(msgbuf), "Permanent %s (%d) %s on %s GMT (from %s: UNKNOWN REASON)",
+				tkltxt, tkl->type, dirtxt, set_at, tkl->set_by);
+		}
 	}
 
+#ifdef BACKPORT_HAS_TKLDEL
+	if(direction == '-')
+		SendNotice_simple(CHSNO_TKL_DEL, 0);
+	else
+		SendNotice_simple(CHSNO_TKL_ADD, 0);
+#else
 	SendNotice_simple(CHSNO_TKL_ADD, 0);
+#endif
 	return HOOK_CONTINUE;
 }
