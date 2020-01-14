@@ -52,7 +52,7 @@ int lcIt = 0; // Lowercase 'em instead
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/anticaps", // Module name
-	"2.0", // Version
+	"2.0.1", // Version
 	"Block/lowercase messages that contain a configurable amount of capital letters", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -203,10 +203,19 @@ CMD_OVERRIDE_FUNC(anticaps_override) {
 	char *tmpp; // We gonna fix up da string fam
 	int perc; // Store percentage etc
 	int i, len, rlen, caps; // To count full length as well as caps
+	Client *acptr; // Check for sending to U-Lines =]
 
-	if(BadPtr(parv[1]) || BadPtr(parv[2]) || !client || !MyUser(client) || IsULine(client) || IsOper(client) || strlen(parv[2]) < minLength) {
+	if(parc < 3 || BadPtr(parv[2]) || !MyUser(client) || IsULine(client) || IsOper(client) || strlen(parv[2]) < minLength) {
 		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
 		return;
+	}
+
+	if(*parv[1] != '#') {
+		acptr = find_person(parv[1], NULL);
+		if(acptr && IsULine(acptr)) {
+			CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+			return;
+		}
 	}
 
 	// Some shitty ass scripts may use different colours/markup across chans, so fuck that
