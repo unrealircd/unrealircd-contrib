@@ -86,7 +86,7 @@ struct {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/block_masshighlight", // Module name
-	"2.0", // Version
+	"2.1", // Version
 	"Prevent mass highlights network-wide", // Description
 	"Gottem / k4be", // Author
 	"unrealircd-5", // Modversion
@@ -522,16 +522,21 @@ int masshighlight_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 			switch(cep->ce_vardata[0]) {
 				case 'v':
 					muhcfg.allow_accessmode |= CHFL_VOICE;
+					/* fall through */
 				case 'h':
 					muhcfg.allow_accessmode |= CHFL_HALFOP;
+					/* fall through */
 				case 'o':
 					muhcfg.allow_accessmode |= CHFL_CHANOP;
 		#ifdef PREFIX_AQ
+					/* fall through */
 				case 'a':
 					muhcfg.allow_accessmode |= CHFL_CHANADMIN;
+					/* fall through */
 				case 'q':
 					muhcfg.allow_accessmode |= CHFL_CHANOWNER;
 		#endif
+					/* fall through */
 				default:
 					break;
 			}
@@ -559,7 +564,7 @@ void masshighlight_md_free(ModData *md) {
 }
 
 int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice) {
-	int hl_cur; // Current highlight count yo
+	int hl_cur = 0; // Current highlight count yo
 	char *p; // For tokenising that shit
 	char *werd; // Store current token etc
 	char *cleantext; // Let's not modify char *text =]
@@ -592,7 +597,7 @@ int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership
 
 	// Some sanity + privilege checks ;];] (allow_accessmode, U-Lines and opers are exempt from this shit)
 	if(text && MyUser(client) && !bypass_nsauth && !is_accessmode_exempt(client, channel) && !IsULine(client) && !IsOper(client)) {
-		hl_cur = moddata_membership(lp, massHLMDI).i; // Get current count
+		if(lp) hl_cur = moddata_membership(lp, massHLMDI).i; // Get current count
 
 		// In case someone tries some funny business =]
 		if(!(cleantext = (char *)StripControlCodes(*text)))
@@ -620,7 +625,7 @@ int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership
 		if(!muhcfg.multiline && !clearem) // If single line mode and found a nick
 			clearem = 1; // Need to clear that shit always lol
 
-		moddata_membership(lp, massHLMDI).i = (clearem ? 0 : hl_cur); // Actually set the counter =]
+		if(lp) moddata_membership(lp, massHLMDI).i = (clearem ? 0 : hl_cur); // Actually set the counter =]
 		if(blockem) { // Need to bl0ck?
 			switch(muhcfg.action) {
 				case 'd': // Drop silently
