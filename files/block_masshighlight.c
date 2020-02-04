@@ -545,8 +545,8 @@ int masshighlight_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 					// Fall through
 				case 'o':
 					muhcfg.allow_accessmode |= CHFL_CHANOP;
-			#ifdef PREFIX_AQ
 					// Fall through
+			#ifdef PREFIX_AQ
 				case 'a':
 					muhcfg.allow_accessmode |= CHFL_CHANADMIN;
 					// Fall through
