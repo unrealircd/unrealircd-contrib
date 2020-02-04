@@ -539,21 +539,21 @@ int masshighlight_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 			switch(cep->ce_vardata[0]) {
 				case 'v':
 					muhcfg.allow_accessmode |= CHFL_VOICE;
-					/* fall through */
+					// Fall through
 				case 'h':
 					muhcfg.allow_accessmode |= CHFL_HALFOP;
-					/* fall through */
+					// Fall through
 				case 'o':
 					muhcfg.allow_accessmode |= CHFL_CHANOP;
-		#ifdef PREFIX_AQ
-					/* fall through */
+			#ifdef PREFIX_AQ
+					// Fall through
 				case 'a':
 					muhcfg.allow_accessmode |= CHFL_CHANADMIN;
-					/* fall through */
+					// Fall through
 				case 'q':
 					muhcfg.allow_accessmode |= CHFL_CHANOWNER;
-		#endif
-					/* fall through */
+					// Fall through
+			#endif
 				default:
 					break;
 			}
@@ -569,7 +569,6 @@ int masshighlight_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 			muhcfg.show_opers_origmsg = atoi(cep->ce_vardata);
 			continue;
 		}
-
 	}
 
 	return 1; // We good
@@ -582,7 +581,7 @@ void masshighlight_md_free(ModData *md) {
 
 void masshighlight_client_md_free(ModData *md) {
 	struct user_hls *hl, *next_hl;
-	for(hl = md->ptr; hl; hl=next_hl) { // cleaning the list
+	for(hl = md->ptr; hl; hl = next_hl) { // Cleaning the list
 		next_hl = hl->next;
 		safe_free(hl->chname);
 		safe_free(hl);
@@ -590,54 +589,54 @@ void masshighlight_client_md_free(ModData *md) {
 	md->ptr = NULL;
 }
 
-// these functions are used with external messages (unusual)
+// These functions are used with external messages (unusual)
 int masshighlight_get_client_moddata(Client *client, Channel *channel) {
 	struct user_hls *hl;
-	if(!MyUser(client)) // somehow got called for non-local client
+	if(!MyUser(client)) // Somehow got called for non-local client
 		return 0;
+
 	for(hl = moddata_local_client(client, massHLUserMDI).ptr; hl; hl = hl->next) {
 		if(!strcasecmp(channel->chname, hl->chname))
 			return hl->count;
 	}
-	return 0; // none was found
+	return 0; // None was found
 }
 
 void masshighlight_set_client_moddata(Client *client, Channel *channel, int hl_count) {
-	struct user_hls *hl, *prev_hl = NULL;
-	if(!MyUser(client)) // somehow got called for non-local client
+	struct user_hls *hl, *prev_hl;
+	if(!MyUser(client)) // Somehow got called for non-local client
 		return;
+
+	prev_hl = NULL;
 	for(hl = moddata_local_client(client, massHLUserMDI).ptr; hl; hl = hl->next) {
 		if(!strcasecmp(channel->chname, hl->chname)) {
-			if(hl_count == 0) { // let's free the memory
-				if(!prev_hl) { // it's the first list item
+			if(hl_count == 0) { // Let's free the memory
+				if(!prev_hl) // It's the first list item
 					moddata_local_client(client, massHLUserMDI).ptr = hl->next;
-				} else {
-					prev_hl->next = hl->next; // update the list link
-				}
-				safe_free(hl->chname); // release memory
+				else
+					prev_hl->next = hl->next; // Update the list link
+				safe_free(hl->chname); // Release memory
 				safe_free(hl);
-			} else { // have some data, update the list
-				hl->count = hl_count; // set the data
 			}
-			return; // we're done now
+			else // Have some data, update the list
+				hl->count = hl_count; // Set the data
+			return; // We're done now
 		}
 		prev_hl = hl;
 	}
 
-	// no data found for this client/user combination
-	hl = safe_alloc(sizeof(struct user_hls)); // create a new structure
-	hl->next = NULL; // initialize the fields
+	// No data found for this client/user combination
+	hl = safe_alloc(sizeof(struct user_hls)); // Create a new structure
 	hl->count = hl_count;
 	hl->chname = strdup(channel->chname);
-	if(!prev_hl) { // no data stored for this user yet
-		moddata_local_client(client, massHLUserMDI).ptr = hl; // first item
-	} else {
-		prev_hl->next = hl; // append to list
-	}
+	if(!prev_hl) // No data stored for this user yet
+		moddata_local_client(client, massHLUserMDI).ptr = hl; // First item
+	else
+		prev_hl->next = hl; // Append to list
 }
 
 int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice) {
-	int hl_cur = 0; // Current highlight count yo
+	int hl_cur; // Current highlight count yo
 	char *p; // For tokenising that shit
 	char *werd; // Store current token etc
 	char *cleantext; // Let's not modify char *text =]
@@ -656,6 +655,7 @@ int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership
 
 	// Initialise some shit lol
 	bypass_nsauth = (muhcfg.allow_authed && IsUser(client) && IsLoggedIn(client));
+	hl_cur = 0;
 	blockem = 0;
 	clearem = 1;
 	p = NULL;
@@ -666,15 +666,14 @@ int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership
 	msglen = 0;
 
 	if(IsNocheckHighlights(channel))
-		return HOOK_CONTINUE; // if channelmode is set, allow without further checking
+		return HOOK_CONTINUE; // If channelmode is set, allow without further checking
 
 	// Some sanity + privilege checks ;];] (allow_accessmode, U-Lines and opers are exempt from this shit)
 	if(text && MyUser(client) && !bypass_nsauth && !is_accessmode_exempt(client, channel) && !IsULine(client) && !IsOper(client)) {
-		if(lp) { // the user has joined the channel
+		if(lp) // The user has joined the channel
 			hl_cur = moddata_membership(lp, massHLMDI).i; // Get current count
-		} else { // external message
+		else // External message
 			hl_cur = masshighlight_get_client_moddata(client, channel);
-		}
 
 		// In case someone tries some funny business =]
 		if(!(cleantext = (char *)StripControlCodes(*text)))
@@ -702,11 +701,11 @@ int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership
 		if(!muhcfg.multiline && !clearem) // If single line mode and found a nick
 			clearem = 1; // Need to clear that shit always lol
 
-		if(lp) {
+		// In case of external messages (i.e. chmode +n isn't set for whatever reason), there's no Membership link so just store the moddata with the client instead
+		if(lp)
 			moddata_membership(lp, massHLMDI).i = (clearem ? 0 : hl_cur); // Actually set the counter =]
-		} else {
+		else
 			masshighlight_set_client_moddata(client, channel, (clearem ? 0 : hl_cur));
-		}
 
 		if(blockem) { // Need to bl0ck?
 			switch(muhcfg.action) {
