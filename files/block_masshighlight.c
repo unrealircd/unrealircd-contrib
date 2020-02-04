@@ -48,10 +48,14 @@ int masshighlight_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *err
 int masshighlight_configposttest(int *errs);
 int masshighlight_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
 void masshighlight_md_free(ModData *md);
+void masshighlight_client_md_free(ModData *md);
+int masshighlight_get_client_moddata(Client *client, Channel *channel);
+void masshighlight_set_client_moddata(Client *client, Channel *channel, int hl_count);
 int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice);
 
 int spamf_ugly_vchanoverride = 0; // For viruschan shit =]
 ModDataInfo *massHLMDI; // To store some shit with the channel ;]
+ModDataInfo *massHLUserMDI; // For storing external message hls
 Cmode_t extcmode_nocheck_masshl; // For storing the exemption chanmode =]
 
 struct {
@@ -83,10 +87,16 @@ struct {
 	unsigned short int got_show_opers_origmsg;
 } muhcfg;
 
+struct user_hls {
+	char *chname;
+	int count;
+	struct user_hls *next;
+};
+
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/block_masshighlight", // Module name
-	"2.0", // Version
+	"2.1", // Version
 	"Prevent mass highlights network-wide", // Description
 	"Gottem / k4be", // Author
 	"unrealircd-5", // Modversion
@@ -110,7 +120,14 @@ MOD_INIT() {
 	mreq.name = "masshighlight"; // Name it
 	mreq.free = masshighlight_md_free; // Function to free 'em
 	massHLMDI = ModDataAdd(modinfo->handle, mreq);
-	CheckAPIError("ModDataAdd(masshighlight)", massHLMDI);
+	CheckAPIError("ModDataAdd(masshighlight_membership)", massHLMDI);
+
+	memset(&mreq, 0, sizeof(mreq));
+	mreq.type = MODDATATYPE_LOCAL_CLIENT; // Apply to clients
+	mreq.name = "masshighlight_clent"; // Name it
+	mreq.free = masshighlight_client_md_free; // Function to free 'em
+	massHLUserMDI = ModDataAdd(modinfo->handle, mreq);
+	CheckAPIError("ModDataAdd(masshighlight_client)", massHLUserMDI);
 
 	// Also request +H channel mode fam
 	CmodeInfo req;
@@ -522,16 +539,21 @@ int masshighlight_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 			switch(cep->ce_vardata[0]) {
 				case 'v':
 					muhcfg.allow_accessmode |= CHFL_VOICE;
+					/* fall through */
 				case 'h':
 					muhcfg.allow_accessmode |= CHFL_HALFOP;
+					/* fall through */
 				case 'o':
 					muhcfg.allow_accessmode |= CHFL_CHANOP;
 		#ifdef PREFIX_AQ
+					/* fall through */
 				case 'a':
 					muhcfg.allow_accessmode |= CHFL_CHANADMIN;
+					/* fall through */
 				case 'q':
 					muhcfg.allow_accessmode |= CHFL_CHANOWNER;
 		#endif
+					/* fall through */
 				default:
 					break;
 			}
@@ -558,8 +580,64 @@ void masshighlight_md_free(ModData *md) {
 		md->i = 0;
 }
 
+void masshighlight_client_md_free(ModData *md) {
+	struct user_hls *hl, *next_hl;
+	for(hl = md->ptr; hl; hl=next_hl) { // cleaning the list
+		next_hl = hl->next;
+		safe_free(hl->chname);
+		safe_free(hl);
+	}
+	md->ptr = NULL;
+}
+
+// these functions are used with external messages (unusual)
+int masshighlight_get_client_moddata(Client *client, Channel *channel) {
+	struct user_hls *hl;
+	if(!MyUser(client)) // somehow got called for non-local client
+		return 0;
+	for(hl = moddata_local_client(client, massHLUserMDI).ptr; hl; hl = hl->next) {
+		if(!strcasecmp(channel->chname, hl->chname))
+			return hl->count;
+	}
+	return 0; // none was found
+}
+
+void masshighlight_set_client_moddata(Client *client, Channel *channel, int hl_count) {
+	struct user_hls *hl, *prev_hl = NULL;
+	if(!MyUser(client)) // somehow got called for non-local client
+		return;
+	for(hl = moddata_local_client(client, massHLUserMDI).ptr; hl; hl = hl->next) {
+		if(!strcasecmp(channel->chname, hl->chname)) {
+			if(hl_count == 0) { // let's free the memory
+				if(!prev_hl) { // it's the first list item
+					moddata_local_client(client, massHLUserMDI).ptr = hl->next;
+				} else {
+					prev_hl->next = hl->next; // update the list link
+				}
+				safe_free(hl->chname); // release memory
+				safe_free(hl);
+			} else { // have some data, update the list
+				hl->count = hl_count; // set the data
+			}
+			return; // we're done now
+		}
+		prev_hl = hl;
+	}
+
+	// no data found for this client/user combination
+	hl = safe_alloc(sizeof(struct user_hls)); // create a new structure
+	hl->next = NULL; // initialize the fields
+	hl->count = hl_count;
+	hl->chname = strdup(channel->chname);
+	if(!prev_hl) { // no data stored for this user yet
+		moddata_local_client(client, massHLUserMDI).ptr = hl; // first item
+	} else {
+		prev_hl->next = hl; // append to list
+	}
+}
+
 int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice) {
-	int hl_cur; // Current highlight count yo
+	int hl_cur = 0; // Current highlight count yo
 	char *p; // For tokenising that shit
 	char *werd; // Store current token etc
 	char *cleantext; // Let's not modify char *text =]
@@ -592,7 +670,11 @@ int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership
 
 	// Some sanity + privilege checks ;];] (allow_accessmode, U-Lines and opers are exempt from this shit)
 	if(text && MyUser(client) && !bypass_nsauth && !is_accessmode_exempt(client, channel) && !IsULine(client) && !IsOper(client)) {
-		hl_cur = moddata_membership(lp, massHLMDI).i; // Get current count
+		if(lp) { // the user has joined the channel
+			hl_cur = moddata_membership(lp, massHLMDI).i; // Get current count
+		} else { // external message
+			hl_cur = masshighlight_get_client_moddata(client, channel);
+		}
 
 		// In case someone tries some funny business =]
 		if(!(cleantext = (char *)StripControlCodes(*text)))
@@ -620,7 +702,12 @@ int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership
 		if(!muhcfg.multiline && !clearem) // If single line mode and found a nick
 			clearem = 1; // Need to clear that shit always lol
 
-		moddata_membership(lp, massHLMDI).i = (clearem ? 0 : hl_cur); // Actually set the counter =]
+		if(lp) {
+			moddata_membership(lp, massHLMDI).i = (clearem ? 0 : hl_cur); // Actually set the counter =]
+		} else {
+			masshighlight_set_client_moddata(client, channel, (clearem ? 0 : hl_cur));
+		}
+
 		if(blockem) { // Need to bl0ck?
 			switch(muhcfg.action) {
 				case 'd': // Drop silently
