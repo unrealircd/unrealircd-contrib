@@ -522,15 +522,15 @@ char *get_channel_key_value(Channel *channel, char *key){
 int notify_or_queue(Client *client, char *who, char *key, char *value, Client *changer){ // returns 1 if something remains to sync
 	int trylater = 0;
 	if(!who){
-		sendto_realops("notify_or_queue called with null who!");
+		sendto_snomask(SNO_JUNK, "notify_or_queue called with null who!");
 		return 0;
 	}
 	if(!key){
-		sendto_realops("notify_or_queue called with null key!");
+		sendto_snomask(SNO_JUNK, "notify_or_queue called with null key!");
 		return 0;
 	}
 	if(!client){
-		sendto_realops("notify_or_queue called with null client!");
+		sendto_snomask(SNO_JUNK, "notify_or_queue called with null client!");
 		return 0;
 	}
 	struct unsynced *us, *prev_us;
@@ -562,15 +562,15 @@ int notify_or_queue(Client *client, char *who, char *key, char *value, Client *c
 void send_change(Client *client, char *who, char *key, char *value, Client *changer){
 	char *sender = NULL;
 	if(!key){
-		sendto_realops("send_change called with null key!");
+		sendto_snomask(SNO_JUNK, "send_change called with null key!");
 		return;
 	}
 	if(!who){
-		sendto_realops("send_change called with null who!");
+		sendto_snomask(SNO_JUNK, "send_change called with null who!");
 		return;
 	}
 	if(!client){
-		sendto_realops("send_change called with null client!");
+		sendto_snomask(SNO_JUNK, "send_change called with null client!");
 		return;
 	}
 	if(changer){
@@ -1029,7 +1029,7 @@ CMD_FUNC(cmd_metadata_local){ // METADATA <Target> <Subcommand> [<Param 1> ... [
 			if(!BadPtr(parv[i])) strncat(buf, parv[i], 1023);
 			strncat(buf, " ", 1023);
 		}
-		sendto_realops("Received METADATA, sender %s, params: %s", client->name, buf);
+		sendto_snomask(SNO_JUNK, "Received METADATA, sender %s, params: %s", client->name, buf);
 	}
 	
 	CHECKPARAMSCNT_OR_DIE(2, return);
@@ -1168,14 +1168,14 @@ CMD_FUNC(cmd_metadata_remote){ // handling data from linked server
 			if(!BadPtr(parv[i])) strncat(buf, parv[i], 1023);
 			strncat(buf, " ", 1023);
 		}
-		sendto_realops("Received remote METADATA, sender: %s, params: %s", client->name, buf);
+		sendto_snomask(SNO_JUNK, "Received remote METADATA, sender: %s, params: %s", client->name, buf);
 	}
 	
 	if(parc < 5 || BadPtr(parv[4])){
 		if(parc == 4 && !BadPtr(parv[3])){
 			value = NULL;
 		} else {
-			sendto_realops("METADATA not enough args from %s", client->name);
+			sendto_snomask(SNO_JUNK, "METADATA not enough args from %s", client->name);
 			return;
 		}
 	} else {
@@ -1186,7 +1186,7 @@ CMD_FUNC(cmd_metadata_remote){ // handling data from linked server
 	channame = strchr(target, '#');
 
 	if(!*target || !strcmp(target, "*") || !key_valid(key)){
-		sendto_realops("Bad metadata target %s or key %s from %s", target, key, client->name);
+		sendto_snomask(SNO_JUNK, "Bad metadata target %s or key %s from %s", target, key, client->name);
 		return;
 	}
 	PROCESS_TARGET_OR_DIE(target, user, channel, return);
