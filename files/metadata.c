@@ -997,13 +997,13 @@ int key_valid(char *key){
 
 int check_perms(Client *user, Channel *channel, Client *client, char *key, int mode){ // either user or channel should be NULL
 	Membership *lp;
-	if(!user && !channel){ // specified target is "*"
+	if((user == client) || (!user && !channel)) // specified target is "*" or own nick
 		return 1;
-	}
+	if(IsOper(client) && mode == MODE_GET)
+		return 1; // allow ircops to view everything
 	if(channel){
-		if((lp = find_membership_link(client->user->channel, channel)) && ((lp->flags & HOP_OR_MORE) || (mode == MODE_GET))){ // allow setting channel metadata if we're halfop or more, and getting when we're just on this channel
+		if((lp = find_membership_link(client->user->channel, channel)) && ((lp->flags & HOP_OR_MORE) || (mode == MODE_GET))) // allow setting channel metadata if we're halfop or more, and getting when we're just on this channel
 			return 1;
-		}
 	} else if(user){
 		if(mode == MODE_SET){
 			if(user == client) return 1;
