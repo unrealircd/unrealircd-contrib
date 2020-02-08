@@ -116,6 +116,7 @@ void vsendto_one(Client *to, MessageTag *mtags, const char *pattern, va_list vl)
 CMD_FUNC(cmd_metadata);
 CMD_FUNC(cmd_metadata_remote);
 CMD_FUNC(cmd_metadata_local);
+EVENT(metadata_queue_evt);
 char *metadata_cap_param(Client *client);
 char *metadata_isupport_param(void);
 int metadata_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
@@ -153,9 +154,8 @@ void metadata_send_all_for_user(Client *user, Client *client);
 void metadata_sync(char *what, Client *client);
 int key_valid(char *key);
 int check_perms(Client *user, Channel *channel, Client *client, char *key, int mode);
-void send_notification(Client *client, char *who, char *key, char *value);
 void send_change(Client *client, char *who, char *key, char *value, Client *changer);
-int notify_or_queue(Client *client, char *who, char *key, char *value);
+int notify_or_queue(Client *client, char *who, char *key, char *value, Client *changer);
 
 ModDataInfo *metadataUser;
 ModDataInfo *metadataChannel;
@@ -452,6 +452,9 @@ MOD_LOAD() {
 	if(metadata_settings.max_user_metadata == 0) metadata_settings.max_user_metadata = 10;
 	if(metadata_settings.max_channel_metadata == 0) metadata_settings.max_channel_metadata = 10;
 	if(metadata_settings.max_subscriptions == 0) metadata_settings.max_subscriptions = 10;
+
+	EventAdd(modinfo->handle, "metadata_queue", metadata_queue_evt, NULL, 1500, 0);
+
 	return MOD_SUCCESS;
 }
 
@@ -516,11 +519,7 @@ char *get_channel_key_value(Channel *channel, char *key){
 	return NULL;
 }
 
-void send_notification(Client *client, char *who, char *key, char *value){
-	send_change(client, who, key, value, NULL);
-}
-
-int notify_or_queue(Client *client, char *who, char *key, char *value){ // returns 1 if something remains to sync
+int notify_or_queue(Client *client, char *who, char *key, char *value, Client *changer){ // returns 1 if something remains to sync
 	int trylater = 0;
 	if(!who){
 		sendto_realops("notify_or_queue called with null who!");
@@ -541,7 +540,7 @@ int notify_or_queue(Client *client, char *who, char *key, char *value){ // retur
 		moddata = prepare_user_moddata(client);
 
 	if(IsSendable(client)){
-		send_notification(client, who, key, value);
+		send_change(client, who, key, value, changer);
 	} else { // store for the SYNC
 		trylater = 1;
 		prev_us = NULL;
@@ -603,8 +602,8 @@ void user_metadata_changed(Client *user, char *key, char *value, Client *changer
 	Client *acptr;
 	if(!user || !key) return; // sanity check
 	list_for_each_entry(acptr, &lclient_list, lclient_node){ // notifications for local subscribers
-		if(is_subscribed(acptr, key) && has_common_channels(user, acptr))
-			send_change(acptr, user->name, key, value, changer); // TODO can we do valid queuing here?
+		if(IsUser(acptr) && IsUser(user) && is_subscribed(acptr, key) && has_common_channels(user, acptr))
+			notify_or_queue(acptr, user->name, key, value, changer);
 	}
 
 	list_for_each_entry(acptr, &server_list, special_node){ // notifications for linked servers
@@ -894,16 +893,14 @@ int metadata_subscribe(char *key, Client *client, int remove){
 			if(IsUser(client) && IsUser(acptr) && has_common_channels(acptr, client))
 				value = get_user_key_value(acptr, key);
 			if(value)
-				trylater |= notify_or_queue(client, acptr->name, key, value);
+				trylater |= notify_or_queue(client, acptr->name, key, value, NULL);
 		}
 		for(hashnum = 0; hashnum < CHAN_HASH_TABLE_SIZE; hashnum++){
 			for(channel = hash_get_chan_bucket(hashnum); channel; channel = channel->hnextch){
 				if(IsMember(client, channel)){
 					value = get_channel_key_value(channel, key);
-					if(value){
-						if(notify_or_queue(client, channel->chname, key, value))
-							trylater = 1;
-					}
+					if(value)
+						trylater |= notify_or_queue(client, channel->chname, key, value, NULL);
 				}
 			}
 		}
@@ -1112,8 +1109,9 @@ CMD_FUNC(cmd_metadata_local){ // METADATA <Target> <Subcommand> [<Param 1> ... [
 				continue;
 			}
 		}
-		if(trylater)
+/*		if(trylater)
 			metadata_numeric(client, ERR_METADATASYNCLATER, "*", "5"); // tell client to sync after 5 seconds
+*/
 		metadata_numeric(client, RPL_METADATAEND);
 	} else if(!strcasecmp(cmd, "UNSUB")){
 		CHECKREGISTERED_OR_DIE(client, return);
@@ -1132,14 +1130,14 @@ CMD_FUNC(cmd_metadata_local){ // METADATA <Target> <Subcommand> [<Param 1> ... [
 		CHECKREGISTERED_OR_DIE(client, return);
 		metadata_send_subscribtions(client);
 		metadata_numeric(client, RPL_METADATAEND);
-	} else if(!strcasecmp(cmd, "SYNC")){ // this time again we're just not sending anything if there are no permissions, and an end numeric is not expected too, otherwise i see no difference between SYNC and LIST
+	} else if(!strcasecmp(cmd, "SYNC")){ // the SYNC command is now ignored, as we're using events to send out the queue
 		CHECKREGISTERED_OR_DIE(client, return);
 		PROCESS_TARGET_OR_DIE(target, user, channel, return);
-		if(channel){
+/*		if(channel){
 			metadata_sync(channel->chname, client);
 		} else {
 			metadata_sync(user->name, client);
-		}
+		}*/
 	} else if(!strcasecmp(cmd, "RESYNC")){ // custom command to resend the data to remote servers without splitting
 		if(!IsOper(client)){
 			sendnumeric(client, ERR_NOPRIVILEGES);
@@ -1234,7 +1232,6 @@ int metadata_join(Client *client, Channel *channel, MessageTag *mtags, char *par
 	Client *acptr;
 	Member *cm;
 	char *value;
-	int trylater = 0;
 	struct unsynced *prev_us;
 	struct unsynced *us;
 	Membership *lp;
@@ -1246,27 +1243,21 @@ int metadata_join(Client *client, Channel *channel, MessageTag *mtags, char *par
 	for(metadata = moddata->metadata; metadata; metadata = metadata->next){ // if joining user has metadata, let's notify all subscribers
 		list_for_each_entry(acptr, &lclient_list, lclient_node){
 			if(IsMember(acptr, channel) && is_subscribed(acptr, metadata->name))
-				send_notification(acptr, client->name, metadata->name, metadata->value);
+				notify_or_queue(acptr, client->name, metadata->name, metadata->value, NULL);
 		}
 	}
 	for(subs = moddata->subs; subs; subs = subs->next){
 		value = get_channel_key_value(channel, subs->name); // notify joining user about channel metadata
-		if(value){
-			if(notify_or_queue(client, channel->chname, subs->name, value))
-				trylater = 1;
-		}
+		if(value)
+			notify_or_queue(client, channel->chname, subs->name, value, NULL);
 		for(cm = channel->members; cm; cm = cm->next){ // notify joining user about other channel members' metadata
 			acptr = cm->client;
 			if(acptr == client) continue; // ignore own data
 			value = get_user_key_value(acptr, subs->name);
-			if(value){
-				if(notify_or_queue(client, acptr->name, subs->name, value))
-					trylater = 1;
-			}
+			if(value)
+				notify_or_queue(client, acptr->name, subs->name, value, NULL);
 		}
 	}
-	if(trylater)
-		metadata_numeric(client, ERR_METADATASYNCLATER, channel->chname, "5"); // tell client to sync after 5 seconds
 	return 0;
 }
 
@@ -1295,7 +1286,7 @@ void metadata_sync(char *what, Client *client){ // the argument can be either ch
 					if(!strcasecmp(us->key, metadata->name)){ // has it
 						char *value = get_user_key_value(acptr, us->key);
 						if(value)
-							send_notification(client, us->name, us->key, value);
+							send_change(client, us->name, us->key, value, NULL);
 					}
 					metadata = metadata->next;
 				}
@@ -1309,9 +1300,10 @@ void metadata_sync(char *what, Client *client){ // the argument can be either ch
 		my_moddata->us = us; // we're always removing the first list item
 	}
 
-	if(trylater){
+/*	if(trylater){
 		metadata_numeric(client, ERR_METADATASYNCLATER, what, "5"); // tell client to sync after 5 seconds
 	}
+*/
 }
 
 int metadata_user_registered(Client *client){	//	if we have any metadata set at this point, let's broadcast it to other servers and users
@@ -1321,5 +1313,13 @@ int metadata_user_registered(Client *client){	//	if we have any metadata set at 
 	for(metadata = moddata->metadata; metadata; metadata = metadata->next)
 		user_metadata_changed(client, metadata->name, metadata->value, client);
 	return HOOK_CONTINUE;
+}
+
+EVENT(metadata_queue_evt){ // let's check every 1.5 seconds whether we have something to send
+	Client *acptr;
+	list_for_each_entry(acptr, &lclient_list, lclient_node){ // notifications for local subscribers
+		if(!IsUser(acptr)) continue;
+		metadata_sync("*", acptr);
+	}
 }
 
