@@ -648,9 +648,13 @@ void store_metadata_for_user(Client *client, int remove){ // client must be logg
 				continue;
 			// now let's replace the stored metadata, as the user's one has priority
 			found = 1;
-			sendto_snomask(SNO_JUNK, "[metadata-db] %s replacing key %s", client->name, metadata->name);
-			safe_free(sm->value);
-			sm->value = strdup(metadata->value);
+			if(!strcmp(sm->value, metadata->value)){
+				sendto_snomask(SNO_JUNK, "[metadata-db] %s unchanged key %s", client->name, metadata->name);
+			} else {
+				sendto_snomask(SNO_JUNK, "[metadata-db] %s replacing key %s", client->name, metadata->name);
+				safe_free(sm->value);
+				sm->value = strdup(metadata->value);
+			}
 			sm->last_seen = TStime();
 		}
 		if(found)
