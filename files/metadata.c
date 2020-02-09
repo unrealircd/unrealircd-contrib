@@ -171,7 +171,7 @@ struct settings {
 
 ModuleHeader MOD_HEADER = {
 	"third/metadata",   /* Name of module */
-	"5.0", /* Version */
+	"5.1", /* Version */
 	"draft/metadata and draft/metadata-notify-2 cap", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5"
@@ -765,7 +765,7 @@ void metadata_set_user(Client *user, char *key, char *value, Client *client){
 	}
 	if(!IsServer(client) && MyConnect(client))
 		metadata_numeric(client, RPL_KEYVALUE, target_name, key, "*", value?value:""); // all OK
-	if(changed && (IsUser(client) || IsServer(client)))
+	if(changed && (client == &me || IsUser(client) || IsServer(client)))
 		user_metadata_changed(target, key, value, client);
 }
 
@@ -1199,7 +1199,7 @@ CMD_FUNC(cmd_metadata_remote){ // handling data from linked server
 }
 
 CMD_FUNC(cmd_metadata){
-	if(MyConnect(client) && !IsServer(client))
+	if(client != &me && MyConnect(client) && !IsServer(client))
 		cmd_metadata_local(client, recv_mtags, parc, parv);
 	else
 		cmd_metadata_remote(client, recv_mtags, parc, parv);
