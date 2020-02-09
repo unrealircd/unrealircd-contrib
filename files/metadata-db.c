@@ -101,6 +101,7 @@ EVENT(write_metadatadb_evt);
 #ifndef HOOKTYPE_ACCOUNT_LOGIN
 CMD_OVERRIDE_FUNC(cmd_svslogin);
 CMD_OVERRIDE_FUNC(cmd_svsmode);
+CMD_OVERRIDE_FUNC(cmd_uid);
 #endif
 
 int account_login(Client *client, MessageTag *recv_mtags);
@@ -156,6 +157,9 @@ MOD_LOAD(){
 	}
 	if(!CommandOverrideAddEx(modinfo->handle, "SVS2MODE", 0, cmd_svsmode)){
 		config_error("[%s] Crritical: Failed to request command override for SVS2MODE: %s", MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle));
+	}
+	if(!CommandOverrideAddEx(modinfo->handle, "UID", 0, cmd_uid)){
+		config_error("[%s] Crritical: Failed to request command override for UID: %s", MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle));
 	}
 #else
 	HookAdd(modinfo->handle, HOOKTYPE_ACCOUNT_LOGIN, 0, account_login);
@@ -597,6 +601,27 @@ CMD_OVERRIDE_FUNC(cmd_svsmode){ // and that's based on modules/svsmode.c
 				}
 				break;
 		} /*switch*/
+}
+
+CMD_OVERRIDE_FUNC(cmd_uid){
+	char *sstamp;
+	char *nick;
+	Client *acptr;
+
+	CallCommandOverride(ovr, client, recv_mtags, parc, parv);
+	if (parc < 13 || !IsServer(client))
+		return;
+	sstamp = parv[7];
+	nick = parv[1];
+	
+	acptr = find_person(nick, NULL);
+	if(!acptr)
+		return;
+	
+	if(IsUser(acptr) && *sstamp != '*'){
+		sendto_snomask(SNO_JUNK, "[metadata-db] Acting on UID for %s", acptr->name);
+		account_login(acptr, recv_mtags);
+	}
 }
 #endif //HOOKTYPE_ACCOUNT_LOGIN
 
