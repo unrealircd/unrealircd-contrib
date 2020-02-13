@@ -256,7 +256,7 @@ CMD_FUNC(cmd_monitor){
 	char cmd;
 	char *s, *p = NULL;
 	int toomany = 0;
-	MessageTag *mtags;
+	MessageTag *mtags = NULL;
 
 	if(parc < 2 || BadPtr(parv[1])){
 		cmd = 'l';
