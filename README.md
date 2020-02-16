@@ -11,8 +11,9 @@ To view a list of available modules online, go to https://modules.unrealircd.org
 
 On the command line you can use the [UnrealIRCd 5 module manager](https://www.unrealircd.org/docs/Module_manager)
 to list and (un)install modules, eg:
-* ```./unrealircd modules list```
-* ```./unrealircd modules install third/something```
+* ```./unrealircd module list``` - to list all modules
+* ```./unrealircd module info third/something``` - to show all information about a specific module
+* ```./unrealircd module install third/something``` - to install the specified module
 
 ## Bugs, fixes and enhancements
 If you find a bug or would like to submit a fix or enhancement in a module, then
