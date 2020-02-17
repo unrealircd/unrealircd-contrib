@@ -28,7 +28,7 @@ module
 
 ModuleHeader MOD_HEADER = {
 	"third/metadata-db",   /* Name of module */
-	"5.0", /* Version */
+	"5.0.1", /* Version */
 	"Metadata storage module", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5"
@@ -111,6 +111,13 @@ int write_metadatadb(void);
 int write_metadata_entry(FILE *fd, const char *tmpfname, struct metadata *metadata, char *name, time_t last_seen);
 void store_metadata_for_user(Client *client, int remove);
 int read_metadatadb(void);
+void free_metadata_storage(void);
+int how_many_metadata_channel(Channel *channel, ModDataInfo *channelmd);
+int how_many_metadata_user(Client *client, ModDataInfo *usermd);
+void store_metadata(char *account, struct metadata *metadata, time_t last_seen);
+void send_out_metadata(char *name, char *key, char *value);
+void set_channel_metadata(Channel *channel, struct metadata *metadata);
+void set_user_metadata(char *account, struct metadata *metadata, time_t last_seen);
 
 /* Global variables */
 static uint32_t metadatadb_version = METADATADB_VERSION;
@@ -310,7 +317,6 @@ int write_metadatadb(void){
 	char tmpfname[512];
 	FILE *fd;
 	Channel *channel;
-	Client *acptr;
 	struct metadata *metadata;
 	struct metadata_storage *sm;
 	int cnt = 0;
@@ -422,10 +428,8 @@ void store_metadata(char *account, struct metadata *metadata, time_t last_seen){
 		return; // dropping the outdated entry
 	}
 	struct metadata_storage *prev = NULL, *curr;
-	int found = 0;
 	for(curr = metadata_storage; curr; curr = curr->next){
 		if(!strcmp(curr->account, account) && !strcasecmp(curr->name, metadata->name)){ // we already know this metadata - the user has changed it in the meantime
-			found = 1;
 			safe_free(curr->value);
 			curr->value = strdup(metadata->value);
 			return; // we're done with this one
@@ -648,9 +652,7 @@ void store_metadata_for_user(Client *client, int remove){ // client must be logg
 				continue;
 			// now let's replace the stored metadata, as the user's one has priority
 			found = 1;
-			if(!strcmp(sm->value, metadata->value)){
-				sendto_snomask(SNO_JUNK, "[metadata-db] %s unchanged key %s", client->name, metadata->name);
-			} else {
+			if(strcmp(sm->value, metadata->value)){
 				sendto_snomask(SNO_JUNK, "[metadata-db] %s replacing key %s", client->name, metadata->name);
 				safe_free(sm->value);
 				sm->value = strdup(metadata->value);
@@ -701,6 +703,8 @@ void store_metadata_for_user(Client *client, int remove){ // client must be logg
 			} else {
 				prev_sm = sm;
 			}
+		} else {
+			prev_sm = sm;
 		}
 		sm = next_sm;
 	}
