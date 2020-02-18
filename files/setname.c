@@ -32,7 +32,6 @@ module
                 "loadmodule \"third/setname\";";
   				"And /REHASH the IRCd.";
 				"The module does not need any configuration.";
-				"Please note that the implemented feature is still \"Work In Progress\".";
         }
 }
 *** <<<MODULE MANAGER END>>>
@@ -53,7 +52,7 @@ ModuleHeader MOD_HEADER
   = {
 	"third/setname",	/* Name of module */
 	"5.0", /* Version */
-	"IRCv3-compatible command /setname (CAP draft/setname)", /* Short description of module */
+	"IRCv3-compatible command /setname (CAP setname)", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5",
     };
@@ -63,7 +62,7 @@ MOD_INIT(){
 	ClientCapability *c;
 
 	memset(&cap, 0, sizeof(cap));
-	cap.name = "draft/setname";
+	cap.name = "setname";
 	c = ClientCapabilityAdd(modinfo->handle, &cap, &CAP_SETNAME);
 
 	return MOD_SUCCESS;
