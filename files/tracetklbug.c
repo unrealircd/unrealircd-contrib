@@ -124,3 +124,24 @@ CMD_FUNC(tracetklbug_cmd)
 		}
 	}
 }
+
+/*** <<<MODULE MANAGER START>>>
+module
+{
+	documentation "https://bugs.unrealircd.org/view.php?id=5566";
+
+	// This is displayed in './unrealircd module info ..' and also if compilation of the module fails:
+	troubleshooting "Contact syzop@unrealircd.org if this module fails to compile";
+
+	// Minimum version necessary for this module to work:
+	min-unrealircd-version "5.*";
+
+	post-install-text {
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/tracetklbug\";";
+		"And /REHASH the IRCd.";
+		"The module does not need any other configuration.";
+	}
+}
+*** <<<MODULE MANAGER END>>>
+*/
