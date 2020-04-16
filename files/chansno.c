@@ -155,7 +155,7 @@ char msgbuf[BUFSIZE];
 
 ModuleHeader MOD_HEADER = {
 	"third/chansno",
-	"2.1",
+	"2.1.1",
 	"Allows opers to assign channels for specific server notifications (sort of like snomasks)",
 	"Gottem / jesopo", // Author
 	"unrealircd-5", // Modversion
@@ -451,6 +451,7 @@ static void SendNotice_simple(long type, int local) {
 					sendto_channel(channel, &me, NULL, 0, 0, SEND_ALL, mtags, ":%s %s %s :%s", me.name, MsgType, channel->chname, msgbuf);
 				}
 				free_message_tags(mtags);
+				mtags = NULL;
 			}
 		}
 	}
@@ -475,6 +476,7 @@ static void SendNotice_channel(Channel *channel, long type, int local) {
 					sendto_channel(channel2, &me, NULL, 0, 0, SEND_LOCAL, mtags, ":%s %s %s :[%s] %s", me.name, MsgType, channel2->chname, channel->chname, msgbuf);
 				}
 				free_message_tags(mtags);
+				mtags = NULL;
 			}
 		}
 	}
