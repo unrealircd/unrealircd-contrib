@@ -60,7 +60,7 @@ char *sfx_restore; // "Command" to restore original nick
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/nicksuffix", // Module name
-	"2.0", // Version
+	"2.0.1", // Version
 	"Restrict /nick usage to suffixing your base nick", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -244,7 +244,7 @@ int nicksuffix_hook_prelocalconnect(Client *client) {
 			char fullErr[128];
 			ircsnprintf(fullErr, sizeof(fullErr), "Nickname is unavailable: Cannot contain %c", sfx_separator); // Make error string
 			exit_client(client, NULL, fullErr); // Kbye
-			return 0;
+			return HOOK_DENY;
 		}
 		safe_strdup(moddata_local_client(client, nicksfxMDI).ptr, client->name);
 	}
