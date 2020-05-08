@@ -15,7 +15,7 @@ module
                 "loadmodule \"third/wwwstats\";";
                 "then create a valid configuration block as in the example below:";
                 "wwwstats {";
-				" socket-path \"/tmp/wwwstats.sock\"; // do not specify if you don't want the socket";
+				" socket-path \"/tmp/wwwstats.sock\"; // this option is REQUIRED";
 				"};";
 				"And /REHASH the IRCd.";
 				"";
