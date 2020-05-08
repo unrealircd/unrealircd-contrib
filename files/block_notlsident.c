@@ -40,7 +40,7 @@ char **blockedIdents; // Dynamic array ;]
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/block_notlsident", // Module name
-	"2.0", // Version
+	"2.0.1", // Version
 	"Restrict certain idents to SSL connections only", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -126,13 +126,9 @@ int block_notlsident_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *
 }
 
 int block_notlsident_configposttest(int *errs) {
-	int errors = 0;
-
 	if(!bicount)
-		config_warn("Module %s was loaded but there are no idents specified in the %s { } block", MOD_HEADER.name, MYCONF);
-
-	*errs = errors;
-	return errors ? -1 : 1;
+		config_warn("Module %s was loaded but the %s { } block contains no (valid) idents", MOD_HEADER.name, MYCONF);
+	return 1;
 }
 
 // "Run" the config (everything should be valid at this point)

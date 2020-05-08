@@ -246,7 +246,7 @@ int kickjoindelay_chmode_isok(Client *client, Channel *channel, char mode, char 
 		return EX_ALLOW;
 	}
 
-	return EX_ALLOW; // Falltrough, normally never reached
+	return EX_ALLOW; // Fallthrough, normally never reached
 }
 
 char *kickjoindelay_chmode_conv_param(char *para, Client *client) {

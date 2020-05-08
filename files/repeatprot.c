@@ -82,7 +82,7 @@ struct {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/repeatprot", // Module name
-	"2.0", // Version
+	"2.0.1", // Version
 	"G(Z)-Line/kill users (or block their messages) who spam through CTCP, INVITE, NOTICE and/or PRIVMSG", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -272,16 +272,10 @@ int repeatprot_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) 
 
 // Post test, check for missing shit here
 int repeatprot_configposttest(int *errs) {
-	int errors = 0;
-
 	// Let's croak when there are no items in our block, even though the module was loaded
-	if(!muhcfg.trigCount) {
-		config_error("Empty/No repeatprot::triggers block found"); // Rep0t error
-		errors++; // Increment err0r count fam
-	}
-
-	*errs = errors;
-	return errors ? -1 : 1;
+	if(!muhcfg.trigCount)
+		config_warn("Module %s was loaded but no repeatprot::triggers were specified", MOD_HEADER.name);
+	return 1;
 }
 
 // "Run" the config (everything should be valid at this point)
