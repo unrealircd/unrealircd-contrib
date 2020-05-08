@@ -53,7 +53,7 @@ Cmode_t extcmode_auditorium = 0L; // Store bitwise value latur
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/auditorium", // Module name
-	"2.0.1", // Version
+	"2.0.2", // Version
 	"Channel mode +u to show channel events/messages to/from people with +o/+a/+q only", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -137,6 +137,10 @@ int auditorium_hook_visibleinchan(Client *target, Channel *channel) {
 
 	MessageTag *mtags = NULL;
 	if(IsAudit(channel) && IsUser(client) && !is_chan_op(client, channel) && !IsOper(client) && !IsULine(client)) { // If channel has +u and you don't have +o or higher...
+		// In case the user is banned just keep processing the hooks as usual, since one of them will finally interrupt and (prolly) emit a message =]
+		if(is_banned(client, channel, BANCHK_MSG, text, NULL))
+			return HOOK_CONTINUE;
+
 		// ..."relay" the message to +o etc only
 		new_message(client, NULL, &mtags);
 		sendto_channel(channel, client, NULL, PREFIX_OP|PREFIX_ADMIN|PREFIX_OWNER, 0, SEND_ALL, mtags, ":%s %s @%s :%s", client->name, (notice ? "NOTICE" : "PRIVMSG"), channel->chname, *text);
