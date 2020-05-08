@@ -26,6 +26,11 @@ module {
 // Config block
 #define MYCONF "fantasy"
 
+#define free_args(args, count) do { \
+		for(i = 0; i < count && !BadPtr(args[i]); i++) \
+			safe_free(args[i]); \
+	} while(0)
+
 // Big hecks go here
 typedef struct t_fantasy fantasyCmd;
 
@@ -53,7 +58,7 @@ char svartypes[] = { '-', 'i', 'h', '*', 0 };
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/fantasy", // Module name
-	"2.0", // Version
+	"2.0.1", // Version
 	"Implements custom fantasy channel !cmds", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -308,7 +313,7 @@ int fantasy_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 int fantasy_configposttest(int *errs) {
 	// Let's croak when there are no items in our block, even though the module was loaded
 	if(!fantasyCount)
-		config_warn("Empty/No fantasy block found but 'fantasy' module was loaded");
+		config_warn("Module %s was loaded but the %s { } block contains no (valid) aliases/commands", MOD_HEADER.name);
 	return 1;
 }
 
@@ -421,8 +426,7 @@ int fantasy_chanmsg(Client *client, Channel *channel, int sendflags, int prefix,
 
 	// Double check imo tbh
 	if(!parv[0] || strlen(parv[0]) <= 1 || parv[0][0] != cmdChar) {
-		for(i = 0; parv[i] && !BadPtr(parv[i]); i++) // Need to free parv[] now lol
-			safe_free(parv[i]);
+		free_args(parv, parc);
 		return HOOK_CONTINUE; // Just process the next hewk yo
 	}
 
@@ -495,24 +499,21 @@ int fantasy_chanmsg(Client *client, Channel *channel, int sendflags, int prefix,
 				if(!cmdv[1] || !cmdv[2]) {
 					sendto_realops("[fantasy] The alias '%s' is configured incorrectly: missing arguments (channel and mode flag(s))", fCmd->alias);
 					// Gotta free em
-					for(i = 0; cmdv[i] && !BadPtr(cmdv[i]); i++)
-						safe_free(cmdv[i]);
+					free_args(cmdv, cmdc);
 					continue;
 				}
 
 				if(cmdv[2][0] != '+' && cmdv[2][0] != '-') {
 					sendto_realops("[fantasy] The alias '%s' is configured incorrectly: invalid mode direction, must be either + or -", fCmd->alias);
 					// Gotta free em
-					for(i = 0; cmdv[i] && !BadPtr(cmdv[i]); i++)
-						safe_free(cmdv[i]);
+					free_args(cmdv, cmdc);
 					continue;
 				}
 
 				if(!isalpha(cmdv[2][1])) {
 					sendto_realops("[fantasy] The alias '%s' is configured incorrectly: invalid mode flag, must be an alphabetic character", fCmd->alias);
 					// Gotta free em
-					for(i = 0; cmdv[i] && !BadPtr(cmdv[i]); i++)
-						safe_free(cmdv[i]);
+					free_args(cmdv, cmdc);
 					continue;
 				}
 			}
@@ -530,7 +531,7 @@ int fantasy_chanmsg(Client *client, Channel *channel, int sendflags, int prefix,
 				multikick = 1;
 
 			// Fix up dynamic variables lol
-			for(i = 1; !stoppem && i < cmdc; i++) {
+			for(i = 1; !stoppem && i < cmdc && !BadPtr(cmdv[cmdc]); i++) {
 				// Channel var yo
 				if(match_simple("*$chan*", cmdv[i])) {
 					multitmp = replaceem(cmdv[i], "$chan", channel->chname);
@@ -542,7 +543,7 @@ int fantasy_chanmsg(Client *client, Channel *channel, int sendflags, int prefix,
 
 			// If this is a KICK and multikick is allowed (see a bit above), fix the targets
 			// The comma is a special temporary delimiter that facilit88 this bs m8
-			if(!stoppem && gotkick && multikick && cmdv[2] && strchr(cmdv[2], ',')) {
+			if(!stoppem && gotkick && multikick && cmdc >= 3 && cmdv[2] && strchr(cmdv[2], ',')) {
 				multitmp = strdup(cmdv[2]); // Second arg is the "nick1,nick2" bit
 				p3 = strtok(multitmp, ","); // Now tokenise on the premium comma
 				while(p3 != NULL) {
@@ -561,14 +562,12 @@ int fantasy_chanmsg(Client *client, Channel *channel, int sendflags, int prefix,
 			}
 
 			// Free our shit lol
-			for(i = 0; cmdv[i] && !BadPtr(cmdv[i]); i++)
-				safe_free(cmdv[i]);
+			free_args(cmdv, cmdc);
 		}
 	}
 
 	// Free the remaining stuff
 	safe_free(cmd);
-	for(i = 0; parv[i] && !BadPtr(parv[i]); i++)
-		safe_free(parv[i]);
+	free_args(parv, parc);
 	return HOOK_CONTINUE; // Just process the next hewk lol
 }
