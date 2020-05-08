@@ -313,7 +313,7 @@ int fantasy_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 int fantasy_configposttest(int *errs) {
 	// Let's croak when there are no items in our block, even though the module was loaded
 	if(!fantasyCount)
-		config_warn("Module %s was loaded but the %s { } block contains no (valid) aliases/commands", MOD_HEADER.name);
+		config_warn("Module %s was loaded but the %s { } block contains no (valid) aliases/commands", MOD_HEADER.name, MYCONF);
 	return 1;
 }
 
