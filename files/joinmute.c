@@ -23,6 +23,9 @@ module {
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
 
+// Since v5.0.5 some hooks now include a SendType
+#define BACKPORT_HOOK_SENDTYPE (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 5)
+
 #define CheckAPIError(apistr, apiobj) \
 	do { \
 		if(!(apiobj)) { \
@@ -53,7 +56,6 @@ int joinmute_hook_join(Client *client, Channel *channel, MessageTag *mtags, char
 int joinmute_hook_part(Client *client, Channel *channel, MessageTag *mtags, char *comment);
 int joinmute_hook_quit(Client *client, MessageTag *recv_mtags, char *comment);
 int joinmute_hook_kick(Client *client, Client *victim, Channel *channel, MessageTag *mtags, char *comment);
-int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice);
 int modeJ_is_ok(Client *client, Channel *channel, char mode, char *para, int checkt, int what);
 void *modeJ_put_param(void *lst, char *para);
 char *modeJ_get_param(void *lst);
@@ -62,12 +64,18 @@ void modeJ_free_param(void *lst);
 void *modeJ_dup_struct(void *src);
 int modeJ_sjoin_check(Channel *channel, void *ourx, void *theirx);
 
+#if BACKPORT_HOOK_SENDTYPE
+	int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice);
+#else
+	int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, SendType sendtype);
+#endif
+
 UsersM *muted_users = NULL; // List of data
 Cmode_t extcmode_joinmute = 0L; // To store the bit flag latur
 
 ModuleHeader MOD_HEADER = {
 	"third/joinmute",
-	"2.0",
+	"2.0.1",
 	"Adds +J chmode: Mute newly joined people for +J X seconds",
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -260,7 +268,14 @@ UsersM *FindUserInMemory(Client *client, Channel *channel) {
 	return NULL;
 }
 
-int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice) {
+#if BACKPORT_HOOK_SENDTYPE
+	int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice) {
+#else
+	int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, SendType sendtype) {
+		if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
+			return HOOK_CONTINUE;
+#endif
+
 	char *para;
 	int seconds;
 	UsersM *u;

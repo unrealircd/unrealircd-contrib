@@ -24,6 +24,9 @@ module {
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
 
+// Since v5.0.5 some hooks now include a SendType
+#define BACKPORT_HOOK_SENDTYPE (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 5)
+
 // Config block
 #define MYCONF "block_masshighlight"
 
@@ -51,7 +54,12 @@ void masshighlight_md_free(ModData *md);
 void masshighlight_client_md_free(ModData *md);
 int masshighlight_get_client_moddata(Client *client, Channel *channel);
 void masshighlight_set_client_moddata(Client *client, Channel *channel, int hl_count);
-int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice);
+
+#if BACKPORT_HOOK_SENDTYPE
+	int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice);
+#else
+	int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, SendType sendtype);
+#endif
 
 int spamf_ugly_vchanoverride = 0; // For viruschan shit =]
 ModDataInfo *massHLMDI; // To store some shit with the channel ;]
@@ -96,7 +104,7 @@ struct user_hls {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/block_masshighlight", // Module name
-	"2.1", // Version
+	"2.1.1", // Version
 	"Prevent mass highlights network-wide", // Description
 	"Gottem / k4be", // Author
 	"unrealircd-5", // Modversion
@@ -545,15 +553,15 @@ int masshighlight_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 					// Fall through
 				case 'o':
 					muhcfg.allow_accessmode |= CHFL_CHANOP;
-					// Fall through
 			#ifdef PREFIX_AQ
+					// Fall through
 				case 'a':
 					muhcfg.allow_accessmode |= CHFL_CHANADMIN;
 					// Fall through
 				case 'q':
 					muhcfg.allow_accessmode |= CHFL_CHANOWNER;
-					// Fall through
 			#endif
+					// Fall through
 				default:
 					break;
 			}
@@ -635,7 +643,14 @@ void masshighlight_set_client_moddata(Client *client, Channel *channel, int hl_c
 		prev_hl->next = hl; // Append to list
 }
 
-int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice) {
+#if BACKPORT_HOOK_SENDTYPE
+	int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice) {
+#else
+	int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, SendType sendtype) {
+		if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
+			return HOOK_CONTINUE;
+#endif
+
 	int hl_cur; // Current highlight count yo
 	char *p; // For tokenising that shit
 	char *werd; // Store current token etc

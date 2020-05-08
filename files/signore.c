@@ -23,6 +23,9 @@ module {
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
 
+// Since v5.0.5 some hooks now include a SendType
+#define BACKPORT_HOOK_SENDTYPE (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 5)
+
 // Command strings
 #define MSG_SIGNORE "SIGNORE"
 #define MSG_SIGNORE_ALT "ILINE"
@@ -62,7 +65,12 @@ ILine *get_ilines(void);
 ILine *find_iline(char *mask, char *other);
 ILine *match_iline(Client *client, Client *acptr);
 int signore_hook_serverconnect(Client *client);
-int signore_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice);
+
+#if BACKPORT_HOOK_SENDTYPE
+	int signore_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice);
+#else
+	int signore_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype);
+#endif
 
 // Muh globals
 ModDataInfo *signoreMDI; // To store the I-Lines with &me lol (hack so we don't have to use a .db file or some shit)
@@ -100,7 +108,7 @@ static char *muhhalp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/signore", // Module name
-	"2.0", // Version
+	"2.0.1", // Version
 	"Implements an I-Line for adding server-side ignores", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -352,7 +360,14 @@ int signore_hook_serverconnect(Client *client) {
 }
 
 // Pre message hewk lol
-int signore_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice) {
+#if BACKPORT_HOOK_SENDTYPE
+	int signore_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice) {
+#else
+	int signore_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype) {
+		if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
+			return HOOK_CONTINUE;
+#endif
+
 	static char errbuf[256];
 
 	// Let's exclude some shit lol

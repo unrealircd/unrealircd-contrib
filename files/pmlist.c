@@ -23,6 +23,9 @@ module {
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
 
+// Since v5.0.5 some hooks now include a SendType
+#define BACKPORT_HOOK_SENDTYPE (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 5)
+
 #define MSG_PMLIST "PMLIST" // Display whitelist lol
 #define MSG_OPENPM "OPENPM" // Accept PM
 #define MSG_CLOSEPM "CLOSEPM" // Stop accepting etc
@@ -57,7 +60,6 @@ struct t_pmlistEntry {
 
 // Quality fowod declarations
 static void dumpit(Client *client, char **p);
-int pmlist_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice);
 void tryNotif(Client *client, Client *to, char *text, int notice);
 void pmlist_md_free(ModData *md);
 void pmlist_md_notice_free(ModData *md);
@@ -68,6 +70,12 @@ void free_pmentry(pmEntry *pm);
 int pmlist_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int pmlist_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
 int pmlist_rehash(void);
+
+#if BACKPORT_HOOK_SENDTYPE
+	int pmlist_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice);
+#else
+	int pmlist_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype);
+#endif
 
 long extumode_pmlist = 0L; // Store bitwise value latur
 ModDataInfo *pmlistMDI, *noticeMDI; // To store some shit with the user's Client pointur ;]
@@ -115,7 +123,7 @@ static char *pmlistHalp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/pmlist", // Module name
-	"2.0", // Version
+	"2.0.1", // Version
 	"Implements umode +P to only allow only certain people to privately message you", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -190,7 +198,15 @@ static void dumpit(Client *client, char **p) {
 	client->local->since += 8;
 }
 
-int pmlist_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice) {
+#if BACKPORT_HOOK_SENDTYPE
+	int pmlist_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice) {
+#else
+	int pmlist_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype) {
+		if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
+			return HOOK_CONTINUE;
+		int notice = (sendtype == SEND_TYPE_NOTICE);
+#endif
+
 	pmEntry *pm; // Dat entry fam
 
 	if(!IsUser(client) || IsULine(client) || IsULine(to) || IsOper(client) || client == to) // Check for exclusions imo

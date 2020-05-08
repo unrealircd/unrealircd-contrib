@@ -23,6 +23,9 @@ module {
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
 
+// Since v5.0.5 some hooks now include a SendType
+#define BACKPORT_HOOK_SENDTYPE (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 5)
+
 // Command strings
 #define MSG_TEXTSHUN "TEXTSHUN"
 #define MSG_TEXTSHUN_SHORT "TS"
@@ -64,8 +67,14 @@ TLine *find_tline(char *nickrgx, char *bodyrgx);
 TLine *match_tline(Client *client, char *text);
 int textshun_hook_serverconnect(Client *client);
 int _check_cansend(Client *client, char **text);
-int textshun_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice);
-int textshun_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice);
+
+#if BACKPORT_HOOK_SENDTYPE
+	int textshun_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice);
+	int textshun_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice);
+#else
+	int textshun_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, SendType sendtype);
+	int textshun_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype);
+#endif
 
 ModDataInfo *textshunMDI; // To store the T-Lines with &me lol (hack so we don't have to use a .db file or some shit)
 Command *textshunCmd, *textshunCmdShort, *textshunCmdAlt; // Pointers to the commands we're gonna add
@@ -106,7 +115,7 @@ static char *muhhalp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/textshun", // Module name
-	"2.0", // Version
+	"2.0.1", // Version
 	"Drop messages based on nick and body", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -390,13 +399,28 @@ int textshun_hook_serverconnect(Client *client) {
 }
 
 // Pre message hewks lol
-int textshun_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice) {
-	return _check_cansend(client, text);
-}
+#if BACKPORT_HOOK_SENDTYPE
+	int textshun_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice) {
+		return _check_cansend(client, text);
+	}
 
-int textshun_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice) {
-	return _check_cansend(client, text);
-}
+	int textshun_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice) {
+		return _check_cansend(client, text);
+	}
+
+#else
+	int textshun_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, SendType sendtype) {
+		if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
+			return HOOK_CONTINUE;
+		return _check_cansend(client, text);
+	}
+
+	int textshun_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype) {
+		if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
+			return HOOK_CONTINUE;
+		return _check_cansend(client, text);
+	}
+#endif
 
 // Function for /TLINE etc
 CMD_FUNC(textshun) {

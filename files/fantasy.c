@@ -23,6 +23,9 @@ module {
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
 
+// Since v5.0.5 some hooks now include a SendType
+#define BACKPORT_HOOK_SENDTYPE (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 5)
+
 // Config block
 #define MYCONF "fantasy"
 
@@ -48,7 +51,12 @@ int fantasy_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int fantasy_configposttest(int *errs);
 int fantasy_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
 int fantasy_rehash(void);
-int fantasy_chanmsg(Client *client, Channel *channel, int sendflags, int prefix, char *targetstr, MessageTag *recv_mtags, char *text, int notice);
+
+#if BACKPORT_HOOK_SENDTYPE
+	int fantasy_chanmsg(Client *client, Channel *channel, int sendflags, int prefix, char *targetstr, MessageTag *recv_mtags, char *text, int notice);
+#else
+	int fantasy_chanmsg(Client *client, Channel *channel, int sendflags, int prefix, char *targetstr, MessageTag *recv_mtags, char *text, SendType sendtype);
+#endif
 
 fantasyCmd *fantasyList = NULL; // Store fantasy aliases lol
 int fantasyCount = 0; // Keep trakk of count lol
@@ -58,7 +66,7 @@ char svartypes[] = { '-', 'i', 'h', '*', 0 };
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/fantasy", // Module name
-	"2.0.1", // Version
+	"2.0.2", // Version
 	"Implements custom fantasy channel !cmds", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -378,21 +386,23 @@ int fantasy_rehash(void) {
 	return HOOK_CONTINUE;
 }
 
-int fantasy_chanmsg(Client *client, Channel *channel, int sendflags, int prefix, char *targetstr, MessageTag *recv_mtags, char *text, int notice) {
-	/* Gets args: Client *client, Channel *channel, char *text, int notice
-	**
-	** client: Pointer to user executing command
-	** channel: Pointer to the channel lol
-	** text: The entire message
-	** notice: Was it a notice?
-	*/
+#if BACKPORT_HOOK_SENDTYPE
+	int fantasy_chanmsg(Client *client, Channel *channel, int sendflags, int prefix, char *targetstr, MessageTag *recv_mtags, char *text, int notice) {
+		if(notice)
+			return HOOK_CONTINUE; // Just process the next hewk lol
+#else
+	int fantasy_chanmsg(Client *client, Channel *channel, int sendflags, int prefix, char *targetstr, MessageTag *recv_mtags, char *text, SendType sendtype) {
+		if(sendtype != SEND_TYPE_PRIVMSG)
+			return HOOK_CONTINUE;
+#endif
+
 	// Checkem privs lol
-	if(!client || notice || !MyUser(client) || (!is_chanowner(client, channel) && !is_chanadmin(client, channel) && !IsOper(client)))
-		return HOOK_CONTINUE; // Just process the next hewk lol
+	if(!client || !MyUser(client) || (!is_chanowner(client, channel) && !is_chanadmin(client, channel) && !IsOper(client)))
+		return HOOK_CONTINUE;
 
 	// Jus checkin for empty/non-fantasy messages, also ignore "!!fjert" etc
 	if(!text || strlen(text) <= 1 || text[0] != cmdChar || text[1] == cmdChar)
-		return HOOK_CONTINUE; // Just process the next hewk lol
+		return HOOK_CONTINUE;
 
 	fantasyCmd *fCmd = NULL; // iter8or lol
 	char *p, *p2, *p3; // For tokenising dat shit

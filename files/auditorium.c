@@ -23,6 +23,9 @@ module {
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
 
+// Since v5.0.5 some hooks now include a SendType
+#define BACKPORT_HOOK_SENDTYPE (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 5)
+
 #define CheckAPIError(apistr, apiobj) \
 	do { \
 		if(!(apiobj)) { \
@@ -34,7 +37,12 @@ module {
 // Quality fowod declarations
 int auditorium_chmode_isok(Client *client, Channel *channel, char mode, char *para, int checkt, int what);
 int auditorium_hook_visibleinchan(Client *target, Channel *channel);
-int auditorium_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice);
+
+#if BACKPORT_HOOK_SENDTYPE
+	int auditorium_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice);
+#else
+	int auditorium_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, SendType sendtype);
+#endif
 
 #define CHMODE_FLAG 'u' // Good ol' +u ;];]
 #define IsAudit(x) ((x) && (x)->mode.extmode & extcmode_auditorium)
@@ -45,7 +53,7 @@ Cmode_t extcmode_auditorium = 0L; // Store bitwise value latur
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/auditorium", // Module name
-	"2.0", // Version
+	"2.0.1", // Version
 	"Channel mode +u to show channel events/messages to/from people with +o/+a/+q only", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -108,7 +116,7 @@ int auditorium_chmode_isok(Client *client, Channel *channel, char mode, char *pa
 		}
 		return EX_ALLOW;
 	}
-	return EX_ALLOW; // Falltrough, like when someone attempts +u 10 it'll simply do +u
+	return EX_ALLOW; // Fallthrough, like when someone attempts +u 10 it'll simply do +u
 }
 
 int auditorium_hook_visibleinchan(Client *target, Channel *channel) {
@@ -117,7 +125,16 @@ int auditorium_hook_visibleinchan(Client *target, Channel *channel) {
 	return HOOK_CONTINUE;
 }
 
-int auditorium_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice) {
+#if BACKPORT_HOOK_SENDTYPE
+	int auditorium_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice) {
+#else
+	int auditorium_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, SendType sendtype) {
+		// Let's not act on TAGMSG for the time being :>
+		if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
+			return HOOK_CONTINUE;
+		int notice = (sendtype == SEND_TYPE_NOTICE);
+#endif
+
 	MessageTag *mtags = NULL;
 	if(IsAudit(channel) && IsUser(client) && !is_chan_op(client, channel) && !IsOper(client) && !IsULine(client)) { // If channel has +u and you don't have +o or higher...
 		// ..."relay" the message to +o etc only

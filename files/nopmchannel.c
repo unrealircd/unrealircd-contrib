@@ -23,6 +23,9 @@ module {
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
 
+// Since v5.0.5 some hooks now include a SendType
+#define BACKPORT_HOOK_SENDTYPE (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 5)
+
 #define MYCONF "nopmchannel"
 
 // Big hecks go here
@@ -36,7 +39,12 @@ struct t_nopmchan {
 int nopmchannel_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int nopmchannel_configposttest(int *errs); // You may not need this
 int nopmchannel_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
-int nopmchannel_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice);
+
+#if BACKPORT_HOOK_SENDTYPE
+	int nopmchannel_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice);
+#else
+	int nopmchannel_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype);
+#endif
 
 // Muh globals
 int noPMCount = 0;
@@ -45,7 +53,7 @@ noPMChan *noPMList = NULL;
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/nopmchannel", // Module name
-	"2.0", // Version
+	"2.0.1", // Version
 	"Prevents users sharing a channel from privately messaging each other", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -155,11 +163,9 @@ int nopmchannel_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs)
 
 // Post test, check for missing shit here
 int nopmchannel_configposttest(int *errs) {
-	int errors = 0;
 	if(!noPMCount) // Just a warning will suffice imo =]
-		config_warn("Module %s was loaded but there are no (valid) configuration entries (%s {} block)", MOD_HEADER.name, MYCONF);
-	*errs = errors;
-	return errors ? -1 : 1;
+		config_warn("Module %s was loaded but the %s { } block contains no (valid) channels", MOD_HEADER.name, MYCONF);
+	return 1;
 }
 
 noPMChan *find_npchan(char *name) {
@@ -213,7 +219,14 @@ int nopmchannel_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 }
 
 // Actual hewk function m8
-int nopmchannel_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice) {
+#if BACKPORT_HOOK_SENDTYPE
+	int nopmchannel_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice) {
+#else
+	int nopmchannel_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype) {
+		if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
+			return HOOK_CONTINUE;
+#endif
+
 	Channel *channel;
 	Membership *lp;
 	static char errbuf[256];

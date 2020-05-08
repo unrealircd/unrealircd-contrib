@@ -23,6 +23,9 @@ module {
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
 
+// Since v5.0.5 some hooks now include a SendType
+#define BACKPORT_HOOK_SENDTYPE (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 5)
+
 #define UMODE_FLAG 'c'
 
 #define CheckAPIError(apistr, apiobj) \
@@ -34,14 +37,18 @@ module {
 	} while(0)
 
 // Quality fowod declarations
-int commchans_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice);
+#if BACKPORT_HOOK_SENDTYPE
+	int commchans_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice);
+#else
+	int commchans_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype);
+#endif
 
 long extumode_commonchans = 0; // Store bitwise value latur
 
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/message_commonchans", // Module name
-	"2.0", // Version
+	"2.0.1", // Version
 	"Adds umode +c to prevent people who aren't sharing a channel with you from messaging you", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -70,7 +77,14 @@ MOD_UNLOAD() {
 }
 
 // Actual hewk function m8
-int commchans_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice) {
+#if BACKPORT_HOOK_SENDTYPE
+	int commchans_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice) {
+#else
+	int commchans_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype) {
+		if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
+			return HOOK_CONTINUE;
+#endif
+
 	if(!MyUser(client) || client == to || IsULine(client) || IsULine(to) || IsOper(client) || !(to->umodes & extumode_commonchans) || has_common_channels(client, to))
 		return HOOK_CONTINUE;
 
