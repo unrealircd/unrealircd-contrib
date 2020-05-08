@@ -65,7 +65,7 @@ char *denyReason = NULL; // What message to display
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/denyban", // Module name
-	"2.0", // Version
+	"2.0.1", // Version
 	"Deny specific ban masks network-wide", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -411,6 +411,9 @@ CMD_OVERRIDE_FUNC(denyban_modeoverride) {
 			case 'k': // Channel key
 			case 'L': // Channel link
 			case 'l': // Limit
+			case 'j': // Kickjoindelay
+			case 'J': // Joinmute
+			case 'H': // History
 				fc++;
 				j = mc + 3;
 				if(parc <= j || BadPtr(parv[j])) {

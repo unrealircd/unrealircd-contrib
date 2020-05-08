@@ -58,7 +58,7 @@ int chmodeNotif = 0; // Notification to go wit it
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/fixhop", // Module name
-	"2.0", // Version
+	"2.0.1", // Version
 	"The +h access mode seems to be a little borked/limited, this module implements some tweaks for it", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -496,6 +496,9 @@ CMD_OVERRIDE_FUNC(fixhop_modeoverride) {
 			case 'k': // Channel key
 			case 'L': // Channel link
 			case 'l': // Limit
+			case 'j': // Kickjoindelay
+			case 'J': // Joinmute
+			case 'H': // History
 				fc++;
 				j = mc + 3;
 				if(parc <= j || BadPtr(parv[j])) {

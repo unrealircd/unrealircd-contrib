@@ -47,7 +47,7 @@ int showNotif = 0; // Display message in case of disallowed masks
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/bancheck_access", // Module name
-	"2.0", // Version
+	"2.0.1", // Version
 	"Prevents people who have +o or higher from getting banned, unless done by people with +a/+q or opers", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -231,6 +231,9 @@ CMD_OVERRIDE_FUNC(bancheck_override) {
 			case 'k': // Channel key
 			case 'L': // Channel link
 			case 'l': // Limit
+			case 'j': // Kickjoindelay
+			case 'J': // Joinmute
+			case 'H': // History
 				fc++;
 				j = mc + 3;
 				if(parc <= j || BadPtr(parv[j])) {
