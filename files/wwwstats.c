@@ -15,7 +15,7 @@ module
                 "loadmodule \"third/wwwstats\";";
                 "then create a valid configuration block as in the example below:";
                 "wwwstats {";
-				" socket-path \"/tmp/wwwstats.sock\"; // this option is REQUIRED";
+				" socket-path \"/tmp/wwwstats.sock\"; // do not specify if you don't want the socket";
 				"};";
 				"And /REHASH the IRCd.";
 				"";
@@ -45,19 +45,7 @@ module
 #define MESSAGE_SENDTYPE SendType
 #endif
 
-struct chanStats_s {
-	Channel *chan;
-	char chname[2*CHANNELLEN+1];
-	int msg;
-	int exists;
-	struct chanStats_s *next;
-};
-
-struct channelInfo_s {
-	int hashnum;
-	Channel *chan;
-	int messages;
-};
+#define CHANNEL_MESSAGE_COUNT(channel) moddata_channel(channel, message_count_md).i
 
 struct asendInfo_s {
 	int sock;
@@ -76,18 +64,14 @@ time_t init_time;
 int stats_socket;
 char send_buf[4096];
 struct sockaddr_un stats_addr;
+ModDataInfo *message_count_md;
 
 int wwwstats_msg(Client *sptr, Channel *chptr, MessageTag *mtags, char *msg, MESSAGE_SENDTYPE sendtype);
 EVENT(wwwstats_socket_evt);
 void asend_sprintf(asendInfo *info, char *fmt, ...);
 void append_int_param(asendInfo *info, char *param, int value);
-int getChannelInfo(channelInfo *prev);
-Channel *getChanByName(char *name);
-void removeExpiredChannels();
-char *tmp_escape(char *d, const char *a);
 char *json_escape(char *d, const char *a);
-void appendChannel(Channel *ch, int messages);
-
+void md_free(ModData *md);
 int wwwstats_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int wwwstats_configposttest(int *errs);
 int wwwstats_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
@@ -145,7 +129,7 @@ int wwwstats_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 
 int wwwstats_configposttest(int *errs) {
 	if(!socket_hpath){
-		config_warn("m_wwwstats: warning: socket path not specified! Socket won't be created.");
+		config_warn("[wwwstats] warning: socket path not specified! Socket won't be created. This module will not be useful.");
 	}
 	return 1;
 }
@@ -192,6 +176,8 @@ ModuleHeader MOD_HEADER = {
 MOD_TEST(){
 	// We have our own config block so we need to checkem config obv m9
 	// Priorities don't really matter here
+	socket_hpath = 0;
+
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGTEST, 0, wwwstats_configtest);
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGPOSTTEST, 0, wwwstats_configposttest);
 	return MOD_SUCCESS;
@@ -199,11 +185,22 @@ MOD_TEST(){
 
 /* This is called on module init, before Server Ready */
 MOD_INIT(){
+	ModDataInfo mreq;
 	/*
 	 * We call our add_Command crap here
 	*/
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGRUN, 0, wwwstats_configrun);
 	HookAdd(modinfo->handle, HOOKTYPE_PRE_CHANMSG, 0, wwwstats_msg);
+
+	memset(&mreq, 0 , sizeof(mreq));
+	mreq.type = MODDATATYPE_CHANNEL;
+	mreq.name = "message_count",
+	mreq.free = md_free;
+	message_count_md = ModDataAdd(modinfo->handle, mreq);
+	if(!message_count_md){
+		config_error("[%s] Failed to request message_count moddata: %s", MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle));
+		return MOD_FAILED;
+	}
 
 	return MOD_SUCCESS;
 }
@@ -236,36 +233,21 @@ MOD_LOAD(){
 
 /* Called when module is unloaded */
 MOD_UNLOAD(){
-	time_t act_time;
-	chanStats *next;
-
 	close(stats_socket);
 	unlink(stats_addr.sun_path);
-
-	act_time = time(NULL);
-
-	for(;chans;chans=next) {
-		next=chans->next;
-		free(chans);
-	}
 
 	if(socket_path) free(socket_path);
 	
 	return MOD_SUCCESS;
 }
 
-int wwwstats_msg(Client *sptr, Channel *chptr, MessageTag *mtags, char *msg, MESSAGE_SENDTYPE sendtype) { // called on channel messages
-	chanStats *lp;
-	int c_msg;
-	counter++;
-	for(lp=chans; lp; lp=lp->next) if(lp->chan==chptr) break;
+void md_free(ModData *md){
+	md->i = 0;
+}
 
-	if(lp) lp->msg++; // if channel found, increase msg count
-	else { // create new channel
-		c_msg = 1;
-//	    sendto_realops("wwwstats: added channel %s, %d msgs", name, c_msg);
-		appendChannel(chptr, c_msg);
-	}
+int wwwstats_msg(Client *sptr, Channel *chptr, MessageTag *mtags, char *msg, MESSAGE_SENDTYPE sendtype) { // called on channel messages
+	counter++;
+	CHANNEL_MESSAGE_COUNT(chptr)++;
 	return HOOK_CONTINUE;
 }
 
@@ -275,11 +257,14 @@ EVENT(wwwstats_socket_evt){
 	char name[6*CHANNELLEN+1];
 	int i;
 	int sock;
-	channelInfo chinfo;
 	asendInfo asinfo;
 	struct sockaddr_un cli_addr;
 	socklen_t slen;
 	Client *acptr;
+	Channel *channel;
+	unsigned int hashnum;
+
+	if(!socket_hpath) return; // nothing to do
 
 	sock = accept(stats_socket, (struct sockaddr*) &cli_addr, &slen); // wait for a connection
 	
@@ -314,19 +299,17 @@ EVENT(wwwstats_socket_evt){
 	
 	asend_sprintf(&asinfo, "],\"chan\":[");
 
-	removeExpiredChannels();
-	chinfo.chan = NULL;
-
 	i=0;
-	while(getChannelInfo(&chinfo)) {
-		if(!PubChannel(chinfo.chan)) continue;
-		asend_sprintf(&asinfo, "%s{\"name\":\"%s\",\"users\":%d,\"messages\":%d", i?",":"",
-			json_escape(name, chinfo.chan->chname), chinfo.chan->users, chinfo.messages);
-		if(chinfo.chan->topic)
-			asend_sprintf(&asinfo, ",\"topic\":\"%s\"", json_escape(topic, chinfo.chan->topic));
-		asend_sprintf(&asinfo, "}");
-	
-		i++;
+	for(hashnum = 0; hashnum < CHAN_HASH_TABLE_SIZE; hashnum++){
+		for(channel = hash_get_chan_bucket(hashnum); channel; channel = channel->hnextch){
+			if(!PubChannel(channel)) continue;
+			asend_sprintf(&asinfo, "%s{\"name\":\"%s\",\"users\":%d,\"messages\":%d", i?",":"",
+				json_escape(name, channel->chname), channel->users, CHANNEL_MESSAGE_COUNT(channel));
+			if(channel->topic)
+				asend_sprintf(&asinfo, ",\"topic\":\"%s\"", json_escape(topic, channel->topic));
+			asend_sprintf(&asinfo, "}");
+			i++;
+		}
 	}
 	
 	asend_sprintf(&asinfo, "]}");
@@ -337,89 +320,6 @@ EVENT(wwwstats_socket_evt){
 	}
 
 	close(sock);
-}
-
-void appendChannel(Channel *ch, int messages) {
-	chanStats *lp;
-
-	lp = malloc(sizeof(chanStats));
-	lp->chan = ch;
-	lp->msg = messages;
-	strcpy(lp->chname, ch->chname);
-	lp->next = NULL;
-	if(chans_last) chans_last->next = lp;
-	chans_last = lp;
-	if(!chans) chans = lp;
-}
-
-void removeExpiredChannels() {
-	int hashnum;
-	Channel *c;
-	chanStats *lp, *lpprev, *lpnext;
-	
-	for(lp=chans; lp; lp=lp->next) lp->exists = 0;
-
-	for(hashnum=0; hashnum<CHAN_HASH_TABLE_SIZE; hashnum++) {
-		c = (Channel*) hash_get_chan_bucket(hashnum);
-		while(c) {
-			for(lp=chans; lp; lp=lp->next) if(lp->chan==c) break;
-			if(lp) lp->exists = 1;
-			c = c->hnextch;
-		}
-	}
-
-	lpprev = NULL;
-	lpnext = NULL;
-	for(lp=chans; lp; lp=lpnext) {
-		if(!lp->exists) {
-//			sendto_realops("wwwstats: deleted channel %s", lp->chname);
-			if(lpprev) lpprev->next = lp->next;
-				else chans = lp->next;
-			if(!lp->next) chans_last = lpprev;
-			lpnext = lp->next;
-			free(lp);
-			continue;
-		}
-		lpnext = lp->next;
-		lpprev = lp;
-	}
-}
-
-Channel *getChanByName(char *name) {
-	channelInfo chinfo;
-
-	chinfo.chan = NULL;
-	while(getChannelInfo(&chinfo)) { 
-		if(strcmp(chinfo.chan->chname, name)==0) return chinfo.chan;
-	}
-	return NULL;
-}
-
-int getChannelInfo(channelInfo *prev) {
-	int hashnum = 0;
-	int messages = 0;
-	Channel *c = NULL;
-	chanStats *lp;
-
-	if(prev->chan) {
-		hashnum = prev->hashnum;
-		c = prev->chan->hnextch;
-		if(!c) hashnum++;
-	}
-
-	if(!c) for(; hashnum<CHAN_HASH_TABLE_SIZE; hashnum++) {
-		c = (Channel*) hash_get_chan_bucket(hashnum);
-		if(c) break;
-	}
-	if(!c) return 0;
-
-	for(lp=chans; lp; lp=lp->next) if(lp->chan==c) break;
-	if(lp) messages = lp->msg;
-
-	prev->hashnum = hashnum;
-	prev->chan = c;
-	prev->messages = messages;
-	return 1;
 }
 
 void asend_sprintf(asendInfo *info, char *fmt, ...) {
@@ -440,20 +340,6 @@ void asend_sprintf(asendInfo *info, char *fmt, ...) {
 
 void append_int_param(asendInfo *info, char *param, int value) {
 	asend_sprintf(info, "\"%s\":%d,", param, value);
-}
-
-char *tmp_escape(char *d, const char *a) { // now only for sql queries
-	int diff=0;
-	int i;
-	for(i=0; a[i]; i++) {
-		if((a[i]=='"') || (a[i]=='\\')) {
-			d[diff+i] = '\\';
-			diff++;
-		}
-		d[diff+i] = a[i];
-	}
-	d[diff+i] = 0;
-	return d;
 }
 
 char *json_escape(char *d, const char *a) {
