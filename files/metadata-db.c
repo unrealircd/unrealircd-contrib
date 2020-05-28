@@ -28,7 +28,7 @@ module
 
 ModuleHeader MOD_HEADER = {
 	"third/metadata-db",   /* Name of module */
-	"5.0.1", /* Version */
+	"5.0.2", /* Version */
 	"Metadata storage module", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5"
