@@ -34,6 +34,8 @@ ModuleHeader MOD_HEADER = {
 	"unrealircd-5"
 };
 
+#define TRIGGER_LOGIN_ON_UID (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 6)
+
 #define METADATADB_VERSION 100
 #define METADATADB_SAVE_EVERY 299
 
@@ -101,6 +103,9 @@ EVENT(write_metadatadb_evt);
 #ifndef HOOKTYPE_ACCOUNT_LOGIN
 CMD_OVERRIDE_FUNC(cmd_svslogin);
 CMD_OVERRIDE_FUNC(cmd_svsmode);
+#endif
+
+#if TRIGGER_LOGIN_ON_UID
 CMD_OVERRIDE_FUNC(cmd_uid);
 #endif
 
@@ -155,7 +160,7 @@ MOD_LOAD(){
 		config_error("A critical error occurred when loading module %s: %s", MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle));
 		return MOD_FAILED;
 	}
-#ifndef HOOKTYPE_ACCOUNT_LOGIN // we have no ACCOUNT_LOGIN hook (expected in 5.0.4), so we're on our own to handle that
+#ifndef HOOKTYPE_ACCOUNT_LOGIN // we have no ACCOUNT_LOGIN hook (added in 5.0.4), so we're on our own to handle that
 	if(!CommandOverrideAddEx(modinfo->handle, "SVSLOGIN", 0, cmd_svslogin)){
 		config_error("[%s] Crritical: Failed to request command override for SVSLOGIN: %s", MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle));
 	}
@@ -165,11 +170,14 @@ MOD_LOAD(){
 	if(!CommandOverrideAddEx(modinfo->handle, "SVS2MODE", 0, cmd_svsmode)){
 		config_error("[%s] Crritical: Failed to request command override for SVS2MODE: %s", MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle));
 	}
+#else
+	HookAdd(modinfo->handle, HOOKTYPE_ACCOUNT_LOGIN, 0, account_login);
+#endif // HOOKTYPE_ACCOUNT_LOGIN
+
+#if TRIGGER_LOGIN_ON_UID // 5.0.5 and 5.0.4 did not call ACCOUNT_LOGIN on UID
 	if(!CommandOverrideAddEx(modinfo->handle, "UID", 0, cmd_uid)){
 		config_error("[%s] Crritical: Failed to request command override for UID: %s", MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle));
 	}
-#else
-	HookAdd(modinfo->handle, HOOKTYPE_ACCOUNT_LOGIN, 0, account_login);
 #endif
 
 	HookAdd(modinfo->handle, HOOKTYPE_REMOTE_QUIT, 0, user_quit);
@@ -606,7 +614,9 @@ CMD_OVERRIDE_FUNC(cmd_svsmode){ // and that's based on modules/svsmode.c
 				break;
 		} /*switch*/
 }
+#endif //HOOKTYPE_ACCOUNT_LOGIN
 
+#if TRIGGER_LOGIN_ON_UID
 CMD_OVERRIDE_FUNC(cmd_uid){
 	char *sstamp;
 	char *nick;
@@ -627,7 +637,7 @@ CMD_OVERRIDE_FUNC(cmd_uid){
 		account_login(acptr, recv_mtags);
 	}
 }
-#endif //HOOKTYPE_ACCOUNT_LOGIN
+#endif // TRIGGER_LOGIN_ON_UID
 
 void store_metadata_for_user(Client *client, int remove){ // client must be logged in
 	struct metadata *metadata;
