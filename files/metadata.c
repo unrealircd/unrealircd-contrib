@@ -171,7 +171,7 @@ struct settings {
 
 ModuleHeader MOD_HEADER = {
 	"third/metadata",   /* Name of module */
-	"5.1", /* Version */
+	"5.2", /* Version */
 	"draft/metadata and draft/metadata-notify-2 cap", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5"
@@ -436,8 +436,8 @@ MOD_INIT() {
 	}
 	
 	HookAdd(modinfo->handle, HOOKTYPE_SERVER_SYNC, 0, metadata_server_sync);
-	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_JOIN, 0, metadata_join);
-	HookAdd(modinfo->handle, HOOKTYPE_REMOTE_JOIN, 0, metadata_join);
+	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_JOIN, -2, metadata_join);
+	HookAdd(modinfo->handle, HOOKTYPE_REMOTE_JOIN, -2, metadata_join);
 	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_CONNECT, 0, metadata_user_registered);
 
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGRUN, 0, metadata_configrun);
