@@ -7,7 +7,7 @@
 /*** <<<MODULE MANAGER START>>>
 module
 {
-        documentation "https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md";
+        documentation "https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md#geoip-whois";
         troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
         min-unrealircd-version "5.*";
         post-install-text {
@@ -17,7 +17,7 @@ module
   				"It'll take care of users on all servers in your network.";
 				"Remember that you need \"geoip-base\" module installed on this server";
 				"for geoip-whois to work.";
-				"Detailed documentation is available on https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md";
+				"Detailed documentation is available on https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md#geoip-whois";
         }
 }
 *** <<<MODULE MANAGER END>>>

@@ -7,7 +7,7 @@
 /*** <<<MODULE MANAGER START>>>
 module
 {
-        documentation "https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md";
+        documentation "https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md#geoip-base";
         troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
         min-unrealircd-version "5.*";
         post-install-text {
@@ -17,7 +17,7 @@ module
   				"And /REHASH the IRCd.";
 				"Remember that you need other \"geoip\" module to make a real use of this one.";
 				"DON'T load the \"geoip-transfer\" module on this server.";
-				"Detailed documentation is available on https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md";
+				"Detailed documentation is available on https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md#geoip-base";
         }
 }
 *** <<<MODULE MANAGER END>>>
