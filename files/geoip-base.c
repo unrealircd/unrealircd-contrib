@@ -100,7 +100,7 @@ void geoip_moddata_unserialize(char *str, ModData *m);
 
 ModuleHeader MOD_HEADER = {
 	"third/geoip-base",   /* Name of module */
-	"5.0.1", /* Version */
+	"5.0.2", /* Version */
 	"GeoIP data provider module", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5"
@@ -211,8 +211,37 @@ int geoip_base_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) 
 	return errors ? -1 : 1; // Returning 1 means "all good", -1 means we shat our panties
 }
 
-// required for some reason
+// if the config would make this module unusable, we try to detect it here
 int geoip_base_configposttest(int *errs) {
+	int errors = 0;
+	char *filename;
+	if(!have_config){
+		config_warn("geoip-base: no \"%s\" config block found, using default file locations", MYCONF);
+		filename = strdup(IPv4PATH);
+		convert_to_absolute_path(&filename, CONFDIR);
+		if(access(filename, R_OK)){
+			config_error("geoip-base: File %s not found in the default location or can't be loaded. Please either provide this file or create a \"%s\" config block.", IPv4PATH, MYCONF);
+			errors++;
+		}
+		safe_free(filename);
+		filename = strdup(COUNTRIESPATH);
+		convert_to_absolute_path(&filename, CONFDIR);
+		if(access(filename, R_OK)){
+			config_error("geoip-base: File %s not found in the default location or can't be loaded. Please either provide this file or create a \"%s\" config block.", COUNTRIESPATH, MYCONF);
+			errors++;
+		}
+		safe_free(filename);
+		filename = strdup(IPv6PATH);
+		convert_to_absolute_path(&filename, CONFDIR);
+		if(access(filename, R_OK)){
+			config_error("geoip-base: File %s not found in the default location or can't be loaded. Please either provide this file or create a \"%s\" config block.", IPv6PATH, MYCONF);
+			errors++;
+		}
+		safe_free(filename);
+	}
+	*errs = errors;
+	if(errors)
+		return -1;
 	return 1;
 }
 
@@ -752,7 +781,6 @@ MOD_INIT(){
 MOD_LOAD(){
 	Client *acptr;
 	if(!have_config){
-		sendto_realops("Warning: no configuration for geoip-base, using default file locations");
 		if(read_ipv4(IPv4PATH)){
 			free_all();
 			return MOD_FAILED;
@@ -766,7 +794,7 @@ MOD_LOAD(){
 			return MOD_FAILED;
 		}
 	}
-	
+
 	list_for_each_entry(acptr, &client_list, client_node){
 		if (!IsUser(acptr)) continue;
 		geoip_userconnect(acptr); // add info for all users upon module loading
