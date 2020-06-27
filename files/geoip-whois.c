@@ -7,7 +7,7 @@
 /*** <<<MODULE MANAGER START>>>
 module
 {
-        documentation "https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md";
+        documentation "https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md#geoip-whois";
         troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
         min-unrealircd-version "5.*";
         post-install-text {
@@ -17,7 +17,7 @@ module
   				"It'll take care of users on all servers in your network.";
 				"Remember that you need \"geoip-base\" module installed on this server";
 				"for geoip-whois to work.";
-				"Detailed documentation is available on https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md";
+				"Detailed documentation is available on https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md#geoip-whois";
         }
 }
 *** <<<MODULE MANAGER END>>>
@@ -65,7 +65,7 @@ CMD_OVERRIDE_FUNC(geoip_whois_overridemd);
 
 ModuleHeader MOD_HEADER = {
 	"third/geoip-whois",   /* Name of module */
-	"5.0.1", /* Version */
+	"5.0.2", /* Version */
 	"Add country info to /whois", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5"
@@ -134,8 +134,13 @@ int geoip_whois_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs)
 	return errors ? -1 : 1; // Returning 1 means "all good", -1 means we shat our panties
 }
 
-// required for some reason
 int geoip_whois_configposttest(int *errs) {
+	if(!have_config){
+		config_warn("geoip-whois: no \"%s\" config block found, using default options", MYCONF);
+		display_name = 1;
+		display_code = 1;
+	}
+	if(info_string == NULL) info_string = strdup("connected from ");
 	return 1;
 }
 
@@ -243,13 +248,6 @@ MOD_INIT(){
 }
 
 MOD_LOAD(){
-	if(!have_config){
-		sendto_realops("geoip-whois: warning: no configuration, using default options");
-		display_name = 1;
-		display_code = 1;
-	}
-	if(info_string == NULL) info_string = strdup("connected from ");
-	
 	geoip_modinfo = modinfo;
 
 	EventAdd(geoip_modinfo->handle, "set_existing_users", set_existing_users_evt, NULL, 1000, 1);
