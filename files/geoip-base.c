@@ -100,7 +100,7 @@ void geoip_moddata_unserialize(char *str, ModData *m);
 
 ModuleHeader MOD_HEADER = {
 	"third/geoip-base",   /* Name of module */
-	"5.0.2", /* Version */
+	"5.0.3", /* Version */
 	"GeoIP data provider module", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5"
@@ -125,6 +125,8 @@ int geoip_base_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) 
 	// If it isn't our bl0ck, idc
 	if(strcmp(ce->ce_varname, MYCONF))
 		return 0;
+
+	have_config = 1;
 
 	// Loop dat shyte fam
 	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
@@ -260,8 +262,6 @@ int geoip_base_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 	// If it isn't our bl0cc, idc
 	if(strcmp(ce->ce_varname, MYCONF))
 		return 0;
-
-	have_config = 1;
 	
 	// Loop dat shyte fam
 	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
@@ -753,6 +753,7 @@ void geoip_moddata_unserialize(char *str, ModData *m){
 }
 
 MOD_TEST(){
+	have_config = 0;
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGTEST, 0, geoip_base_configtest);
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGPOSTTEST, 0, geoip_base_configposttest);
 	return MOD_SUCCESS;
