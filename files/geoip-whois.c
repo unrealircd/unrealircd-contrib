@@ -65,7 +65,7 @@ CMD_OVERRIDE_FUNC(geoip_whois_overridemd);
 
 ModuleHeader MOD_HEADER = {
 	"third/geoip-whois",   /* Name of module */
-	"5.0.2", /* Version */
+	"5.0.3", /* Version */
 	"Add country info to /whois", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5"
@@ -89,6 +89,8 @@ int geoip_whois_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs)
 	// If it isn't our bl0ck, idc
 	if(strcmp(ce->ce_varname, MYCONF))
 		return 0;
+
+	have_config = 1;
 
 	// Loop dat shyte fam
 	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
@@ -160,8 +162,6 @@ int geoip_whois_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 	if(strcmp(ce->ce_varname, MYCONF))
 		return 0;
 
-	have_config = 1;
-	
 	// Loop dat shyte fam
 	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
 		// Do we even have a valid name l0l?
@@ -235,6 +235,7 @@ static char *get_country_text(Client *cptr){
 }
 
 MOD_TEST(){
+	have_config = 0;
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGTEST, 0, geoip_whois_configtest);
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGPOSTTEST, 0, geoip_whois_configposttest);
 	return MOD_SUCCESS;
