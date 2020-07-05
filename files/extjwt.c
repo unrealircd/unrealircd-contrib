@@ -51,6 +51,17 @@ module
 #define PAYLOAD_CHAN_SIZE (sizeof(payload_chan_pattern)+CHANNELLEN+TS_LENGTH+MODES_SIZE)
 #define PAYLOAD_SIZE (sizeof(payload_pattern_with_url)+sizeof(payload_chan_pattern)+TS_LENGTH+HOSTLEN+NICKLEN+NICKLEN+URL_LENGTH+MODES_SIZE+PAYLOAD_CHAN_SIZE)
 
+// OpenSSL 1.0.x compatibility
+
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
+void ECDSA_SIG_get0(const ECDSA_SIG *sig, const BIGNUM **pr, const BIGNUM **ps){
+	if (pr != NULL)
+		*pr = sig->r;
+	if (ps != NULL)
+		*ps = sig->s;
+}
+#endif
+
 // struct definitions
 
 struct extjwt_config {
@@ -100,7 +111,7 @@ const char payload_chan_pattern[] = ",\"channel\":\"%s\",\"joined\":%lu,\"cmodes
 
 ModuleHeader MOD_HEADER = {
 	"third/extjwt",
-	"5.0",
+	"5.0.1",
 	"Command /EXTJWT (web service authorization)", 
 	"k4be@PIRC",
 	"unrealircd-5",
