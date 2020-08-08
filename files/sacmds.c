@@ -143,7 +143,6 @@ CMD_FUNC(cmd_sanick) {
 	Client *ocptr; // "New" check
 	long tiem; // Nickchange timestamp etc
 	MessageTag *mtags;
-	char snotice[BUFSIZE]; // For the full snotice lol
 
 	// Prevent non-privileged opers from using this command
 	if(!ValidatePermissionsForPath("sanick", client, NULL, NULL, NULL) && !IsULine(client)) {
@@ -213,9 +212,9 @@ CMD_FUNC(cmd_sanick) {
 	(void)del_from_client_hash_table(acptr->name, acptr); // Remove old name from lclient_list
 	hash_check_watch(acptr, RPL_LOGOFF);
 
-	if(client->user) { // Just in case a server calls this shit ;]
-		snprintf(snotice, sizeof(snotice), "*** %s (%s@%s) used %s to change %s to %s", client->name, client->user->username, client->user->realhost, MSG_SANICK, acptr->name, newnick);
-		sendto_snomask_global(SNO_SACMD, snotice); // Send notice to all 0pers
+	if(client->user) {
+		// Just in case a server calls this shit, send notice to all 0pers ;]
+		sendto_snomask_global(SNO_SACMD, "*** %s (%s@%s) used %s to change %s to %s", client->name, client->user->username, client->user->realhost, MSG_SANICK, acptr->name, newnick);
 	}
 
 	RunHook2(HOOKTYPE_LOCAL_NICKCHANGE, acptr, newnick); // Run hooks lol
@@ -231,7 +230,7 @@ CMD_FUNC(cmd_saumode) {
 	int what; // Direction flag
 	long lastflags; // Current umodes
 	int i; // iter8or lol
-	char snotice[BUFSIZE], mbuf[128]; // For the full snotice lol
+	char mbuf[128]; // For storing the required mode string to pass along to the MODE command
 
 	// Prevent non-privileged opers from using this command
 	if(!ValidatePermissionsForPath("saumode", client, NULL, NULL, NULL) && !IsULine(client)) {
@@ -377,10 +376,9 @@ CMD_FUNC(cmd_saumode) {
 		if(MyUser(acptr) && *mbuf)
 			sendto_one(acptr, NULL, ":%s MODE %s :%s", client->name, acptr->name, mbuf);
 
-		if(client->user) { // Just in case a server calls this shit ;]
-			snprintf(snotice, sizeof(snotice), "*** %s (%s@%s) used %s %s to change %s's umodes", client->name, client->user->username, client->user->realhost, MSG_SAUMODE,
-				mbuf, acptr->name);
-			sendto_snomask_global(SNO_SACMD, snotice); // Send notice to all 0pers
+		if(client->user) {
+			// Just in case a server calls this shit, send notice to all 0pers ;]
+			sendto_snomask_global(SNO_SACMD, "*** %s (%s@%s) used %s %s to change %s's umodes", client->name, client->user->username, client->user->realhost, MSG_SAUMODE, mbuf, acptr->name);
 		}
 	}
 
