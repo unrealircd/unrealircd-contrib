@@ -124,7 +124,7 @@ static char *pmlistHalp[] = {
 ModuleHeader MOD_HEADER = {
 	"third/pmlist", // Module name
 	"2.0.1", // Version
-	"Implements umode +P to only allow only certain people to privately message you", // Description
+	"Implements umode +P to allow only certain people to privately message you", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
 };
