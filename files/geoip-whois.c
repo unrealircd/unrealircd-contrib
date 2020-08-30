@@ -65,7 +65,7 @@ CMD_OVERRIDE_FUNC(geoip_whois_overridemd);
 
 ModuleHeader MOD_HEADER = {
 	"third/geoip-whois",   /* Name of module */
-	"5.0.3", /* Version */
+	"5.0.4", /* Version */
 	"Add country info to /whois", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5"
@@ -221,7 +221,7 @@ static char *get_country_text(Client *cptr){
 	curr_country = moddata_client(cptr, md).ptr;
 	if(!curr_country){
 		if(!suppress_null_warning){
-			sendto_realops("geoip-whois: curr_country is NULL for %s (%s), perhaps no geoip-base module available on this server, or incomplete/outdated database?", cptr->name, cptr->ip);
+			sendto_realops("geoip-whois: curr_country is NULL for %s (%s), perhaps no geoip-base module available on this server, or incomplete/outdated database?", cptr->name, GetIP(cptr));
 			sendto_realops("geoip-whois: Please note that the warning won't reappear for the next %d hours.", WARNING_SUPPRESS_TIME);
 			suppress_null_warning = 1;
 			EventAdd(geoip_modinfo->handle, "allow_next_warning", allow_next_warning_evt, NULL, (long)WARNING_SUPPRESS_TIME * 60 * 60 * 1000, 1);
