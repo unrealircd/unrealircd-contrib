@@ -66,7 +66,7 @@ char svartypes[] = { '-', 'i', 'h', '*', 0 };
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/fantasy", // Module name
-	"2.0.2", // Version
+	"2.0.3", // Version
 	"Implements custom fantasy channel !cmds", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -147,26 +147,61 @@ char *replaceem(char *str, char *search, char *replace) {
 char *recurseArg(Client *client, Channel *channel, int index, char *var, int parc, char *parv[], char *cmdv[], char *multidelim) {
 	int i; // Iterat0r
 	Client *acptr; // Target client pointer, if ne
-	char *ret = NULL; // Return value, NULL indicates not found
-	int hostbit = (var[2] && var[2] == 'h'); // Get only a hostname
-	int identbit = (var[2] && var[2] == 'i'); // Get only an ident
+	char *ret; // Return value, NULL indicates not found
+	int hostbit; // Get only a hostname
+	int identbit; // Get only an ident
+	char *p; // Temp pointer =]
+	static char arglist[512]; // Store all nicks/other arguments
+	size_t varlen;
+	int use_default;
+
+	// Check for special vars $1h and $1i
+	hostbit = 0;
+	identbit = 0;
+	varlen = strlen(var);
+
+	// Can't really happen but let's just =]
+	if(varlen <= 1 || !parc || !parv[0])
+		return NULL;
+
+	if(varlen > 2) {
+		if(var[2] == 'h')
+			hostbit = 1;
+		else if(var[2] == 'i')
+			identbit = 1;
+	}
+
+	ret = NULL;
 
 	// Did we even get multiple args from the user?
 	if(parc > index + 1) {
-		char *p; // Temp pointer =]
-		char arglist[512]; // Store all nicks/other arguments
-		memset(arglist, '\0', sizeof(arglist)); // Init it
+		memset(arglist, '\0', sizeof(arglist));
 
-		for(i = index; parv[i]; i++) {
-			p = parv[i]; // If we can't find the person, let's just use the arg as-is
+		for(i = index; i < parc && parv[i]; i++) {
+			// Maybe we reached the end of buffer, in which case further iterations don't make sense ;]
+			// Doing this check at the beginning because the previous loop might have caused it to be exactly 512 bytes long, this way we can properly detect when it would be truncated =]
+			if(strlen(arglist) + 1 == sizeof(arglist)) {
+				// The arglist here will be truncated by Unreal anyways, but it might give people just enough information to fix/work around it
+				sendto_realops("[fantasy] The alias '%s' resolved to a command that was too long (> 512 bytes/characters): %s", parv[0], arglist);
+				break;
+			}
 
-			// Get the host bit if we got shit leik $1h and the user is real ;]
-			if(hostbit && (acptr = find_person(parv[i], NULL)))
-				p = GetHost(acptr);
+			use_default = 1;
 
-			// Ident bit for $1i
-			else if(identbit && (acptr = find_person(parv[i], NULL)))
-				p = acptr->user->username;
+			if((acptr = find_person(parv[i], NULL))) {
+				if(hostbit) {
+					p = GetHost(acptr);
+					use_default = 0;
+				}
+
+				else if(identbit) {
+					p = acptr->user->username;
+					use_default = 0;
+				}
+			}
+
+			if(use_default)
+				p = parv[i];
 
 			// On the first pass we need to do *cpy()
 			if(i == index)
@@ -179,40 +214,55 @@ char *recurseArg(Client *client, Channel *channel, int index, char *var, int par
 			}
 
 			// If this is not a "greedy" var ($1-, $2-), gtfo
-			// Also if it's $1h etc
-			if(var[strlen(var) - 1] != '-' || strlen(var) > 3)
+			if(var[varlen - 1] != '-' || varlen > 3)
 				break;
 		}
 
-		ret = arglist; // Set return value
+		if(arglist[0])
+			ret = arglist; // Set return value
 	}
 
 	// No or just one arg, maybe default to the user itself
 	else {
-		ret = client->name; // Always use the client->name initially
-
 		// If we got exactly one arg, check for *!*@host etc
-		if(parv[index]) {
-			ret = parv[index]; // Use as-is by default
+		if(index < parc && parv[index]) {
+			use_default = 1;
 
-			// Checkem host bit
-			if(hostbit && (acptr = find_person(parv[index], NULL)))
-				ret = GetHost(acptr);
+			if((acptr = find_person(parv[index], NULL))) {
+				if(hostbit) {
+					ret = GetHost(acptr);
+					use_default = 0;
+				}
 
-			// Ident bit
-			else if(identbit && (acptr = find_person(parv[index], NULL)))
-				ret = acptr->user->username;
+				else if(identbit) {
+					ret = acptr->user->username;
+					use_default = 0;
+				}
+			}
+
+			if(use_default) {
+				strlcpy(arglist, parv[index], sizeof(arglist)); // Use as-is
+				ret = arglist;
+			}
 		}
 
 		// No arg lol
 		else {
-			// It was already set to client->name, so only check for special modes here
+			use_default = 1;
+
 			if(index == 1) {
-				if(hostbit)
+				if(hostbit) {
 					ret = GetHost(client);
-				else if(identbit)
+					use_default = 0;
+				}
+				else if(identbit) {
 					ret = client->user->username;
+					use_default = 0;
+				}
 			}
+
+			if(use_default)
+				ret = client->name;
 		}
 	}
 
@@ -224,7 +274,7 @@ char *recurseArg(Client *client, Channel *channel, int index, char *var, int par
 }
 
 int fixSpecialVars(char *cmdv[], int i, Client *client, Channel *channel, int parc, char *parv[], char *multidelim) {
-	int j; // 1 thru 9 iter80r
+	int numvar; // 1 thru 9 iter80r
 	int svari; // Index of svartype
 	int stoppem = 0; // Break out of the lewps
 	char svar[8]; // To store special variable names ($1h)
@@ -232,20 +282,27 @@ int fixSpecialVars(char *cmdv[], int i, Client *client, Channel *channel, int pa
 	char *recTemp; // Temp shit for recurseArg =]
 	char *multitmp; // After replacement
 
-	for(j = 1; !stoppem && j <= 9; j++) {
+	// Channel var y0
+	if(match_simple("*$chan*", cmdv[i])) {
+		multitmp = replaceem(cmdv[i], "$chan", channel->chname);
+		safe_strdup(cmdv[i], multitmp); // Dup it agen
+		safe_free(multitmp);
+	}
+
+	for(numvar = 1; !stoppem && numvar <= 9; numvar++) {
 		// Fix the greedy vars first ($1-)
 		// Then check w/e is left of the singular ones ($1i, $1h), recurseArg() stops after one iteration for these ;]
-		for(svari = 0; !stoppem && svartypes[svari]; svari++) {
+		for(svari = 0; svartypes[svari]; svari++) {
 			if(svartypes[svari] == '*')
-				snprintf(svar, sizeof(svar), "$%d", j);
+				snprintf(svar, sizeof(svar), "$%d", numvar);
 			else
-				snprintf(svar, sizeof(svar), "$%d%c", j, svartypes[svari]);
+				snprintf(svar, sizeof(svar), "$%d%c", numvar, svartypes[svari]);
 
-			snprintf(svarmask, sizeof(svarmask), "*$%d%c*", j, svartypes[svari]);
+			snprintf(svarmask, sizeof(svarmask), "*$%d%c*", numvar, svartypes[svari]);
 
 			if(match_simple(svarmask, cmdv[i])) {
 				// recurseArg() returns NULL on error, so let's free our shit if that happens and go to the next fantasyCmd =]
-				if((recTemp = recurseArg(client, channel, j, svar, parc, parv, cmdv, multidelim)) == NULL) {
+				if((recTemp = recurseArg(client, channel, numvar, svar, parc, parv, cmdv, multidelim)) == NULL) {
 					stoppem = 1;
 					break;
 				}
@@ -422,6 +479,7 @@ int fantasy_rehash(void) {
 	int stoppem; // Pass over do_cmd() but still free our shit
 	char *multitmp; // Temp shit for multi-target stuff
 	char *cmd; // To strip the leading ! w/o causing mem issues xd
+	size_t cmdlen;
 
 	// Gonna split ur shit into werds
 	parc = 0;
@@ -435,16 +493,17 @@ int fantasy_rehash(void) {
 	safe_free(ttemp);
 
 	// Double check imo tbh
-	if(!parv[0] || strlen(parv[0]) <= 1 || parv[0][0] != cmdChar) {
+	cmdlen = strlen(parv[0]);
+	if(!parv[0] || cmdlen <= 1 || parv[0][0] != cmdChar) {
 		free_args(parv, parc);
 		return HOOK_CONTINUE; // Just process the next hewk yo
 	}
 
 	// Lowercase the command only =]
-	cmd = safe_alloc(strlen(parv[0]));
-	for(i = 0, j = 1; i < strlen(parv[0]); i++, j++)
+	cmd = safe_alloc(cmdlen + 1);
+	for(i = 0, j = 1; i < cmdlen; i++, j++)
 		cmd[i] = tolower(parv[0][j]);
-	cmd[j] = '\0'; // Required since we shifted to da left
+	cmd[i] = '\0'; // Required since we shifted to da left
 
 	// Checkem entries
 	for(fCmd = fantasyList; fCmd; fCmd = fCmd->next) {
@@ -541,14 +600,9 @@ int fantasy_rehash(void) {
 				multikick = 1;
 
 			// Fix up dynamic variables lol
-			for(i = 1; !stoppem && i < cmdc && !BadPtr(cmdv[cmdc]); i++) {
-				// Channel var yo
-				if(match_simple("*$chan*", cmdv[i])) {
-					multitmp = replaceem(cmdv[i], "$chan", channel->chname);
-					safe_strdup(cmdv[i], multitmp); // Dup it agen
-					safe_free(multitmp);
-				}
-				stoppem = fixSpecialVars(cmdv, i, client, channel, parc, parv, multidelim); // Numeric variables, $1 through $9 with possible suffixes =]
+			for(i = 1; i < cmdc && !BadPtr(cmdv[i]); i++) {
+				if(!stoppem)
+					stoppem = fixSpecialVars(cmdv, i, client, channel, parc, parv, multidelim);
 			}
 
 			// If this is a KICK and multikick is allowed (see a bit above), fix the targets
