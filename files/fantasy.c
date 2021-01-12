@@ -600,10 +600,8 @@ int fantasy_rehash(void) {
 				multikick = 1;
 
 			// Fix up dynamic variables lol
-			for(i = 1; i < cmdc && !BadPtr(cmdv[i]); i++) {
-				if(!stoppem)
-					stoppem = fixSpecialVars(cmdv, i, client, channel, parc, parv, multidelim);
-			}
+			for(i = 1; !stoppem && i < cmdc && !BadPtr(cmdv[i]); i++)
+				stoppem = fixSpecialVars(cmdv, i, client, channel, parc, parv, multidelim);
 
 			// If this is a KICK and multikick is allowed (see a bit above), fix the targets
 			// The comma is a special temporary delimiter that facilit88 this bs m8
