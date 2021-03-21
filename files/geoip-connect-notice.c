@@ -44,7 +44,7 @@ CMD_OVERRIDE_FUNC(geoip_connectnotice_overridemd);
 
 ModuleHeader MOD_HEADER = {
 	"third/geoip-connect-notice",   /* Name of module */
-	"5.0.1", /* Version */
+	"5.0.2", /* Version */
 	"Notify opers about user's country", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5"
@@ -57,6 +57,7 @@ static char *get_country_text(Client *cptr){
 	struct country *curr_country;
 	
 	if(!cptr) return NULL;
+	if(!cptr->ip) return NULL;
 	
 	// detecting local / private IP addresses so we don't send unneeded warnings
 	unsigned int e[8];
@@ -82,7 +83,7 @@ static char *get_country_text(Client *cptr){
 	curr_country = moddata_client(cptr, md).ptr;
 	if(!curr_country){
 		if(!suppress_null_warning){
-			sendto_realops("geoip-connect-notice: curr_country is NULL for %s (%s), perhaps no geoip-base module available on this server, or incomplete/outdated database?", cptr->name, cptr->ip);
+			sendto_realops("geoip-connect-notice: curr_country is NULL for %s (%s), perhaps no geoip-base module available on this server, or incomplete/outdated database?", cptr->name, GetIP(cptr));
 			sendto_realops("geoip-connect-notice: Please note that the warning won't reappear for the next %d hours.", WARNING_SUPPRESS_TIME);
 			suppress_null_warning = 1;
 			EventAdd(geoip_modinfo->handle, "allow_next_warning", allow_next_warning_evt, NULL, (long)WARNING_SUPPRESS_TIME * 60 * 60 * 1000, 1);
