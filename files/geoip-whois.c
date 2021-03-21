@@ -65,7 +65,7 @@ CMD_OVERRIDE_FUNC(geoip_whois_overridemd);
 
 ModuleHeader MOD_HEADER = {
 	"third/geoip-whois",   /* Name of module */
-	"5.0.4", /* Version */
+	"5.0.5", /* Version */
 	"Add country info to /whois", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5"
@@ -196,6 +196,7 @@ static char *get_country_text(Client *cptr){
 	struct country *curr_country;
 	
 	if(!cptr) return NULL;
+	if(!cptr->ip) return NULL;
 	
 	// detecting local / private IP addresses so we don't send unneeded warnings
 	unsigned int e[8];
