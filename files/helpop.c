@@ -1,6 +1,7 @@
 /*** <<<MODULE MANAGER START>>>
 module
 {
+	Licence: GPLv3
         documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/helpop/README.md";
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
         min-unrealircd-version "5.*";
