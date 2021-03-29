@@ -49,7 +49,7 @@ ModuleHeader MOD_HEADER = {
 	"third/helpop", // Module name
 	"1.0", // Module Version
 	"HelpOp", // Description
-	"QT314", // Author
+	"Valware", // Author
 	"unrealircd-5", // Unreal Version
 };
 
