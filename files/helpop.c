@@ -26,7 +26,7 @@ module
         // if you have lots of text/information to share:
         post-install-text {
                 "The module is installed. Now all you need to do is add a loadmodule line:";
-                "loadmodule \"third/helpop.so\";";
+                "loadmodule \"third/helpop\";";
                 "And /REHASH the IRCd.";
                 "The module does not need any other configuration.";
         }
