@@ -1,39 +1,18 @@
-/*
-  Licence: GPLv3
-  Provides "helpop" by Valware :D
-  usermode h (helpop) (settable by IRCops only)
-  channelmode g (helpop-only)
-  command HELPOP <string to send to other helpops>
-  command REPORT <string for users to send to helpops>
-  
-  parts taken from unrealircd source code, and Gottem's modules and dank module templates ayyyy
-  shout out to Syzop for the epic documentation of unrealircd module api :D
-  my first module submission lmao
-  
-  this module have no configurable option
-*/
-  
-  
-  
-  
 /*** <<<MODULE MANAGER START>>>
 module
 {
         documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/helpop/README.md";
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
         min-unrealircd-version "5.*";
-
         // THE FOLLOWING FIELDS ARE OPTIONAL:
-
         // Maximum version that this module supports:
         max-unrealircd-version "5.*";
-
         // This text is displayed after running './unrealircd module install ...'
         // It is recommended not to make this an insane number of lines and refer to a URL instead
         // if you have lots of text/information to share:
         post-install-text {
                 "The module is installed. Now all you need to do is add a loadmodule line:";
-                "loadmodule \"third/testmod\";";
+                "loadmodule \"third/helpop.so\";";
                 "And /REHASH the IRCd.";
                 "The module does not need any other configuration.";
         }
@@ -117,7 +96,7 @@ int helponly_check (Client *client, Channel *channel, char *key, char *parv[])
 {
 	if (IsHelpOnly(channel) && !IsHelpop(client)) {
 		sendnotice(client, "*** (%s) You must be a logged in member of staff to join that room.",channel->chname);
-		return;
+		return ERR_NEEDREGGEDNICK;
 	}
 	return 0;
 }
@@ -185,11 +164,11 @@ CMD_FUNC(REPORT) {
 		dumpit(client, report_help);
 		return;
 	}
-	if (IsHelpop(client)) {
+	else if (IsHelpop(client)) {
 		sendnotice(client, "*** /REPORT is for non-helpops. Try /HELPOPER instead");
 		return;
 	}
-	if (!IsHelpop(client)) {
+	else {
 		sendnotice(client, "*** Thank you. Your report has been submitted.");
 		sendto_umode_global(extumode_helpop,"*** REPORT by %s: %s",client->name,parv[1]);
 
@@ -206,10 +185,10 @@ CMD_FUNC(HELPOPER) {
 		return;
 	}
 
-	if (IsHelpop(client)) {
+	else if (IsHelpop(client)) {
 		sendto_umode_global(extumode_helpop,"*** HelpOper: from %s: %s",client->name,parv[1]);
 	}
-	if (!IsHelpop(client)) {
+	else {
 		sendnotice(client, "*** You may not use this command.");
 		return;
 	}
