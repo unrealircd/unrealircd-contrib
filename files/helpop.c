@@ -1,4 +1,5 @@
 /*
+  Licence: GPLv3
   Provides "helpop" by Valware :D
   usermode h (helpop) (settable by IRCops only)
   channelmode g (helpop-only)
