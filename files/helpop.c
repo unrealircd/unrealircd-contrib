@@ -1,7 +1,20 @@
+/*
+  Licence: GPLv3
+  Provides "helpop" by Valware :D
+  usermode h (helpop) (settable by IRCops only)
+  channelmode g (helpop-only)
+  command HELPOP <string to send to other helpops>
+  command REPORT <string for users to send to helpops>
+  
+  parts taken from unrealircd source code, and Gottem's modules and dank module templates ayyyy
+  shout out to Syzop for the epic documentation of unrealircd module api :D
+  my first module submission lmao
+  
+  this module have no configurable option
+*/
 /*** <<<MODULE MANAGER START>>>
 module
 {
-	Licence: GPLv3
         documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/helpop/README.md";
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
         min-unrealircd-version "5.*";
