@@ -100,10 +100,10 @@ CMD_FUNC(CHGSWHOIS) {
 	
 	// Find and delete old swhois line
 	
-	swhois_delete(splooge, "chgswhoislmao", "*", client, NULL);
+	swhois_delete(splooge, "chgswhoislmao", "*", &me, NULL);
 	
 	// Add our new one!
-	swhois_add(splooge, "chgswhoislmao", priority, swhois, client, NULL);
+	swhois_add(splooge, "chgswhoislmao", priority, swhois, &me, NULL);
 	return;
 	
 }
@@ -133,7 +133,7 @@ CMD_FUNC(DELSWHOIS) {
 	ircd_log(LOG_CHGCMDS, "*** DELSWHOIS: %s removed the SWHOIS from %s (%s@%s)", client->name, splooge->name, splooge->user->username, GetHost(splooge));
 	
 	// Find and delete old swhois line
-	swhois_delete(splooge, "chgswhoislmao", "*", client, NULL);
+	swhois_delete(splooge, "chgswhoislmao", "*", &me, NULL);
 	
 	return;
 	
