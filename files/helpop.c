@@ -62,7 +62,7 @@ long extumode_helpop = 0L;
 ModuleHeader MOD_HEADER = {
 	"third/helpop", // Module name
 	"1.0", // Module Version
-	"HelpOp", // Description
+	"HelpOp - Provides usermode h (HelpOp) and swhois line, channelmode g (HelpOp-only room), commands /HELPOPER and /REPORT", // Description
 	"Valware", // Author
 	"unrealircd-5", // Unreal Version
 };
