@@ -62,7 +62,7 @@ long extumode_helpop = 0L;
 ModuleHeader MOD_HEADER = {
 	"third/helpop", // Module name
 	"1.0", // Module Version
-	"HelpOp", // Description
+	"HelpOp - Provides usermode h (HelpOp) and swhois line, channelmode g (HelpOp-only room), commands /HELPOPER and /REPORT", // Description
 	"Valware", // Author
 	"unrealircd-5", // Unreal Version
 };
@@ -109,7 +109,7 @@ MOD_UNLOAD() {
 int helponly_check (Client *client, Channel *channel, char *key, char *parv[])
 {
 	if (IsHelpOnly(channel) && !IsHelpop(client)) {
-		sendnotice(client, "*** (%s) You must be a logged in member of staff to join that room.",channel->chname);
+		sendnotice(client, "*** (%s) That room is for HelpOps only.",channel->chname);
 		return ERR_NEEDREGGEDNICK;
 	}
 	return 0;
