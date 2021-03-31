@@ -17,7 +17,7 @@ module {
 	
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
-		"loadmodule \"third/CHGSWHOIS\";";
+		"loadmodule \"third/chgswhois\";";
 		"Then /rehash the IRCd.";
 		"This module have no configuration";
 	}
@@ -99,12 +99,11 @@ CMD_FUNC(CHGSWHOIS) {
 	ircd_log(LOG_CHGCMDS, "CHGSWHOIS: %s changed the SWHOIS of %s (%s@%s) to be '%s'", client->name, splooge->name, splooge->user->username, GetHost(splooge), parv[2]);
 	
 	// Find and delete old swhois line
-	SWhois *ours;
-	for (ours = splooge->user->swhois; ours; ours = ours->next)
-		swhois_delete(splooge, ours->setby, ours->line, client, client);
+	
+	swhois_delete(splooge, "chgswhoislmao", "*", client, client);
 	
 	// Add our new one!
-	swhois_add(splooge, tag, priority, swhois, client, client);
+	swhois_add(splooge, "chgswhoislmao", priority, swhois, client, client);
 	return;
 	
 }
@@ -134,9 +133,7 @@ CMD_FUNC(DELSWHOIS) {
 	ircd_log(LOG_CHGCMDS, "*** DELSWHOIS: %s removed the SWHOIS from %s (%s@%s)", client->name, splooge->name, splooge->user->username, GetHost(splooge));
 	
 	// Find and delete old swhois line
-	SWhois *ours;
-	for (ours = splooge->user->swhois; ours; ours = ours->next)
-		swhois_delete(splooge, ours->setby, ours->line, client, client);
+	swhois_delete(splooge, "chgswhoislmao", "*", client, client);
 	
 	return;
 	
