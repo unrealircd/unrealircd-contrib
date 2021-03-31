@@ -29,6 +29,7 @@ module {
 
 // deFIIIINEs
 #define CHGCMD "CHGSWHOIS"
+#define DELCMD "DELSWHOIS"
 #define CheckAPIError(apistr, apiobj) \
 	do { \
 		if(!(apiobj)) { \
@@ -39,17 +40,19 @@ module {
 		
 	
 CMD_FUNC(CHGSWHOIS);
+CMD_FUNC(DELSWHOIS);
 
 ModuleHeader MOD_HEADER = {
 	"third/chgswhois",
 	"1.0",
-	"Provides command /CHGSWHOIS for priviledged IRCops to change a users \"special whois\" line.",
+	"Provides command /CHGSWHOIS and /DELSWHOIS for priviledged IRCops to change a users \"special whois\" line.",
 	"Valware",
 	"unrealircd-5",
 };
 
 MOD_INIT() {
 	CheckAPIError("CommandAdd(CHGSWHOIS)", CommandAdd(modinfo->handle, CHGCMD, CHGSWHOIS, 2, CMD_USER));
+	CheckAPIError("CommandAdd(DELSWHOIS)", CommandAdd(modinfo->handle, DELCMD, DELSWHOIS, 1, CMD_USER));
 	MARK_AS_GLOBAL_MODULE(modinfo);
 	return MOD_SUCCESS;
 }
@@ -106,4 +109,36 @@ CMD_FUNC(CHGSWHOIS) {
 	
 }
 
+// copypasta ninja copies from abooove~~~
+CMD_FUNC(DELSWHOIS) {
+	
+	Client *splooge;
+	char tag[HOSTLEN+1];
+	
+	if (!ValidatePermissionsForPath("client:set:name",client,NULL,NULL,NULL)) {
+		sendnumeric(client, ERR_NOPRIVILEGES);
+		return;
+	}
+
+	else if ((parc < 2) || !*parv[1]) {
+		sendnumeric(client, ERR_NEEDMOREPARAMS, CHGCMD);
+		return;
+	}
+
+	else if (!(splooge = find_person(parv[1], NULL))) {
+		sendnumeric(client, ERR_NOSUCHNICK, parv[1]);
+		return;
+	}
+	sendto_snomask(SNO_EYES,"*** DELSWHOIS: %s removed the SWHOIS from %s (%s@%s)", client->name, splooge->name, splooge->user->username, GetHost(splooge));
+	/* Logging ability added by XeRXeS */
+	ircd_log(LOG_CHGCMDS, "*** DELSWHOIS: %s removed the SWHOIS from %s (%s@%s)", client->name, splooge->name, splooge->user->username, GetHost(splooge));
+	
+	// Find and delete old swhois line
+	SWhois *ours;
+	for (ours = splooge->user->swhois; ours; ours = ours->next)
+		swhois_delete(splooge, ours->setby, ours->line, client, client);
+	
+	return;
+	
+}
 		
