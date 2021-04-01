@@ -490,10 +490,14 @@ int chansno_hook_chanmode(Client *client, Channel *channel, MessageTag *mtags, c
 
 int chansno_hook_connect(Client *client) {
 	char secure[256];
+	char account[256];
 	*secure = '\0';
+	*account = '\0';
 	if(IsSecure(client))
 		snprintf(secure, sizeof(secure), " [secure %s]", SSL_get_cipher(client->local->ssl));
-	ircsnprintf(msgbuf, sizeof(msgbuf), "*** Client connecting: %s (%s@%s) [%s] [port %d] {%s}%s", client->name, UserName(client), RealHost(client), client->ip, client->local->listener->port, (client->local->class ? client->local->class->name : "0"), secure);
+	if (IsLoggedIn(client))
+		snprintf(account, sizeof(account), " [account %s]", client->user->svid);
+	ircsnprintf(msgbuf, sizeof(msgbuf), "*** Client connecting: %s (%s@%s) [%s] [port %d]%s [class %s]%s", client->name, UserName(client), RealHost(client), client->ip, client->local->listener->port, account, (client->local->class ? client->local->class->name : "0"), secure);
 	SendNotice_simple(CHSNO_CONNECT, 0);
 	return HOOK_CONTINUE;
 }
