@@ -59,9 +59,11 @@ struct t_report {
 // Store config options here
 struct cfgstruct {
 	int min_chars;
+	int max_reports;
 
 	// Just some "booleans" to keep track of whether the admin specified a directive
 	unsigned short int got_min_chars;
+	unsigned short int got_max_reports;
 };
 
 // Quality fowod declarations
@@ -70,6 +72,7 @@ Report *addem_report(int id, time_t deet, char *reporturd, const char *msg);
 void freem_report(Report *reportItem);
 void notifyopers_add(Report *reportItem);
 void notifyopers_del(char *byuser, Report *reportItem);
+void notifyopers_synclimitreached(int id, time_t deet, char *reporturd, const char *msg);
 void syncem(Client *excludem, Client *to_one, char *flag, char *byuser, Report *reportItem);
 void setcfg(void);
 ConfigEntry *gottem_getmodconf(ConfigEntry *ce, int type);
@@ -107,14 +110,15 @@ static char *reportdel_help[] = {
 
 // Globals
 Report *reportList = NULL;
-int reportList_lastID = 0;
+int reportList_lastID = 0; // Keep track of the last ID
+int reportListCount = 0; // Also the actual count
 static struct cfgstruct muhcfg;
 ModDataInfo *reportMDI; // To store the rep0ts with &me lol (hack so we don't have to use a .db file or some shit)
 
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/report", // Module name
-	"1.0-rc1", // Version
+	"1.0.1", // Version
 	"For reporting bad stuff to the assigned IRC operators", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -132,6 +136,8 @@ MOD_TEST() {
 
 // Initialisation routine (register hooks, commands and modes or create structs etc)
 MOD_INIT() {
+	Report *reportItem;
+
 	// Serburs have no use for the first 3 commands ;];]
 	CheckAPIError("CommandAdd(REPORT)", CommandAdd(modinfo->handle, MSG_REPORT, report, 1, CMD_USER));
 	CheckAPIError("CommandAdd(REPORTLIST)", CommandAdd(modinfo->handle, MSG_REPORTLIST, reportlist, 0, CMD_USER));
@@ -150,10 +156,14 @@ MOD_INIT() {
 		reportMDI = ModDataAdd(modinfo->handle, mreq); // Add 'em yo
 		CheckAPIError("ModDataAdd(report_list)", reportMDI);
 	}
-	else { // We did get moddata
+	else {
+		// We did get moddata, get the total count and highest ID =]]]]
 		reportList = moddata_local_variable(reportMDI).ptr;
-		if(reportList)
-			reportList_lastID = reportList->id; // Most recent is at the "top", ez ;]
+		for(reportItem = reportList; reportItem; reportItem = reportItem->next) {
+			reportListCount++;
+			if(reportItem->id > reportList_lastID)
+				reportList_lastID = reportList->id;
+		}
 	}
 
 	MARK_AS_GLOBAL_MODULE(modinfo);
@@ -206,6 +216,7 @@ Report *addem_report(int id, time_t deet, char *reporturd, const char *msg) {
 	reportItem->reporturd = strdup(reporturd);
 	reportItem->msg = strdup(msg);
 	AddListItem(reportItem, reportList);
+	reportListCount++;
 	return reportItem;
 }
 
@@ -213,6 +224,9 @@ void freem_report(Report *reportItem) {
 	safe_free(reportItem->reporturd);
 	safe_free(reportItem->msg);
 	safe_free(reportItem);
+	reportListCount--; // Let's only decrement that shit when the report has actually been freed ;]
+	if(reportListCount < 0) // Shouldn't be possible but let's account for it anyways lel
+		reportListCount = 0;
 }
 
 void notifyopers_add(Report *reportItem) {
@@ -239,6 +253,19 @@ void notifyopers_del(char *byuser, Report *reportItem) {
 	}
 }
 
+void notifyopers_synclimitreached(int id, time_t deet, char *reporturd, const char *msg) {
+	char buf[BUFSIZE];
+	Client *operclient;
+
+	ircsnprintf(buf, sizeof(buf), "*** [report] Unable to sync report due to the limit of %d report%s being reached: ID #%d [%s] by [%s]: %s",
+		muhcfg.max_reports, (muhcfg.max_reports > 1 ? "s" : ""), id, pretty_date(deet), reporturd, msg
+	);
+	list_for_each_entry(operclient, &oper_list, special_node) {
+		if(ValidatePermissionsForPath("gottem:report:notify", operclient, NULL, NULL, NULL))
+			sendnotice(operclient, buf);
+	}
+}
+
 void syncem(Client *excludem, Client *to_one, char *flag, char *byuser, Report *reportItem) {
 	char buf[BUFSIZE];
 
@@ -258,6 +285,7 @@ void setcfg(void) {
 	// Anything that would resolve to a zero value (for char * this could be NULL, for int this is simply 0) doesn't need to
 	// be specified here, as the memset() in MOD_TEST already initialised everything to zero =]
 	muhcfg.min_chars = 10; // Let's require 10 chars by default for report messages =]]
+	muhcfg.max_reports = 50; // And up to 50 rep0ts
 }
 
 ConfigEntry *gottem_getmodconf(ConfigEntry *ce, int type) {
@@ -353,6 +381,36 @@ int report_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 			continue;
 		}
 
+		if(!strcmp(cep->ce_varname, "max-reports")) {
+			if(muhcfg.got_max_reports) {
+				config_error("%s:%i: duplicate %s::%s directive", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+				errors++;
+				continue;
+			}
+
+			// Should be an integer y0
+			muhcfg.got_max_reports = 1;
+			for(i = 0; cep->ce_vardata[i]; i++) {
+				if(!isdigit(cep->ce_vardata[i])) {
+					config_error("%s:%i: %s::%s must be an integer between 1 and 200", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+					errors++;
+					break;
+				}
+			}
+
+			// If we still have a valid char, then the loop broke early due to an error, so we don't need to check the range yet ;];];];];]
+			if(cep->ce_vardata[i])
+				continue;
+
+			i = atoi(cep->ce_vardata);
+			if(i < 1 || i > 200) {
+				config_error("%s:%i: %s::%s must be an integer between 1 and 200", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+				errors++;
+			}
+
+			continue;
+		}
+
 		// Anything else is unknown to us =]
 		config_warn("%s:%i: unknown item %s::%s", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname); // So display just a warning
 	}
@@ -374,6 +432,11 @@ int report_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 
 		if(!strcmp(cep->ce_varname, "min-chars")) {
 			muhcfg.min_chars = atoi(cep->ce_vardata);
+			continue;
+		}
+
+		if(!strcmp(cep->ce_varname, "max-reports")) {
+			muhcfg.max_reports = atoi(cep->ce_vardata);
 			continue;
 		}
 	}
@@ -400,6 +463,12 @@ CMD_FUNC(report) {
 	// Let's start by excluding non-local clients (non-users shouldn't be able to reach this, but let's czech em anyways) ;]
 	if(!MyUser(client))
 		return;
+
+	if(reportListCount >= muhcfg.max_reports) {
+		// We're not notifying 0pers ourselves because that would still allow them to spam ;]];]];
+		sendnotice(client, "*** [report] The maximum amount of reports has been reached, you should notify server staff about this");
+		return;
+	}
 
 	if(parc < 2 || BadPtr(parv[1])) { // If first argument is a bad pointer, don't proceed
 		dumpit(client, report_help); // Return help string instead
@@ -628,6 +697,12 @@ CMD_FUNC(reportsync) {
 	if(reportItem) {
 		if(reportItem->deet != deet)
 			sendto_realops("[report] Malformed %s command from %s: duplicate ID #%d) [%s] by [%s]: %s", MSG_REPORTSYNC, client->name, id, pretty_date(deet), reporturd, msg);
+		return;
+	}
+
+	// In case the list is full, don't accept the report and notify em l0cal 0pers ;]
+	if(flag == '+' && reportListCount >= muhcfg.max_reports) {
+		notifyopers_synclimitreached(id, deet, reporturd, msg);
 		return;
 	}
 
