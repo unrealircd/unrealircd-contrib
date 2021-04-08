@@ -65,7 +65,7 @@ void del_tline(TLine *muhtl);
 TLine *get_tlines(void);
 TLine *find_tline(char *nickrgx, char *bodyrgx);
 TLine *match_tline(Client *client, char *text);
-int textshun_hook_serverconnect(Client *client);
+int textshun_hook_serversync(Client *client);
 int _check_cansend(Client *client, char **text);
 
 #if BACKPORT_HOOK_SENDTYPE
@@ -77,7 +77,6 @@ int _check_cansend(Client *client, char **text);
 #endif
 
 ModDataInfo *textshunMDI; // To store the T-Lines with &me lol (hack so we don't have to use a .db file or some shit)
-Command *textshunCmd, *textshunCmdShort, *textshunCmdAlt; // Pointers to the commands we're gonna add
 int TLC; // A counter for T-Lines so we can change the moddata back to NULL
 
 // Help string in case someone does just /TEXTSHUN
@@ -115,7 +114,7 @@ static char *muhhalp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/textshun", // Module name
-	"2.0.1", // Version
+	"2.0.2", // Version
 	"Drop messages based on nick and body", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -134,7 +133,7 @@ MOD_INIT() {
 	CheckAPIError("EventAdd(textshun_event)", EventAdd(modinfo->handle, "textshun_event", textshun_event, NULL, 10000, 0));
 
 	TLC = 0; // Start with 0 obv lmao
-	if(!(textshunMDI = findmoddata_byname("textshun_list", MODDATATYPE_CLIENT))) { // Attempt to find active moddata (like in case of a rehash)
+	if(!(textshunMDI = findmoddata_byname("textshun_list", MODDATATYPE_LOCAL_VARIABLE))) { // Attempt to find active moddata (like in case of a rehash)
 		ModDataInfo mreq; // No moddata, let's request that shit
 		memset(&mreq, 0, sizeof(mreq)); // Set 'em lol
 		mreq.type = MODDATATYPE_LOCAL_VARIABLE; // Apply to servers only (CLIENT actually includes users but we'll disregard that =])
@@ -156,7 +155,7 @@ MOD_INIT() {
 	MARK_AS_GLOBAL_MODULE(modinfo);
 
 	// Add muh hooks with (mostly) high prio lol
-	HookAdd(modinfo->handle, HOOKTYPE_SERVER_CONNECT, 0, textshun_hook_serverconnect);
+	HookAdd(modinfo->handle, HOOKTYPE_SERVER_SYNC, 0, textshun_hook_serversync);
 	HookAdd(modinfo->handle, HOOKTYPE_CAN_SEND_TO_CHANNEL, -100, textshun_hook_cansend_chan);
 	HookAdd(modinfo->handle, HOOKTYPE_CAN_SEND_TO_USER, -100, textshun_hook_cansend_user);
 
@@ -384,7 +383,7 @@ int _check_cansend(Client *client, char **text) {
 }
 
 // Server connect hewk familia
-int textshun_hook_serverconnect(Client *client) {
+int textshun_hook_serversync(Client *client) {
 	// Sync T-Lines fam
 	TLine *TLineList, *tEntry; // Head and iter8or ;];]
 	if((TLineList = get_tlines())) { // Gettem list
