@@ -42,6 +42,11 @@ struct t_chansnoflag {
 	#undef BACKPORT_HAS_TKLDEL
 #endif
 
+// Depending on the Unreal version this macro may not be available to modules ;]
+#ifndef GetReputation
+	#define GetReputation(client) (moddata_client_get(client, "reputation") ? atoi(moddata_client_get(client, "reputation")) : 0)
+#endif
+
 ChanSnoFlag *find_chansnoflag_byname(char *name);
 
 #define MSG_CHANSNO "CHANSNO"
@@ -118,20 +123,20 @@ int chansno_configtest(ConfigFile *, ConfigEntry *, int, int *);
 int chansno_configrun(ConfigFile *, ConfigEntry *, int);
 int chansno_rehash(void);
 
-int chansno_hook_chanmode(Client *client, Channel *channel, MessageTag *mtags, char *modebuf, char *parabuf, time_t sendts, int samode);
-int chansno_hook_connect(Client *client);
-int chansno_hook_quit(Client *client, MessageTag *mtags, char *comment);
-int chansno_hook_join(Client *client, Channel *channel, MessageTag *mtags, char *parv[]);
-int chansno_hook_kick(Client *client, Client *victim, Channel *channel, MessageTag *mtags, char *comment);
-int chansno_hook_nickchange(Client *client, char *newnick);
-int chansno_hook_part(Client *client, Channel *channel, MessageTag *mtags, char *comment);
+int chansno_hook_local_chanmode(Client *client, Channel *channel, MessageTag *mtags, char *modebuf, char *parabuf, time_t sendts, int samode);
+int chansno_hook_local_connect(Client *client);
+int chansno_hook_local_quit(Client *client, MessageTag *mtags, char *comment);
+int chansno_hook_local_join(Client *client, Channel *channel, MessageTag *mtags, char *parv[]);
+int chansno_hook_local_kick(Client *client, Client *victim, Channel *channel, MessageTag *mtags, char *comment);
+int chansno_hook_local_nickchange(Client *client, char *newnick);
+int chansno_hook_local_part(Client *client, Channel *channel, MessageTag *mtags, char *comment);
 int chansno_hook_serverconnect(Client *client);
 int chansno_hook_serverquit(Client *client, MessageTag *mtags);
 int chansno_hook_topic(Client *client, Channel *channel, MessageTag *mtags, char *topic);
 int chansno_hook_unkuserquit(Client *client, MessageTag *mtags, char *comment);
 int chansno_hook_channelcreate(Client *client, Channel *channel);
 int chansno_hook_channeldestroy(Channel *channel, int *should_destroy);
-int chansno_hook_spamfilter(Client *acptr, char *str, char *str_in, int type, char *target, TKL *tkl);
+int chansno_hook_local_spamfilter(Client *acptr, char *str, char *str_in, int type, char *target, TKL *tkl);
 CMD_OVERRIDE_FUNC(chansno_override_oper);
 int chansno_hook_tkladd(Client *client, TKL *tkl);
 #ifdef BACKPORT_HAS_TKLDEL
@@ -180,20 +185,20 @@ MOD_INIT() {
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGRUN, 0, chansno_configrun);
 	HookAdd(modinfo->handle, HOOKTYPE_REHASH, 0, chansno_rehash);
 
-	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_CHANMODE, 0, chansno_hook_chanmode);
-	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_CONNECT, 0, chansno_hook_connect);
-	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_QUIT, 0, chansno_hook_quit);
-	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_JOIN, 0, chansno_hook_join);
-	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_KICK, 0, chansno_hook_kick);
-	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_NICKCHANGE, 0, chansno_hook_nickchange);
-	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_PART, 0, chansno_hook_part);
+	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_CHANMODE, 0, chansno_hook_local_chanmode);
+	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_CONNECT, 0, chansno_hook_local_connect);
+	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_QUIT, 0, chansno_hook_local_quit);
+	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_JOIN, 0, chansno_hook_local_join);
+	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_KICK, 0, chansno_hook_local_kick);
+	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_NICKCHANGE, 0, chansno_hook_local_nickchange);
+	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_PART, 0, chansno_hook_local_part);
 	HookAdd(modinfo->handle, HOOKTYPE_SERVER_CONNECT, 0, chansno_hook_serverconnect);
 	HookAdd(modinfo->handle, HOOKTYPE_SERVER_QUIT, 0, chansno_hook_serverquit);
 	HookAdd(modinfo->handle, HOOKTYPE_TOPIC, 0, chansno_hook_topic);
 	HookAdd(modinfo->handle, HOOKTYPE_UNKUSER_QUIT, 0, chansno_hook_unkuserquit);
 	HookAdd(modinfo->handle, HOOKTYPE_CHANNEL_CREATE, 0, chansno_hook_channelcreate);
 	HookAdd(modinfo->handle, HOOKTYPE_CHANNEL_DESTROY, 0, chansno_hook_channeldestroy);
-	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_SPAMFILTER, 0, chansno_hook_spamfilter);
+	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_SPAMFILTER, 0, chansno_hook_local_spamfilter);
 	HookAdd(modinfo->handle, HOOKTYPE_TKL_ADD, 0, chansno_hook_tkladd);
 #ifdef BACKPORT_HAS_TKLDEL
 	HookAdd(modinfo->handle, HOOKTYPE_TKL_DEL, 0, chansno_hook_tkldel);
@@ -482,23 +487,37 @@ static void SendNotice_channel(Channel *channel, long type, int local) {
 	}
 }
 
-int chansno_hook_chanmode(Client *client, Channel *channel, MessageTag *mtags, char *modebuf, char *parabuf, time_t sendts, int samode) {
+int chansno_hook_local_chanmode(Client *client, Channel *channel, MessageTag *mtags, char *modebuf, char *parabuf, time_t sendts, int samode) {
 	snprintf(msgbuf, sizeof(msgbuf), "%s sets mode: %s%s%s", client->name, modebuf, BadPtr(parabuf) ? "" : " ", BadPtr(parabuf) ? "" : parabuf);
 	SendNotice_channel(channel, CHSNO_CHANMODE, 0);
 	return HOOK_CONTINUE;
 }
 
-int chansno_hook_connect(Client *client) {
-	char secure[256];
+int chansno_hook_local_connect(Client *client) {
+	char secure[96]; // Should be plenty, e.g. the whole "TLSv1.2-ECDHE-RSA-AES256-GCM-SHA384" is still only 35 chars ;]
+	char account[SVIDLEN + 1];
+
+	// Some connection properties are actually already handled/included by the get_connect_extinfo() function, but it doesn't exist in all 5.x versions
+	// At some point I'll change this module to use that, but for now there's "backwards compatibility" ;];]
 	*secure = '\0';
+	*account = '\0';
+
 	if(IsSecure(client))
-		snprintf(secure, sizeof(secure), " [secure %s]", SSL_get_cipher(client->local->ssl));
-	ircsnprintf(msgbuf, sizeof(msgbuf), "*** Client connecting: %s (%s@%s) [%s] [port %d] {%s}%s", client->name, UserName(client), RealHost(client), client->ip, client->local->listener->port, (client->local->class ? client->local->class->name : "0"), secure);
+		snprintf(secure, sizeof(secure), " [secure: %s]", SSL_get_cipher(client->local->ssl));
+
+	if(IsLoggedIn(client))
+		snprintf(account, sizeof(account), " [account: %s]", (*client->user->svid ? client->user->svid : "*")); // Show the account muthafucka
+
+	ircsnprintf(msgbuf, sizeof(msgbuf), "*** Client connecting: %s (%s@%s) [%s] [port %d]%s [class: %s]%s [reputation: %d]",
+		client->name, UserName(client), RealHost(client), (client->ip ? client->ip : "*"), client->local->listener->port, secure,
+		(client->local->class ? client->local->class->name : "0"), account, GetReputation(client)
+	);
+
 	SendNotice_simple(CHSNO_CONNECT, 0);
 	return HOOK_CONTINUE;
 }
 
-int chansno_hook_quit(Client *client, MessageTag *mtags, char *comment) {
+int chansno_hook_local_quit(Client *client, MessageTag *mtags, char *comment) {
 	if(BadPtr(comment))
 		ircsnprintf(msgbuf, sizeof(msgbuf), "*** Client exiting: %s (%s@%s) [%s]", client->name, UserName(client), RealHost(client), client->ip);
 	else
@@ -507,35 +526,25 @@ int chansno_hook_quit(Client *client, MessageTag *mtags, char *comment) {
 	return HOOK_CONTINUE;
 }
 
-int chansno_hook_unkuserquit(Client *client, MessageTag *mtags, char *comment) {
-	if(BadPtr(comment))
-		snprintf(msgbuf, sizeof(msgbuf), "Unknown client exiting: %s", client->ip);
-	else
-		snprintf(msgbuf, sizeof(msgbuf), "Unknown client exiting: %s (%s)", client->ip, comment);
-
-	SendNotice_simple(CHSNO_UNKUSER_QUIT, 0);
-	return HOOK_CONTINUE;
-}
-
-int chansno_hook_join(Client *client, Channel *channel, MessageTag *mtags, char *parv[]) {
+int chansno_hook_local_join(Client *client, Channel *channel, MessageTag *mtags, char *parv[]) {
 	snprintf(msgbuf, sizeof(msgbuf), "%s (%s@%s) has joined %s", client->name, UserName(client), RealHost(client), channel->chname);
 	SendNotice_channel(channel, CHSNO_JOIN, 0);
 	return HOOK_CONTINUE;
 }
 
-int chansno_hook_kick(Client *client, Client *victim, Channel *channel, MessageTag *mtags, char *comment) {
+int chansno_hook_local_kick(Client *client, Client *victim, Channel *channel, MessageTag *mtags, char *comment) {
 	snprintf(msgbuf, sizeof(msgbuf), "%s has kicked %s (%s)", client->name, victim->name, comment);
 	SendNotice_channel(channel, CHSNO_KICK, 0);
 	return HOOK_CONTINUE;
 }
 
-int chansno_hook_nickchange(Client *client, char *newnick) {
+int chansno_hook_local_nickchange(Client *client, char *newnick) {
 	snprintf(msgbuf, sizeof(msgbuf), "%s (%s@%s) has changed their nickname to %s", client->name, UserName(client), RealHost(client), newnick);
 	SendNotice_simple(CHSNO_NICKCHANGE, 0);
 	return HOOK_CONTINUE;
 }
 
-int chansno_hook_part(Client *client, Channel *channel, MessageTag *mtags, char *comment) {
+int chansno_hook_local_part(Client *client, Channel *channel, MessageTag *mtags, char *comment) {
 	snprintf(msgbuf, sizeof(msgbuf), "%s (%s@%s) has left %s (%s)", client->name, UserName(client), RealHost(client), channel->chname, comment ? comment : client->name);
 	SendNotice_channel(channel, CHSNO_PART, 0);
 	return HOOK_CONTINUE;
@@ -559,6 +568,16 @@ int chansno_hook_serverquit(Client *client, MessageTag *mtags) {
 	/* The hook supports no reason :-( */
 	snprintf(msgbuf, sizeof(msgbuf), "Server exiting: %s", client->name);
 	SendNotice_simple(CHSNO_SQUIT, 0);
+	return HOOK_CONTINUE;
+}
+
+int chansno_hook_unkuserquit(Client *client, MessageTag *mtags, char *comment) {
+	if(BadPtr(comment))
+		snprintf(msgbuf, sizeof(msgbuf), "Unknown client exiting: %s", client->ip);
+	else
+		snprintf(msgbuf, sizeof(msgbuf), "Unknown client exiting: %s (%s)", client->ip, comment);
+
+	SendNotice_simple(CHSNO_UNKUSER_QUIT, 0);
 	return HOOK_CONTINUE;
 }
 
@@ -586,7 +605,7 @@ int chansno_hook_channeldestroy(Channel *channel, int *should_destroy) {
 	return HOOK_CONTINUE;
 }
 
-int chansno_hook_spamfilter(Client *acptr, char *str, char *str_in, int type, char *target, TKL *tkl) {
+int chansno_hook_local_spamfilter(Client *acptr, char *str, char *str_in, int type, char *target, TKL *tkl) {
 	snprintf(msgbuf, sizeof(msgbuf), "[Spamfilter] %s!%s@%s matches filter '%s': [%s%s: '%s'] [%s]",
 		acptr->name, acptr->user->username, acptr->user->realhost, tkl->ptr.spamfilter->match->str, cmdname_by_spamftarget(type),
 		target, str_in, unreal_decodespace(tkl->ptr.spamfilter->tkl_reason));
