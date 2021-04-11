@@ -75,7 +75,7 @@ void notifyopers_del(char *byuser, Report *reportItem);
 void notifyopers_synclimitreached(int id, time_t deet, char *reporturd, const char *msg);
 void syncem(Client *excludem, Client *to_one, char *flag, char *byuser, Report *reportItem);
 void setcfg(void);
-ConfigEntry *gottem_getmodconf(ConfigEntry *ce, int type);
+int gottem_getmodconf(ConfigEntry *ce, int type);
 void report_moddata_free(ModData *md);
 int report_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int report_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
@@ -118,7 +118,7 @@ ModDataInfo *reportMDI; // To store the rep0ts with &me lol (hack so we don't ha
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/report", // Module name
-	"1.0.1", // Version
+	"1.0.2", // Version
 	"For reporting bad stuff to the assigned IRC operators", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -237,7 +237,7 @@ void notifyopers_add(Report *reportItem) {
 
 	ircsnprintf(buf, sizeof(buf), "*** [report] [%s] Report (ID #%d) by [%s]: %s", pretty_date(reportItem->deet), reportItem->id, reportItem->reporturd, reportItem->msg);
 	list_for_each_entry(operclient, &oper_list, special_node) {
-		if(ValidatePermissionsForPath("gottem:report:notify", operclient, NULL, NULL, NULL))
+		if(ValidatePermissionsForPath("report:notify", operclient, NULL, NULL, NULL))
 			sendnotice(operclient, buf);
 	}
 }
@@ -248,7 +248,7 @@ void notifyopers_del(char *byuser, Report *reportItem) {
 
 	ircsnprintf(buf, sizeof(buf), "*** [report] %s deleted report with ID #%d by [%s]: %s", byuser, reportItem->id, reportItem->reporturd, reportItem->msg);
 	list_for_each_entry(operclient, &oper_list, special_node) {
-		if(ValidatePermissionsForPath("gottem:report:notify", operclient, NULL, NULL, NULL))
+		if(ValidatePermissionsForPath("report:notify", operclient, NULL, NULL, NULL))
 			sendnotice(operclient, buf);
 	}
 }
@@ -261,7 +261,7 @@ void notifyopers_synclimitreached(int id, time_t deet, char *reporturd, const ch
 		muhcfg.max_reports, (muhcfg.max_reports > 1 ? "s" : ""), id, pretty_date(deet), reporturd, msg
 	);
 	list_for_each_entry(operclient, &oper_list, special_node) {
-		if(ValidatePermissionsForPath("gottem:report:notify", operclient, NULL, NULL, NULL))
+		if(ValidatePermissionsForPath("report:notify", operclient, NULL, NULL, NULL))
 			sendnotice(operclient, buf);
 	}
 }
@@ -288,36 +288,32 @@ void setcfg(void) {
 	muhcfg.max_reports = 50; // And up to 50 rep0ts
 }
 
-ConfigEntry *gottem_getmodconf(ConfigEntry *ce, int type) {
-	/* This function is to parse a config bl0cc like:
+int gottem_getmodconf(ConfigEntry *ce, int type) {
+	/* This function is to parse a top-level config bl0cc like:
 	** somemodule {
 	**     foo "bar";
 	** };
-	** And return the ConfigEntry pointer to the module bl0cc itself (i.e. ce_varname is "somemodule")
 	** We don't care if the block is entirely empty, as long as it exists we'll tell Unreal we handled em (to prevent an error on the block being unknown ;])
 	** We *do* care about it being an actual block and not just an individual directive like: somemodule;
-	**
-	** Eventually this function will be used for something a lil' different, but I'm still working out the best way ;];];];]];];];];];;]
 	*/
 
 	// Since we'll add a top-level block to unrealircd.conf, need to filter on CONFIG_MAIN lmao
 	if(type != CONFIG_MAIN)
-		return NULL;
+		return 0;
 
 	// Check for valid config entries first (should at least have a name kek)
 	if(!ce || !ce->ce_varname)
-		return NULL;
+		return 0;
 
 	// If it isn't our block, idc
 	if(strcmp(ce->ce_varname, MYCONF))
-		return NULL;
+		return 0;
 
 	// Verify that it's actually a bl0cc/section, it has a line number if so :>
-	// If there's no line number then that shit is invalid and we'll termin8 earlier m8
-	if(ce->ce_sectlinenum)
-		return ce;
+	if(!ce->ce_sectlinenum)
+		return 0;
 
-	return NULL;
+	return 1;
 }
 
 void report_moddata_free(ModData *md) {
@@ -332,11 +328,11 @@ int report_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 	int i;
 	ConfigEntry *cep; // To store the current variable/value pair etc
 
-	if(!(cep = gottem_getmodconf(ce, type)))
+	if(!gottem_getmodconf(ce, type))
 		return 0; // Returning 0 means idgaf bout dis (i.e. mark/keep marked as unknown)
 
 	// Loop dat shyte fam
-	for(cep = cep->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
 		// Do we even have a valid name l0l?
 		// This should already be checked by Unreal's core functions but there's no harm in having it here too =]
 		if(!cep->ce_varname) {
@@ -423,10 +419,10 @@ int report_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 int report_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 	ConfigEntry *cep;
 
-	if(!(cep = gottem_getmodconf(ce, type)))
+	if(!gottem_getmodconf(ce, type))
 		return 0;
 
-	for(cep = cep->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
 		if(!cep->ce_varname)
 			continue;
 
@@ -506,7 +502,7 @@ CMD_FUNC(reportlist) {
 		return;
 
 	// Also excludes U-Lines ;]
-	if(!ValidatePermissionsForPath("gottem:report:list", client, NULL, NULL, NULL)) {
+	if(!ValidatePermissionsForPath("report:list", client, NULL, NULL, NULL)) {
 		sendnumeric(client, ERR_NOPRIVILEGES);
 		return;
 	}
@@ -528,7 +524,7 @@ CMD_FUNC(reportdel) {
 	if(!MyUser(client))
 		return;
 
-	if(!ValidatePermissionsForPath("gottem:report:delete", client, NULL, NULL, NULL)) {
+	if(!ValidatePermissionsForPath("report:delete", client, NULL, NULL, NULL)) {
 		sendnumeric(client, ERR_NOPRIVILEGES);
 		return;
 	}
