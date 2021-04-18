@@ -64,7 +64,7 @@ void free_all_ilines(ILine *ILineList);
 ILine *get_ilines(void);
 ILine *find_iline(char *mask, char *other);
 ILine *match_iline(Client *client, Client *acptr);
-int signore_hook_serverconnect(Client *client);
+int signore_hook_serversync(Client *client);
 
 #if BACKPORT_HOOK_SENDTYPE
 	int signore_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice);
@@ -108,7 +108,7 @@ static char *muhhalp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/signore", // Module name
-	"2.0.1", // Version
+	"2.0.2", // Version
 	"Implements an I-Line for adding server-side ignores", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -148,7 +148,7 @@ MOD_INIT() {
 	MARK_AS_GLOBAL_MODULE(modinfo);
 
 	// Add muh hooks with varying priorities lol
-	HookAdd(modinfo->handle, HOOKTYPE_SERVER_CONNECT, 0, signore_hook_serverconnect); // Order n0 matur
+	HookAdd(modinfo->handle, HOOKTYPE_SERVER_SYNC, 0, signore_hook_serversync); // Order n0 matur
 	HookAdd(modinfo->handle, HOOKTYPE_CAN_SEND_TO_USER, -100, signore_hook_cansend_user); // Run with high pri0rity
 	return MOD_SUCCESS;
 }
@@ -345,7 +345,7 @@ ILine *match_iline(Client *client, Client *acptr) {
 }
 
 // Server connect hewk familia
-int signore_hook_serverconnect(Client *client) {
+int signore_hook_serversync(Client *client) {
 	// Sync I-Lines fam
 	ILine *ILineList, *sigEntry; // Head and iter8or ;];]
 	if((ILineList = get_ilines())) { // Gettem list
