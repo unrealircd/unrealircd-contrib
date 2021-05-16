@@ -1,4 +1,5 @@
 /* 
+	LICENSE: GPLv3
 
 	SACYCLE command for forcing someone to cycle a channel 
 
