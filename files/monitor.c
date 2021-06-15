@@ -25,7 +25,11 @@ module
 CMD_FUNC(cmd_monitor);
 char *monitor_isupport_param(void);
 void monitorMD_free(ModData *md);
-int monitor_nickchange(Client *client, char *oldnick);
+#if UNREAL_VERSION_TIME<202115
+int monitor_nickchange(Client *client, char *newnick);
+#else // unrealircd-5.2.0
+int monitor_nickchange(Client *client, MessageTag *mtags, char *newnick);
+#endif
 int monitor_quit(Client *client, MessageTag *mtags, char *comment);
 int monitor_connect(Client *client);
 void monitor_showall(Client *client, MessageTag *recv_mtags);
@@ -51,7 +55,7 @@ void send_status(Client *client, MessageTag *recv_mtags, char *nick);
 
 ModuleHeader MOD_HEADER = {
 	"third/monitor",
-	"5.0",
+	"5.1",
 	"Command /monitor (IRCv3)", 
 	"k4be@PIRC",
 	"unrealircd-5",
@@ -92,7 +96,11 @@ MOD_UNLOAD(){
 	return MOD_SUCCESS;
 }
 
+#if UNREAL_VERSION_TIME<202115
 int monitor_nickchange(Client *client, char *newnick){
+#else // unrealircd-5.2.0
+int monitor_nickchange(Client *client, MessageTag *mtags, char *newnick){
+#endif
 	monitor_offline(client->name);
 	monitor_online(client, newnick);
 	return 0;
