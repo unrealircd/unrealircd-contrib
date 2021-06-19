@@ -151,8 +151,8 @@ int autovhost_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 			continue; // Next iteration imo tbh
 		}
 
-		if(strlen(cep->ce_vardata) <= 5) {
-			config_error("%s:%i: vhost should be at least 5 characters (%s)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, cep->ce_vardata); // Rep0t error
+		if(strlen(cep->ce_vardata) < 3) {
+			config_error("%s:%i: vhost should be at least 3 characters (%s)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, cep->ce_vardata); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
