@@ -23,6 +23,12 @@ module {
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
 
+// Prior to v5.2.0 we didn't have a channel argument for conv_param :>
+#undef BACKPORT_CONVPARAM_NOCHANNEL
+#if (UNREAL_VERSION_TIME < 202120)
+	#define BACKPORT_CONVPARAM_NOCHANNEL
+#endif
+
 // Channel mode to add
 #define CHMODE_FLAG 'j'
 
@@ -52,7 +58,6 @@ int kickjoindelay_hook_kick(Client *client, Client *victim, Channel *channel, Me
 int kickjoindelay_hook_pre_localjoin(Client *client, Channel *channel, char *parv[]);
 
 int kickjoindelay_chmode_isok(Client *client, Channel *channel, char mode, char *para, int checkt, int what);
-char *kickjoindelay_chmode_conv_param(char *para, Client *client);
 void *kickjoindelay_chmode_put_param(void *data, char *para);
 char *kickjoindelay_chmode_get_param(void *data);
 void kickjoindelay_chmode_free_param(void *data);
@@ -61,13 +66,19 @@ int kickjoindelay_chmode_sjoin_check(Channel *channel, void *ourx, void *theirx)
 void kickjoindelay_md_free(ModData *md);
 EVENT(kickjoindelay_event);
 
+#ifdef BACKPORT_CONVPARAM_NOCHANNEL
+	char *kickjoindelay_chmode_conv_param(char *para, Client *client);
+#else
+	char *kickjoindelay_chmode_conv_param(char *para, Client *client, Channel *channel);
+#endif
+
 Cmode_t extcmode_kickjoindelay = 0L; // Store bitwise value latur
 ModDataInfo *kickjoinMDI = NULL; // Persistent st0rage for kick timers
 
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/kickjoindelay", // Module name
-	"2.0", // Version
+	"2.1", // Version
 	"Chanmode +j to prevent people from rejoining too fast after a kick", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -249,7 +260,12 @@ int kickjoindelay_chmode_isok(Client *client, Channel *channel, char mode, char 
 	return EX_ALLOW; // Fallthrough, normally never reached
 }
 
-char *kickjoindelay_chmode_conv_param(char *para, Client *client) {
+#ifdef BACKPORT_CONVPARAM_NOCHANNEL
+	char *kickjoindelay_chmode_conv_param(char *para, Client *client)
+#else
+	char *kickjoindelay_chmode_conv_param(char *para, Client *client, Channel *channel)
+#endif
+{
 	/* Args:
 	** para: Parameters for the chmode
 	** client: Client who issues the MODE change

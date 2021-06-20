@@ -42,6 +42,12 @@ struct t_chansnoflag {
 	#undef BACKPORT_HAS_TKLDEL
 #endif
 
+// Prior to v5.2.0 we didn't have message tags for nickchange events :>
+#undef BACKPORT_NICKCHANGE_NO_MTAGS
+#if (UNREAL_VERSION_TIME < 202115)
+	#define BACKPORT_NICKCHANGE_NO_MTAGS
+#endif
+
 // Depending on the Unreal version this macro may not be available to modules ;]
 #ifndef GetReputation
 	#define GetReputation(client) (moddata_client_get(client, "reputation") ? atoi(moddata_client_get(client, "reputation")) : 0)
@@ -128,7 +134,6 @@ int chansno_hook_local_connect(Client *client);
 int chansno_hook_local_quit(Client *client, MessageTag *mtags, char *comment);
 int chansno_hook_local_join(Client *client, Channel *channel, MessageTag *mtags, char *parv[]);
 int chansno_hook_local_kick(Client *client, Client *victim, Channel *channel, MessageTag *mtags, char *comment);
-int chansno_hook_local_nickchange(Client *client, char *newnick);
 int chansno_hook_local_part(Client *client, Channel *channel, MessageTag *mtags, char *comment);
 int chansno_hook_serverconnect(Client *client);
 int chansno_hook_serverquit(Client *client, MessageTag *mtags);
@@ -139,10 +144,17 @@ int chansno_hook_channeldestroy(Channel *channel, int *should_destroy);
 int chansno_hook_local_spamfilter(Client *acptr, char *str, char *str_in, int type, char *target, TKL *tkl);
 CMD_OVERRIDE_FUNC(chansno_override_oper);
 int chansno_hook_tkladd(Client *client, TKL *tkl);
+int chansno_hook_tklmain(Client *client, TKL *tkl, char direction);
+
 #ifdef BACKPORT_HAS_TKLDEL
 	int chansno_hook_tkldel(Client *client, TKL *tkl);
 #endif
-int chansno_hook_tklmain(Client *client, TKL *tkl, char direction);
+
+#ifdef BACKPORT_NICKCHANGE_NO_MTAGS
+	int chansno_hook_local_nickchange(Client *client, char *newnick);
+#else
+	int chansno_hook_local_nickchange(Client *client, MessageTag *mtags, char *newnick);
+#endif
 
 static void InitConf(void);
 static void FreeConf(void);
@@ -160,7 +172,7 @@ char msgbuf[BUFSIZE];
 
 ModuleHeader MOD_HEADER = {
 	"third/chansno",
-	"2.1.1",
+	"2.2",
 	"Allows opers to assign channels for specific server notifications (sort of like snomasks)",
 	"Gottem / jesopo", // Author
 	"unrealircd-5", // Modversion
@@ -538,7 +550,13 @@ int chansno_hook_local_kick(Client *client, Client *victim, Channel *channel, Me
 	return HOOK_CONTINUE;
 }
 
-int chansno_hook_local_nickchange(Client *client, char *newnick) {
+#ifdef BACKPORT_NICKCHANGE_NO_MTAGS
+	int chansno_hook_local_nickchange(Client *client, char *newnick)
+#else
+	int chansno_hook_local_nickchange(Client *client, MessageTag *mtags, char *newnick)
+#endif
+{
+
 	snprintf(msgbuf, sizeof(msgbuf), "%s (%s@%s) has changed their nickname to %s", client->name, UserName(client), RealHost(client), newnick);
 	SendNotice_simple(CHSNO_NICKCHANGE, 0);
 	return HOOK_CONTINUE;
