@@ -94,7 +94,7 @@ static char *saumodehelp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/sacmds", // Module name
-	"2.1", // Version
+	"2.1.1", // Version
 	"Implements SA* commands for privileged opers", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -212,7 +212,8 @@ CMD_FUNC(cmd_sanick) {
 	new_message(acptr, NULL, &mtags);
 	sendto_local_common_channels(acptr, NULL, 0, mtags, ":%s NICK :%s", acptr->name, newnick); // Send to other local users in common channels
 	sendto_server(NULL, 0, 0, mtags, ":%s NICK %s :%ld", acptr->id, newnick, acptr->lastnick); // And the rest of el netw0rkerin0 ;]
-	free_message_tags(mtags); // Also sets mtags back to NULL ;]
+	free_message_tags(mtags);
+	mtags = NULL;
 
 	add_history(acptr, 1); // Add nick history for whowas etc
 	(void)del_from_client_hash_table(acptr->name, acptr); // Remove old name from lclient_list
