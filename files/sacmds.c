@@ -23,6 +23,12 @@ module {
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
 
+// Prior to v5.2.0 we didn't have message tags for nickchange events :>
+#undef BACKPORT_NICKCHANGE_NO_MTAGS
+#if (UNREAL_VERSION_TIME < 202115)
+	#define BACKPORT_NICKCHANGE_NO_MTAGS
+#endif
+
 #define SNOMASK_SACMD 'A'
 
 #define MSG_SANICK "SANICK"
@@ -88,7 +94,7 @@ static char *saumodehelp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/sacmds", // Module name
-	"2.0", // Version
+	"2.1.1", // Version
 	"Implements SA* commands for privileged opers", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -207,6 +213,7 @@ CMD_FUNC(cmd_sanick) {
 	sendto_local_common_channels(acptr, NULL, 0, mtags, ":%s NICK :%s", acptr->name, newnick); // Send to other local users in common channels
 	sendto_server(NULL, 0, 0, mtags, ":%s NICK %s :%ld", acptr->id, newnick, acptr->lastnick); // And the rest of el netw0rkerin0 ;]
 	free_message_tags(mtags);
+	mtags = NULL;
 
 	add_history(acptr, 1); // Add nick history for whowas etc
 	(void)del_from_client_hash_table(acptr->name, acptr); // Remove old name from lclient_list
@@ -217,7 +224,14 @@ CMD_FUNC(cmd_sanick) {
 		sendto_snomask_global(SNO_SACMD, "*** %s (%s@%s) used %s to change %s to %s", client->name, client->user->username, client->user->realhost, MSG_SANICK, acptr->name, newnick);
 	}
 
-	RunHook2(HOOKTYPE_LOCAL_NICKCHANGE, acptr, newnick); // Run hooks lol
+	// Run hooks lol
+	#ifdef BACKPORT_NICKCHANGE_NO_MTAGS
+		RunHook2(HOOKTYPE_LOCAL_NICKCHANGE, acptr, newnick);
+	#else
+		new_message(acptr, NULL, &mtags);
+		RunHook3(HOOKTYPE_LOCAL_NICKCHANGE, acptr, mtags, newnick);
+		free_message_tags(mtags);
+	#endif
 
 	strlcpy(acptr->name, newnick, sizeof(acptr->name)); // Actually change the nick the pointer is using here
 	add_to_client_hash_table(newnick, acptr); // Re-add to lclient_list

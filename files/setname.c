@@ -51,7 +51,7 @@ long CAP_SETNAME = 0L;
 ModuleHeader MOD_HEADER
   = {
 	"third/setname",	/* Name of module */
-	"5.0", /* Version */
+	"5.1", /* Version */
 	"IRCv3-compatible command /setname (CAP setname)", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5",
@@ -119,7 +119,11 @@ CMD_OVERRIDE_FUNC(cmd_setname){
 		/* set the new name before we check, but don't send to servers unless it is ok */
 		strcpy(client->info, parv[1]);
 		spamfilter_build_user_string(spamfilter_user, client->name, client);
+#if UNREAL_VERSION_TIME < 202120
 		if (match_spamfilter(client, spamfilter_user, SPAMF_USER, NULL, 0, NULL)){
+#else // unrealircd-5.2.0
+		if (match_spamfilter(client, spamfilter_user, SPAMF_USER, "SETNAME", NULL, 0, NULL)){
+#endif
 			/* Was rejected by spamfilter, restore the realname */
 			strcpy(client->info, tmpinfo);
 			return;

@@ -26,6 +26,12 @@ module {
 // Since v5.0.5 some hooks now include a SendType
 #define BACKPORT_HOOK_SENDTYPE (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 5)
 
+// Prior to v5.2.0 we didn't have a channel argument for conv_param :>
+#undef BACKPORT_CONVPARAM_NOCHANNEL
+#if (UNREAL_VERSION_TIME < 202120)
+	#define BACKPORT_CONVPARAM_NOCHANNEL
+#endif
+
 #define CheckAPIError(apistr, apiobj) \
 	do { \
 		if(!(apiobj)) { \
@@ -59,7 +65,6 @@ int joinmute_hook_kick(Client *client, Client *victim, Channel *channel, Message
 int modeJ_is_ok(Client *client, Channel *channel, char mode, char *para, int checkt, int what);
 void *modeJ_put_param(void *lst, char *para);
 char *modeJ_get_param(void *lst);
-char *modeJ_conv_param(char *param, Client *client);
 void modeJ_free_param(void *lst);
 void *modeJ_dup_struct(void *src);
 int modeJ_sjoin_check(Channel *channel, void *ourx, void *theirx);
@@ -70,12 +75,18 @@ int modeJ_sjoin_check(Channel *channel, void *ourx, void *theirx);
 	int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, SendType sendtype);
 #endif
 
+#ifdef BACKPORT_CONVPARAM_NOCHANNEL
+	char *modeJ_conv_param(char *param, Client *client);
+#else
+	char *modeJ_conv_param(char *param, Client *client, Channel *channel);
+#endif
+
 UsersM *muted_users = NULL; // List of data
 Cmode_t extcmode_joinmute = 0L; // To store the bit flag latur
 
 ModuleHeader MOD_HEADER = {
 	"third/joinmute",
-	"2.0.1",
+	"2.1",
 	"Adds +J chmode: Mute newly joined people for +J X seconds",
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -164,7 +175,12 @@ char *modeJ_get_param(void *r_in) {
 	return retbuf;
 }
 
-char *modeJ_conv_param(char *param, Client *client) {
+#ifdef BACKPORT_CONVPARAM_NOCHANNEL
+	char *modeJ_conv_param(char *param, Client *client)
+#else
+	char *modeJ_conv_param(char *param, Client *client, Channel *channel)
+#endif
+{
 	static char retbuf[32];
 	int num = atoi(param);
 

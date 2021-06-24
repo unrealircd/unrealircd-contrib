@@ -26,6 +26,12 @@ module {
 // Config block
 #define MYCONF "fixhop"
 
+// Prior to v5.2.0 we didn't have "security groups" :>
+#undef BACKPORT_ANTIFLOOD_NO_SECGROUPS
+#if (UNREAL_VERSION_TIME < 202115)
+	#define BACKPORT_ANTIFLOOD_NO_SECGROUPS
+#endif
+
 // Commands to override
 #define OVR_INVITE "INVITE"
 #define OVR_MODE "MODE"
@@ -58,7 +64,7 @@ int chmodeNotif = 0; // Notification to go wit it
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/fixhop", // Module name
-	"2.0.1", // Version
+	"2.1", // Version
 	"The +h access mode seems to be a little borked/limited, this module implements some tweaks for it", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -298,10 +304,11 @@ CMD_OVERRIDE_FUNC(fixhop_inviteoverride) {
 		return;
 	}
 
-	if(MyConnect(client)) {
+	if(MyUser(client)) {
 		if(target_limit_exceeded(client, target, target->name))
 			return;
 
+	#ifdef BACKPORT_ANTIFLOOD_NO_SECGROUPS
 		if(!ValidatePermissionsForPath("immune:invite-flood", client, NULL, NULL, NULL)) {
 			if((client->user->flood.invite_t + INVITE_PERIOD) <= timeofday) {
 				client->user->flood.invite_c = 0;
@@ -314,6 +321,12 @@ CMD_OVERRIDE_FUNC(fixhop_inviteoverride) {
 				return;
 			}
 		}
+	#else
+		if(!ValidatePermissionsForPath("immune:invite-flood", client, NULL, NULL, NULL) && flood_limit_exceeded(client, FLD_INVITE)) {
+			sendnumeric(client, RPL_TRYAGAIN, "INVITE");
+			return;
+		}
+	#endif
 
 		if(!override) {
 			sendnumeric(client, RPL_INVITING, target->name, channel->chname);
