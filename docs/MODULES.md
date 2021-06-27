@@ -3,7 +3,7 @@ Some clients implement a command like ``/amsg <message>``, which sends that mess
 This can get really spammy, so the module will allow the first message to go through and block the others for a short period of time.  
 It will also strip colours and control codes, in case some people have edgy scripts for different markup across tabs.  
 The offender will get an in-channel notice if the target is a channel and in the server console if otherwise.
-****
+___
 ## anticaps
 Some people may often type in caps which is annoying af really.  
 So this module allows you to block these messages (or convert to all-lowercase) by means of an ``anticaps { }`` configuration block.  
