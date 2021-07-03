@@ -38,11 +38,6 @@ ModuleHeader MOD_HEADER = {
 
 int webirconly_check (Client *client, Channel *channel, char *key, char *parv[]);
 
-typedef struct {
-	// Change this or add more variables, whatever suits you fam
-	char flag;
-	int p;
-} aModeX;
 
 // Initialisation routine (register hooks, commands and modes or create structs etc)
 MOD_INIT() {
