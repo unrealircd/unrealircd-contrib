@@ -78,7 +78,7 @@ int webirconly_check (Client *client, Channel *channel, char *key, char *parv[])
 	
 	if ((IsWebircOnly(channel) && !IsWebircUser(client)) && !IsOper(client)) {
 		sendnumeric(client, ERR_FORBIDDENCHANNEL, channel->chname, "This channel is for web users only.");
-		return HOOK_DENY;
+		return ERR_NEEDREGGEDNICK;
 	}
 	return 0;
 }
