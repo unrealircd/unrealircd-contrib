@@ -41,7 +41,7 @@ void geoip_moddata_unserialize(char *str, ModData *m);
 
 ModuleHeader MOD_HEADER = {
 	"third/geoip-transfer",   /* Name of module */
-	"5.0.1", /* Version */
+	"5.0.2", /* Version */
 	"GeoIP data provider / data transfer module", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5"
@@ -80,6 +80,9 @@ MOD_INIT(){
 	mreq.free = geoip_moddata_free;
 	mreq.serialize = geoip_moddata_serialize;
 	mreq.unserialize = geoip_moddata_unserialize;
+#if UNREAL_VERSION_TIME >= 202125
+	mreq.remote_write = 1;
+#endif
 	geoipMD = ModDataAdd(modinfo->handle, mreq);
 	if(!geoipMD){
 		config_error("%s: critical error for ModDataAdd: %s. Don't load geoip-base and geoip-transfer on the same server. Remove the 'loadmodule \"third/geoip-transfer\";' line from your config. Otherwise your setup may not work.", MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle));
