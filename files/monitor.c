@@ -55,7 +55,7 @@ void send_status(Client *client, MessageTag *recv_mtags, char *nick);
 
 ModuleHeader MOD_HEADER = {
 	"third/monitor",
-	"5.1",
+	"5.2",
 	"Command /monitor (IRCv3)", 
 	"k4be@PIRC",
 	"unrealircd-5",
@@ -101,6 +101,8 @@ int monitor_nickchange(Client *client, char *newnick){
 #else // unrealircd-5.2.0
 int monitor_nickchange(Client *client, MessageTag *mtags, char *newnick){
 #endif
+	if(!smycmp(client->name, newnick)) // new nick is same as old one, maybe the case changed
+		return 0;
 	monitor_offline(client->name);
 	monitor_online(client, newnick);
 	return 0;
@@ -146,7 +148,7 @@ int is_monitoring(Client *client, char *nick){
 	int i;
 	monitor = moddata_client(client, monitorMD).ptr;
 	if(monitor)	for(i=0; i<MAXWATCH; i++){
-		if(monitor[i] && !strcasecmp(monitor[i], nick))
+		if(monitor[i] && !smycmp(monitor[i], nick))
 			return 1;
 	}
 	return 0;
