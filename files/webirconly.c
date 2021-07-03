@@ -26,6 +26,16 @@ Cmode_t EXTCMODE_WEBONLY;
 #define IsWebircOnly(channel)    (channel->mode.extmode & EXTCMODE_WEBONLY)
 #define IsWebircUser(x) (IsUser(x) && webircchecklol(x))
 
+#define CheckAPIError(apistr, apiobj) \
+	do { \
+		if(!(apiobj)) { \
+			config_error("A critical error occurred on %s for %s: %s", (apistr), MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle)); \
+			return MOD_FAILED; \
+		} \
+	} while(0)
+
+
+
 static int webircchecklol(Client *cptr);
 
 ModuleHeader MOD_HEADER = {
@@ -47,7 +57,7 @@ MOD_INIT() {
 	req.paracount = 0;
 	req.flag = WEBIRCONLY_FLAG;
 	req.is_ok = extcmode_default_requirehalfop;
-	CmodeAdd(modinfo->handle, req, &EXTCMODE_WEBONLY);
+	CheckAPIError("CmodeAdd(EXTCMODE_WEBONLY)",CmodeAdd(modinfo->handle, req, &EXTCMODE_WEBONLY));
 	HookAdd(modinfo->handle, HOOKTYPE_CAN_JOIN, 0, webirconly_check);
 	
 
@@ -67,7 +77,7 @@ int webirconly_check (Client *client, Channel *channel, char *key, char *parv[])
 {
 	
 	if ((IsWebircOnly(channel) && !IsWebircUser(client)) && !IsOper(client)) {
-		sendnotice(client, "*** (%s) That channel is for web users only.",channel->chname);
+		sendnumeric(client, ERR_FORBIDDENCHANNEL, channel->chname, "This channel is for web users only.");
 		return ERR_NEEDREGGEDNICK;
 	}
 	return 0;
