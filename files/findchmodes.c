@@ -25,11 +25,15 @@ module
 #define MSG_FINDCHMODES "FINDCHMODES"
 #define USAGE() { sendnotice(client, "Usage: /%s +character", MSG_FINDCHMODES); }
 
+#if (UNREAL_VERSION_MAJOR<2) || (UNREAL_VERSION_MAJOR==2 && UNREAL_VERSION_MINOR==0)
+#define OLDAPI // channel_modes() prototype change
+#endif
+
 CMD_FUNC(cmd_findchmodes);
 
 ModuleHeader MOD_HEADER = {
 	"third/findchmodes",   /* Name of module */
-	"5.0", /* Version */
+	"5.1", /* Version */
 	"Find channels by channel modes", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5"
@@ -71,7 +75,12 @@ CMD_FUNC(cmd_findchmodes) {
 			if (!ValidatePermissionsForPath("channel:see:list:secret",client,NULL,channel,NULL)) continue;
 			*modebuf = *parabuf = '\0';
 			modebuf[1] = '\0';
-			channel_modes((*channel->mode.key)?client:(Client *)&me, modebuf, parabuf, sizeof(modebuf), sizeof(parabuf), channel); // using "me" here to get args for all channels, never retrieve channel keys though
+			// using "me" here to get args for all channels, never retrieve channel keys though
+#ifdef OLDAPI
+			channel_modes((*channel->mode.key)?client:(Client *)&me, modebuf, parabuf, sizeof(modebuf), sizeof(parabuf), channel);
+#else
+			channel_modes((*channel->mode.key)?client:(Client *)&me, modebuf, parabuf, sizeof(modebuf), sizeof(parabuf), channel, 0);
+#endif
 			if(strchr(modebuf, *arg)){
 				sendnumeric(client, RPL_CHANNELMODEIS, channel->chname, modebuf, parabuf);
 				if(IsMember(client, channel)){
