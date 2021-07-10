@@ -26,7 +26,7 @@ int operoverride_ext_hook_prelocaljoin(Client *client, Channel *channel, char *p
 
 ModuleHeader MOD_HEADER = {
 	"third/operoverride_ext",
-	"2.0",
+	"2.0.1",
 	"Additional OperOverride functionality",
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -76,7 +76,7 @@ int operoverride_ext_hook_prelocaljoin(Client *client, Channel *channel, char *p
 		}
 	}
 
-	if(has_channel_mode(channel, 'R') && !IsARegNick(client)) {
+	if(has_channel_mode(channel, 'R') && !IsRegNick(client)) {
 		canjoin[1] = '0';
 		if(ValidatePermissionsForPath("channel:override:message:regonly", client, NULL, channel, NULL)) {
 			canjoin[1] = '1';
