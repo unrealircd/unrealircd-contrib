@@ -46,7 +46,7 @@ int vhostCount = 0;
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/autovhost", // Module name
-	"2.0", // Version
+	"2.0.1", // Version
 	"Apply vhosts at connect time based on users' raw nick formats or IPs", // Description
 	"Gottem", // Author
 	"unrealircd-5", // Modversion
@@ -273,9 +273,12 @@ int autovhost_connect(Client *client) {
 			userhost_save_current(client); // Need to do this to take care of CAP capable clients etc
 
 			// Actually set the new one here
-			sendnotice(client, "*** Setting your cloaked host to %s", newhost);
 			safe_strdup(client->user->virthost, newhost);
-			sendto_server(NULL, 0, 0, NULL, ":%s SETHOST %s", client->name, newhost); // Broadcast to other servers too ;]
+			client->umodes |= UMODE_HIDE;
+			client->umodes |= UMODE_SETHOST;
+			sendto_server(client, 0, 0, NULL, ":%s SETHOST %s", client->id, newhost);
+			sendto_one(client, NULL, ":%s MODE %s :+tx", client->name, client->name);
+			sendnotice(client, "*** Your vhost has been changed to %s", newhost);
 			userhost_changed(client); // m0ar CAP shit
 			break;
 		}
