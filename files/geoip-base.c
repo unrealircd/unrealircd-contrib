@@ -97,10 +97,11 @@ int geoip_base_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
 void geoip_moddata_free(ModData *m);
 char *geoip_moddata_serialize(ModData *m);
 void geoip_moddata_unserialize(char *str, ModData *m);
+CMD_FUNC(cmd_geocheck);
 
 ModuleHeader MOD_HEADER = {
 	"third/geoip-base",   /* Name of module */
-	"5.0.4", /* Version */
+	"5.0.5", /* Version */
 	"GeoIP data provider module", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5"
@@ -342,10 +343,15 @@ int hexval(char c){
 
 // reading data from files
 
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
+
 static int read_ipv4(char *file){
 	FILE *u;
 	char buf[BUFLEN+1];
-	int ip[4], cidr, geoid;
+	int cidr, geoid;
+	char ip[24];
+	char netmask[24];
 	uint32_t addr;
 	uint32_t mask;
 	struct ip_range *curr[256];
@@ -358,32 +364,33 @@ static int read_ipv4(char *file){
 	u = fopen(filename, "r");
 	safe_free(filename);
 	if(!u){
-		sendto_realops("Cannot open IPv4 ranges list file\n");
+		config_warn("[geoip-base] Cannot open IPv4 ranges list file");
 		return 1;
 	}
 	
 	if(!fgets(buf, BUFLEN, u)){
-		sendto_realops("IPv4 list file is empty\n");
+		config_warn("[geoip-base] IPv4 list file is empty");
 		return 1;
 	}
-	while(fscanf(u, "%d.%d.%d.%d/%d,%s", ip, ip+1, ip+2, ip+3, &cidr, buf) == 6){
+	buf[BUFLEN] = '\0';
+	while(fscanf(u, "%23[^/\n]/%d,%" STR(BUFLEN) "[^\n]\n", ip, &cidr, buf) == 3){
 		if(sscanf(buf, "%d,", &geoid) != 1){
-	//		sendto_realops("Invalid or unsupported line in IPv4 ranges: %s\n", buf);
+//			sendto_realops("Can't read geoid for ip: %s", ip); // this happens normally so don't send a warning
 			continue;
 		}
-		for(i=0; i<4; i++){
-			if(ip[i] < 0 || ip[i] > 255){
-				sendto_realops("Invalid IP found! \"%d.%d.%d.%d\"\n", ip[0], ip[1], ip[2], ip[3]);
-				continue;
-			}
-		}
+
 		if(cidr < 1 || cidr > 32){
-			sendto_realops("Invalid CIDR found! IP=%d.%d.%d.%d CIDR=%d\n", ip[0], ip[1], ip[2], ip[3], cidr);
+			config_warn("[geoip-base] Invalid CIDR found! IP=%s CIDR=%d\n", ip, cidr);
 			continue;
 		}
-		addr = ((uint32_t)(ip[0])) << 24 | ((uint32_t)(ip[1])) << 16 | ((uint32_t)(ip[2])) << 8 | ((uint32_t)(ip[3])); //convert address to a single number
-		mask = 0;
+
+		if(inet_pton(AF_INET, ip, &addr) < 1){
+			config_warn("[geoip-base] Invalid IP found! \"%s\"", ip);
+			continue;
+		}
+		addr = htonl(addr);
 		
+		mask = 0;
 		while(cidr){ // calculate netmask
 			mask >>= 1;
 			mask |= (1<<31);
@@ -392,20 +399,21 @@ static int read_ipv4(char *file){
 		
 		i=0;
 		do { // multiple iterations in case CIDR is <8 and we have multiple first octets matching
-			if(!curr[ip[0]]){
-				ip_range_list[ip[0]] = safe_alloc(sizeof(struct ip_range));
-				curr[ip[0]] = ip_range_list[ip[0]];
+			uint8_t index = addr>>24;
+			if(!curr[index]){
+				ip_range_list[index] = safe_alloc(sizeof(struct ip_range));
+				curr[index] = ip_range_list[index];
 			} else {
-				curr[ip[0]]->next = safe_alloc(sizeof(struct ip_range));
-				curr[ip[0]] = curr[ip[0]]->next;
+				curr[index]->next = safe_alloc(sizeof(struct ip_range));
+				curr[index] = curr[index]->next;
 			}
-			ptr = curr[ip[0]];
+			ptr = curr[index];
 			ptr->next = NULL;
 			ptr->addr = addr;
 			ptr->mask = mask;
 			ptr->geoid = geoid;
 			i++;
-			ip[0]++;
+			index++;
 		} while(i<=((~mask)>>24));
 	}
 	fclose(u);
@@ -413,97 +421,56 @@ static int read_ipv4(char *file){
 }
 
 static int ip6_convert(char *ip, uint16_t out[8]){ // convert text to binary form
-	int i=0, j, nib, word_pos=0, len;
-	uint16_t word = 0;
-	int nib_cnt = 0;
-	memset(out, 0, 16);
-	len = strlen(ip);
-	for(;;){
-		if(i == len || ip[i] == ':'){
-			if(nib_cnt == 0){ // ::
-				break;
-			}
-			out[word_pos] = word;
-			word = 0;
-			word_pos++;
-			nib_cnt = 0;
-			if(i == len) return 1; //already done
-			if(word_pos > 7) return 0; //too long
-		} else {
-			if(nib_cnt == 4) return 0; // part is longer than 4 digits
-			nib = hexval(ip[i]);
-			if(nib < 0){
-				//invalid addr
-				return 0;
-			}
-			word <<= 4;
-			word |= nib;
-			nib_cnt++;
-		}
-		i++;
+	uint16_t tmp[8];
+	int i;
+	if(inet_pton(AF_INET6, ip, out) < 1)
+		return 0;
+	for(i=0; i<8; i++){
+		out[i] = htons(out[i]);
 	}
-	//now going from the end
-	j = len-1;
-	word = 0;
-	word_pos = 7;
-	nib_cnt = 0;
-	for(;;){
-		if(ip[j] == ':'){
-			while(nib_cnt<4){
-				word >>= 4;
-				nib_cnt++;
-			}
-			out[word_pos] = word;
-			word = 0;
-			word_pos--;
-			nib_cnt = 0;
-			if(j == i) return 1; //done
-		} else {
-			if(nib_cnt == 4){
-				return 0;
-			}
-			nib = hexval(ip[j]);
-			if(nib < 0){
-				return 0;
-			}
-			word >>= 4;
-			word |= nib<<12;
-			nib_cnt++;
-		}
-		j--;
-	}
+	return 1;
 }
+
+#define IPV6_STRING_SIZE	40
 
 static int read_ipv6(char *file){
 	FILE *u;
 	char buf[BUFLEN+1];
 	char *bptr, *optr;
 	int cidr, geoid;
-	char ip[40];
+	char ip[IPV6_STRING_SIZE];
 	uint16_t addr[8];
 	uint16_t mask[8];
 	struct ip6_range *curr = NULL;
 	struct ip6_range *ptr;
 	int error;
+	int length;
 
 	char *filename = strdup(file);
 	convert_to_absolute_path(&filename, CONFDIR);
 	u = fopen(filename, "r");
 	safe_free(filename);
 	if(!u){
-		sendto_realops("Cannot open IPv6 ranges list file\n");
+		config_warn("[geoip-base] Cannot open IPv6 ranges list file");
 		return 1;
 	}
 	if(!fgets(buf, BUFLEN, u)){
-		sendto_realops("IPv6 list file is empty\n");
+		config_warn("[geoip-base] IPv6 list file is empty");
 		return 1;
 	}
 	while(fgets(buf, BUFLEN, u)){
 		error = 0;
 		bptr = buf;
 		optr = ip;
+		length = 0;
 		while(*bptr != '/'){
 			if(!*bptr){
+				error = 1;
+				break;
+			}
+			if(++length >= IPV6_STRING_SIZE){
+				ip[IPV6_STRING_SIZE-1] = '\0';
+				config_warn("[geoip-base] Too long IP address found, starts with %s", ip);
 				error = 1;
 				break;
 			}
@@ -513,12 +480,12 @@ static int read_ipv6(char *file){
 		*optr = '\0';
 		bptr++;
 		if(!ip6_convert(ip, addr)){
-			sendto_realops("Invalid IP found! \"%s\"", ip);
+			config_warn("[geoip-base] Invalid IP found! \"%s\"", ip);
 			continue;
 		}
 		sscanf(bptr, "%d,%d,", &cidr, &geoid);
 		if(cidr < 1 || cidr > 128){
-			sendto_realops("Invalid CIDR found! CIDR=%d\n", cidr);
+			config_warn("[geoip-base] Invalid CIDR found! CIDR=%d", cidr);
 			continue;
 		}
 
@@ -549,13 +516,24 @@ static int read_ipv6(char *file){
 
 }
 
+// CSV fields
+// no STATE_GEONAME_ID because of using %d in fscanf
+#define STATE_LOCALE_CODE	0
+#define STATE_CONTINENT_CODE	1
+#define STATE_CONTINENT_NAME	2
+#define STATE_COUNTRY_ISO_CODE	3
+#define STATE_COUNTRY_NAME	4
+#define STATE_IS_IN_EU	5
+
+#define MEMBER_SIZE(type,member) sizeof(((type *)0)->member)
+
 static int read_countries(char *file){
 	FILE *u;
-	char code[10];
-	char continent[25];
-	char name[100];
+	char code[MEMBER_SIZE(struct country, code)];
+	char continent[MEMBER_SIZE(struct country, continent)];
+	char name[MEMBER_SIZE(struct country, name)];
 	char buf[BUFLEN+1];
-	int i;
+	int state;
 	int id;
 	struct country *curr = NULL;
 	
@@ -564,51 +542,79 @@ static int read_countries(char *file){
 	u = fopen(filename, "r");
 	safe_free(filename);
 	if(!u){
-		sendto_realops("Cannot open countries list file\n");
+		config_warn("[geoip-base] Cannot open countries list file");
 		return 1;
 	}
 	
 	if(!fgets(buf, BUFLEN, u)){
-		sendto_realops("Countries list file is empty\n");
+		config_warn("[geoip-base] Countries list file is empty");
 		return 1;
 	}
-	while(fscanf(u, "%d,%[^\n]", &id, buf) == 2){ //getting country ID integer and all other data in string
+	while(fscanf(u, "%d,%" STR(BUFLEN) "[^\n]", &id, buf) == 2){ //getting country ID integer and all other data in string
 		char *ptr = buf;
 		char *codeptr = code;
 		char *contptr = continent;
 		char *nptr = name;
 		int quote_open = 0;
-		i=0;
+		int length = 0;
+		state = STATE_LOCALE_CODE;
 		while(*ptr){
-			if(i == 2){
-				if(*ptr == ','){
-					goto next_line; // no continent?
-				}
-				*contptr = *ptr; // scan for continent name
-				contptr++;
-			}
-			if(i == 3){
-				if(*ptr == ','){	// country code is empty
-					goto next_line;	// -- that means only the continent is specified - we ignore it completely
-				}
-				*codeptr = *ptr; // scan for country code (DE, PL, US etc)
-				codeptr++;
+			switch(state){
+				case STATE_CONTINENT_NAME:
+					if(*ptr == ','){
+						goto next_line; // no continent?
+					}
+					if(length >= MEMBER_SIZE(struct country, continent)){
+						*contptr = '\0';
+						config_warn("[geoip-base] Too long continent name found: `%s`. If you are sure your countries file is correct, please report this to the module author.", continent);
+						goto next_line;
+					}
+					*contptr = *ptr; // scan for continent name
+					contptr++;
+					length++;
+					break;
+				case STATE_COUNTRY_ISO_CODE:
+					if(*ptr == ','){	// country code is empty
+						goto next_line;	// -- that means only the continent is specified - we ignore it completely
+					}
+					if(length >= MEMBER_SIZE(struct country, code)){
+						*codeptr = '\0';
+						config_warn("[geoip-base] Too long country code found: `%s`. If you are sure your countries file is correct, please report this to the module author.", code);
+						goto next_line;
+					}
+					*codeptr = *ptr; // scan for country code (DE, PL, US etc)
+					codeptr++;
+					length++;
+					break;
+				case STATE_COUNTRY_NAME:
+					goto read_country_name;
+				default:
+					break; // ignore this field and wait for next one
 			}
 			ptr++;
 			if(*ptr == ','){
+				length = 0;
 				ptr++;
-				i++;
-				if(i == 4) break; // look for country name entry
+				state++;
 			}
 		}
+		read_country_name:
 		*codeptr = '\0';
 		*contptr = '\0';
+		length = 0;
 		while(*ptr){
 			switch(*ptr){
 				case '"': quote_open = !quote_open; ptr++; continue;
 				case ',': if(!quote_open) goto end_country_name; // we reached the end of current CSV field
 				/* fall through */
-				default: *nptr++ = *ptr++; break; // scan for country name
+				default:
+					*nptr++ = *ptr++;
+					if(length >= MEMBER_SIZE(struct country, name)){
+						*nptr = '\0';
+						config_warn("[geoip-base] Too long country name found: `%s`. If you are sure your countries file is correct, please report this to the module author.", name);
+						goto next_line;
+					}
+					break; // scan for country name
 			}
 		}
 		end_country_name:
@@ -634,7 +640,7 @@ static int read_countries(char *file){
 static struct country *get_country(int id){
 	struct country *curr = country_list;
 	if(!curr){
-		sendto_realops("Countries list is empty! Try /rehash ing to fix\n");
+		sendto_realops("[geoip-base] Countries list is empty! Try /rehash ing to fix");
 		return NULL;
 	}
 	int found = 0;
@@ -649,20 +655,16 @@ static struct country *get_country(int id){
 }
 
 static int get_v4_geoid(char *iip){
-	int ip[4];
 	uint32_t addr, tmp_addr;
 	struct ip_range *curr;
 	int i;
 	int found = 0;
-	sscanf(iip, "%d.%d.%d.%d", ip, ip+1, ip+2, ip+3);
-	for(i=0; i<4; i++){
-		if(ip[i] < 0 || ip[i] > 255){
-			sendto_realops("Invalid or unsupported client IP \"%s\"", iip);
-			return 0;
-		}
+	if(inet_pton(AF_INET, iip, &addr) < 1){
+		config_warn("[geoip-base] Invalid or unsupported client IP \"%s\"", iip);
+		return 0;
 	}
-	addr = ((uint32_t)(ip[0])) << 24 | ((uint32_t)(ip[1])) << 16 | ((uint32_t)(ip[2])) << 8 | ((uint32_t)(ip[3])); // convert IP to binary form
-	curr = ip_range_list[ip[0]];
+	addr = htonl(addr);
+	curr = ip_range_list[addr>>24];
 	if(curr){
 		i = 0;
 		for(;curr;curr = curr->next){
@@ -687,7 +689,7 @@ static int get_v6_geoid(char *iip){
 	int found = 0;
 	
 	if(!ip6_convert(iip, addr)){
-		sendto_realops("Invalid or unsupported client IP \"%s\"", iip);
+		sendto_realops("[geoip-base] Invalid or unsupported client IP \"%s\"", iip);
 		return 0;
 	}
 	curr = ip6_range_list;
@@ -711,7 +713,6 @@ static int get_v6_geoid(char *iip){
 
 static struct country *get_country_by_ip(char *iip){
 	int geoid;
-	static char buf[BUFLEN];
 	
 	struct country *curr_country;
 	
@@ -744,7 +745,7 @@ char *geoip_moddata_serialize(ModData *m){
 void geoip_moddata_unserialize(char *str, ModData *m){
 	if(m->ptr) safe_free(m->ptr);
 	struct country *country = safe_alloc(sizeof(struct country));
-	if(sscanf(str, "%[^!]!%[^!]!%[^!]", country->code, country->name, country->continent) != 3){ // invalid argument
+	if(sscanf(str, "%9[^!]!%99[^!]!%24[^!]", country->code, country->name, country->continent) != 3){ // invalid argument
 		safe_free(country);
 		m->ptr = NULL;
 	} else {
@@ -779,6 +780,7 @@ MOD_INIT(){
 		config_error("%s: critical error for ModDataAdd: %s. Don't load geoip-base and geoip-transfer on the same server. Remove the 'loadmodule \"third/geoip-transfer\";' line from your config.", MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle));
 		return MOD_FAILED;
 	}
+	CommandAdd(modinfo->handle, "GEOCHECK", cmd_geocheck, MAXPARA, CMD_USER);
 	return MOD_SUCCESS;
 }
 
@@ -803,6 +805,7 @@ MOD_LOAD(){
 		if (!IsUser(acptr)) continue;
 		geoip_userconnect(acptr); // add info for all users upon module loading
 	}
+
 	return MOD_SUCCESS;
 }
 
@@ -825,5 +828,19 @@ static int geoip_userconnect(Client *cptr) {
 	moddata_client(cptr, geoipMD).ptr = data;
 	broadcast_md_client_cmd(NULL, &me, cptr, geoipMD->name, geoip_moddata_serialize(&moddata_client(cptr, geoipMD)));
 	return HOOK_CONTINUE;
+}
+
+CMD_FUNC(cmd_geocheck){
+	struct country *country;
+	if(parc < 2 || BadPtr(parv[1])){
+		sendnumeric(client, ERR_NEEDMOREPARAMS, "GEOCHECK");
+		return;
+	}
+	country = get_country_by_ip(parv[1]);
+	if(!country){
+		sendnotice(client, "No country found for %s", parv[1]);
+		return;
+	}
+	sendnotice(client, "Country for %s is (%s/%s) %s (id: %d)", parv[1], country->continent, country->code, country->name, country->id);
 }
 
