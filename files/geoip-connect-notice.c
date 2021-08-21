@@ -35,6 +35,7 @@ struct country {
 
 int suppress_null_warning = 0;
 ModuleInfo *geoip_modinfo;
+ModDataInfo *geoipcnMD;
 
 // function declarations here
 static int geoip_connectnotice_userconnect(Client *);
@@ -44,7 +45,7 @@ CMD_OVERRIDE_FUNC(geoip_connectnotice_overridemd);
 
 ModuleHeader MOD_HEADER = {
 	"third/geoip-connect-notice",   /* Name of module */
-	"5.0.2", /* Version */
+	"5.0.3", /* Version */
 	"Notify opers about user's country", /* Short description of module */
 	"k4be@PIRC",
 	"unrealircd-5"
@@ -101,6 +102,15 @@ MOD_TEST(){
 MOD_INIT(){
 	HookAdd(modinfo->handle, HOOKTYPE_REMOTE_CONNECT, 0, geoip_connectnotice_userconnect);
 	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_CONNECT, 0, geoip_connectnotice_userconnect);
+	ModDataInfo mreq;
+	memset(&mreq, 0, sizeof(mreq));
+	mreq.type = MODDATATYPE_CLIENT;
+	mreq.name = "geoip-connect-notice";
+	geoipcnMD = ModDataAdd(modinfo->handle, mreq);
+	if(!geoipcnMD){
+		config_error("%s: critical error for ModDataAdd: %s. Failed to add geoip-connect-notice moddata.", MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle));
+		return MOD_FAILED;
+	}
 	return MOD_SUCCESS;
 }
 
@@ -119,10 +129,15 @@ MOD_UNLOAD(){
 }
 
 static int geoip_connectnotice_userconnect(Client *cptr) {
-	if(!cptr) return HOOK_CONTINUE; // is it possible?
+	if(!cptr)
+		return HOOK_CONTINUE; // is it possible?
+	if(moddata_client(cptr, geoipcnMD).i)
+		return HOOK_CONTINUE;
 	char *cdata = get_country_text(cptr);
-	if(!cdata) return HOOK_CONTINUE; // no country data for this user
+	if(!cdata)
+		return HOOK_CONTINUE; // no country data for this user
 	sendto_snomask_global(SNO_FCLIENT, "%s!%s@%s is connecting from %s", cptr->name, cptr->user->username, GetHost(cptr), cdata);
+	moddata_client(cptr, geoipcnMD).i = 1;
 	return HOOK_CONTINUE;
 }
 
