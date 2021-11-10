@@ -1,4 +1,4 @@
-This is the unrealircd-contrib repository. It contains 3rd party modules for UnrealIRCd 5.
+This is the unrealircd-contrib repository. It contains 3rd party modules for UnrealIRCd.
 
 ## Use at your own risk
 
