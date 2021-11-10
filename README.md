@@ -1,4 +1,5 @@
 This is the unrealircd-contrib repository. It contains 3rd party modules for UnrealIRCd.
+Note that by default you are on the *unreal6* branch, there is also a *unreal5* branch.
 
 ## Use at your own risk
 
@@ -9,7 +10,7 @@ the author of the module.**
 ## For end-users
 To view a list of available modules online, go to https://modules.unrealircd.org/
 
-On the command line you can use the [UnrealIRCd 5 module manager](https://www.unrealircd.org/docs/Module_manager)
+On the command line you can use the [UnrealIRCd module manager](https://www.unrealircd.org/docs/Module_manager)
 to list and (un)install modules, eg:
 * ```./unrealircd module list``` - to list all modules
 * ```./unrealircd module info third/something``` - to show all information about a specific module
@@ -18,7 +19,7 @@ to list and (un)install modules, eg:
 ## Bugs, fixes and enhancements
 If you find a bug or would like to submit a fix or enhancement in a module, then
 you must contact the author/maintainer of the module.
-The [UnrealIRCd 5 modules forum](https://forums.unrealircd.org/viewforum.php?f=54)
+The [UnrealIRCd modules forum](https://forums.unrealircd.org/viewforum.php?f=54)
 may also be a useful place to visit.
 
 **Do NOT contact the UnrealIRCd team and do not file a PR.**
