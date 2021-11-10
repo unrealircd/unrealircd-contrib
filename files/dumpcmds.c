@@ -12,7 +12,7 @@ ModuleHeader MOD_HEADER
 	"1.0",
 	"Dump IRC commands to a file",
 	"Syzop",
-	"unrealircd-5",
+	"unrealircd-6",
     };
 
 EVENT(do_dumpcmds);
@@ -63,7 +63,9 @@ EVENT(do_dumpcmds)
 
 	snprintf(fname, sizeof(fname), "%s/cmds.txt", PERMDATADIR);
 
-	ircd_log(LOG_ERROR, "[dumpcmds] Dumping commands to %s...", fname);
+	unreal_log(ULOG_INFO, "dumpcmds", "DUMPCMDS_DUMPING_TO_FILE", NULL,
+	           "[dumpcmds] Dumping commands to $file...",
+	           log_data_string("file", fname));
 	fd = fopen(fname, "w");
 	
 	if (!fd)
@@ -86,7 +88,7 @@ module
 	troubleshooting "Contact syzop@unrealircd.org if this module fails to compile";
 
 	// Minimum version necessary for this module to work:
-	min-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
 
 	post-install-text {
 		"The module is installed. Now all you need to do is add a loadmodule line:";
