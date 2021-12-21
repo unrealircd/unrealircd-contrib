@@ -9,13 +9,13 @@ module
 {
         documentation "https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md";
         troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
-        min-unrealircd-version "5.*";
+        min-unrealircd-version "6.*";
         post-install-text {
                 "The module is installed. Now you need to add a loadmodule line:";
                 "loadmodule \"third/wwwstats\";";
                 "then create a valid configuration block as in the example below:";
                 "wwwstats {";
-				" socket-path \"/tmp/wwwstats.sock\"; // do not specify if you don't want the socket";
+				" socket-path \"/tmp/wwwstats.sock\"; // this option is REQUIRED";
 				"};";
 				"And /REHASH the IRCd.";
 				"";
@@ -33,7 +33,6 @@ module
 #include "unrealircd.h"
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <pthread.h>
 
 #ifndef TOPICLEN
 #define TOPICLEN MAXTOPICLEN
@@ -47,17 +46,6 @@ module
 
 #define CHANNEL_MESSAGE_COUNT(channel) moddata_channel(channel, message_count_md).i
 
-struct asendInfo_s {
-	int sock;
-	char *buf;
-	int bufsize;
-	char *tmpbuf;
-};
-
-typedef struct chanStats_s chanStats;
-typedef struct channelInfo_s channelInfo;
-typedef struct asendInfo_s asendInfo;
-
 int counter;
 time_t init_time;
 
@@ -66,17 +54,13 @@ char send_buf[4096];
 struct sockaddr_un stats_addr;
 ModDataInfo *message_count_md;
 
-int wwwstats_msg(Client *sptr, Channel *chptr, MessageTag *mtags, char *msg, MESSAGE_SENDTYPE sendtype);
+int wwwstats_msg(Client *sptr, Channel *chptr, MessageTag *mtags, const char *msg, MESSAGE_SENDTYPE sendtype);
 EVENT(wwwstats_socket_evt);
-void asend_sprintf(asendInfo *info, char *fmt, ...);
-void append_int_param(asendInfo *info, char *param, int value);
 char *json_escape(char *d, const char *a);
 void md_free(ModData *md);
 int wwwstats_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int wwwstats_configposttest(int *errs);
 int wwwstats_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
-
-chanStats *chans, *chans_last;
 
 // config file stuff, based on Gottem's module
 
@@ -93,25 +77,25 @@ int wwwstats_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our bl0ck, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname) {
-			config_error("%s:%i: blank %s item", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!cep->name) {
+			config_error("%s:%i: blank %s item", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
-		if(!strcmp(cep->ce_varname, "socket-path")) {
-			if(!cep->ce_vardata) {
-				config_error("%s:%i: %s::%s must be a path", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+		if(!strcmp(cep->name, "socket-path")) {
+			if(!cep->value) {
+				config_error("%s:%i: %s::%s must be a path", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 				continue;
 			}
@@ -120,7 +104,7 @@ int wwwstats_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 		}
 
 		// Anything else is unknown to us =]
-		config_warn("%s:%i: unknown item %s::%s", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname); // So display just a warning
+		config_warn("%s:%i: unknown item %s::%s", cep->file->filename, cep->line_number, MYCONF, cep->name); // So display just a warning
 	}
 
 	*errs = errors;
@@ -143,21 +127,21 @@ int wwwstats_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our bl0cc, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname)
+		if(!cep->name)
 			continue; // Next iteration imo tbh
 
-		if(cep->ce_vardata && !strcmp(cep->ce_varname, "socket-path")) {
-			socket_path = strdup(cep->ce_vardata);
+		if(cep->value && !strcmp(cep->name, "socket-path")) {
+			socket_path = strdup(cep->value);
 			continue;
 		}
 	}
@@ -166,10 +150,10 @@ int wwwstats_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 
 ModuleHeader MOD_HEADER = {
 	"third/wwwstats",   /* Name of module */
-	"5.0", /* Version */
+	"6.0", /* Version */
 	"Provides data for network stats", /* Short description of module */
-	"rocket, k4be@PIRC",
-	"unrealircd-5"
+	"rocket, k4be",
+	"unrealircd-6"
 };
 
 // Configuration testing-related hewks go in testing phase obv
@@ -215,9 +199,6 @@ MOD_LOAD(){
 
 	counter = 0;
 
-	chans = NULL;
-	chans_last = NULL;
-
 	if(socket_path){
 		stats_socket = socket(PF_UNIX, SOCK_STREAM, 0);
 		bind(stats_socket, (struct sockaddr*) &stats_addr, SUN_LEN(&stats_addr));
@@ -245,120 +226,78 @@ void md_free(ModData *md){
 	md->i = 0;
 }
 
-int wwwstats_msg(Client *sptr, Channel *chptr, MessageTag *mtags, char *msg, MESSAGE_SENDTYPE sendtype) { // called on channel messages
+int wwwstats_msg(Client *sptr, Channel *chptr, MessageTag *mtags, const char *msg, MESSAGE_SENDTYPE sendtype) { // called on channel messages
 	counter++;
 	CHANNEL_MESSAGE_COUNT(chptr)++;
 	return HOOK_CONTINUE;
 }
 
 EVENT(wwwstats_socket_evt){
-	char buf[2000];
 	char topic[6*TOPICLEN+1];
 	char name[6*CHANNELLEN+1];
-	int i;
 	int sock;
-	asendInfo asinfo;
 	struct sockaddr_un cli_addr;
 	socklen_t slen;
 	Client *acptr;
 	Channel *channel;
 	unsigned int hashnum;
+	json_t *output = NULL;
+	json_t *servers = NULL;
+	json_t *channels = NULL;
+	json_t *server_j = NULL;
+	json_t *channel_j = NULL;
+	char *result;
 
 	if(!socket_hpath) return; // nothing to do
 
 	sock = accept(stats_socket, (struct sockaddr*) &cli_addr, &slen); // wait for a connection
 	
 	slen = sizeof(cli_addr);
-	asinfo.buf = send_buf;
-	asinfo.bufsize = sizeof(send_buf);
-	asinfo.tmpbuf = buf;
 	
 	if(sock<0){
 		if(errno == EWOULDBLOCK || errno == EAGAIN) return;
-		sendto_realops("wwwstats: accept error: %s", strerror(errno));
+		unreal_log(ULOG_ERROR, "wwwstats", "WWWSTATS_ACCEPT_ERROR", NULL, "Socket accept error: $error", log_data_string("error", strerror(errno)));
 		return;
 	}
-	asinfo.sock = sock;
-	send_buf[0] = 0;
-	asend_sprintf(&asinfo, "{"); // generate JSON data
-	append_int_param(&asinfo, "clients", irccounts.clients);
-	append_int_param(&asinfo, "channels", irccounts.channels);
-	append_int_param(&asinfo, "operators", irccounts.operators);
-	append_int_param(&asinfo, "servers", irccounts.servers);
-	append_int_param(&asinfo, "messages", counter);
+	
+	output = json_object();
+	servers = json_array();
+	channels = json_array();
 
-	i=0;
+	json_object_set_new(output, "clients", json_integer(irccounts.clients));
+	json_object_set_new(output, "channels", json_integer(irccounts.channels));
+	json_object_set_new(output, "operators", json_integer(irccounts.operators));
+	json_object_set_new(output, "servers", json_integer(irccounts.servers));
+	json_object_set_new(output, "messages", json_integer(counter));
 
-	asend_sprintf(&asinfo, "\"serv\":[");
 	list_for_each_entry(acptr, &global_server_list, client_node){
 		if (IsULine(acptr) && HIDE_ULINES)
 			continue;
-		asend_sprintf(&asinfo, "%s{\"name\":\"%s\",\"users\":%1d}", i?",":"", acptr->name, acptr->serv->users);
-		i++;
+		server_j = json_object();
+		json_object_set_new(server_j, "name", json_string_unreal(acptr->name));
+		json_object_set_new(server_j, "users", json_integer(acptr->server->users));
+		json_array_append_new(servers, server_j);
 	}
-	
-	asend_sprintf(&asinfo, "],\"chan\":[");
+	json_object_set_new(output, "serv", servers);
 
-	i=0;
 	for(hashnum = 0; hashnum < CHAN_HASH_TABLE_SIZE; hashnum++){
 		for(channel = hash_get_chan_bucket(hashnum); channel; channel = channel->hnextch){
 			if(!PubChannel(channel)) continue;
-			asend_sprintf(&asinfo, "%s{\"name\":\"%s\",\"users\":%d,\"messages\":%d", i?",":"",
-				json_escape(name, channel->chname), channel->users, CHANNEL_MESSAGE_COUNT(channel));
+			channel_j = json_object();
+			json_object_set_new(channel_j, "name", json_string_unreal(channel->name));
+			json_object_set_new(channel_j, "users", json_integer(channel->users));
+			json_object_set_new(channel_j, "messages", json_integer(CHANNEL_MESSAGE_COUNT(channel)));
 			if(channel->topic)
-				asend_sprintf(&asinfo, ",\"topic\":\"%s\"", json_escape(topic, channel->topic));
-			asend_sprintf(&asinfo, "}");
-			i++;
+				json_object_set_new(channel_j, "topic", json_string_unreal(channel->topic));
+			json_array_append_new(channels, channel_j);
 		}
 	}
+	json_object_set_new(output, "chan", channels);
+	result = json_dumps(output, JSON_COMPACT);
 	
-	asend_sprintf(&asinfo, "]}");
-
-	if(send_buf[0]) {
-		send(sock, send_buf, strlen(send_buf), 0);
-		send_buf[0] = 0;
-	}
-
+	send(sock, result, strlen(result), 0);
+	json_decref(output);
+	safe_free(result);
 	close(sock);
-}
-
-void asend_sprintf(asendInfo *info, char *fmt, ...) {
-	int bl, tl;
-	va_list list;
-	va_start(list, fmt);
-	vsprintf(info->tmpbuf, fmt, list);
-	bl = strlen(info->tmpbuf);
-	tl = strlen(info->buf);
-	if((bl+tl)>=info->bufsize) {
-		send(info->sock, info->buf, tl, 0);
-		info->buf[0] = 0;
-	}
-
-	strcat(info->buf, info->tmpbuf);
-	va_end(list);
-}
-
-void append_int_param(asendInfo *info, char *param, int value) {
-	asend_sprintf(info, "\"%s\":%d,", param, value);
-}
-
-char *json_escape(char *d, const char *a) {
-	int diff=0;
-	int i, j;
-	char buf[7];
-    for(i=0; a[i]; i++) {
-        if(a[i] == '"' || a[i] == '\\' || a[i] <= '\x1f') { // unicode chars don't need to be escaped
-        	sprintf(buf, "\\u%04x", (int)a[i]);
-        	for(j=0; j<6; j++){
-	        	d[diff+i] = buf[j];
-	        	diff++;
-	        }
-	        diff--;
-        } else {
-            d[diff+i] = a[i];
-        }
-    }
-	d[diff+i] = 0;
-	return d;
 }
 

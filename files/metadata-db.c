@@ -10,7 +10,7 @@ module
 {
         documentation "https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md#metadata-db";
         troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
-        min-unrealircd-version "5.*";
+        min-unrealircd-version "6.*";
         post-install-text {
                 "The module is installed. Now all you need to do is add a loadmodule line:";
                 "loadmodule \"third/metadata-db\";";
@@ -28,13 +28,12 @@ module
 
 ModuleHeader MOD_HEADER = {
 	"third/metadata-db",   /* Name of module */
-	"5.0.2", /* Version */
+	"6.0", /* Version */
 	"Metadata storage module", /* Short description of module */
-	"k4be@PIRC",
-	"unrealircd-5"
+	"k4be",
+	"unrealircd-6"
 };
 
-#define TRIGGER_LOGIN_ON_UID (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 6)
 
 #define METADATADB_VERSION 100
 #define METADATADB_SAVE_EVERY 299
@@ -46,9 +45,10 @@ ModuleHeader MOD_HEADER = {
 
 #define WARN_WRITE_ERROR(fname) \
 	do { \
-		sendto_realops_and_log("[metadata-db] Error writing to temporary database file " \
-		                       "'%s': %s (DATABASE NOT SAVED)", \
-		                       fname, strerror(errno)); \
+		unreal_log(ULOG_ERROR, "metadata-db", "METADATA_WRITE_ERROR", NULL, "Error writing to temporary database file '$filename': $error (DATABASE NOT SAVED)", \
+			log_data_string("filename", fname), \
+			log_data_string("error", strerror(errno)) \
+		); \
 	} while(0)
 
 #define W_SAFE(x) \
@@ -110,7 +110,7 @@ CMD_OVERRIDE_FUNC(cmd_uid);
 #endif
 
 int account_login(Client *client, MessageTag *recv_mtags);
-int user_quit(Client *client, MessageTag *mtags, char *comment);
+int user_quit(Client *client, MessageTag *mtags, const char *comment);
 
 int write_metadatadb(void);
 int write_metadata_entry(FILE *fd, const char *tmpfname, struct metadata *metadata, char *name, time_t last_seen);
@@ -160,26 +160,8 @@ MOD_LOAD(){
 		config_error("A critical error occurred when loading module %s: %s", MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle));
 		return MOD_FAILED;
 	}
-#ifndef HOOKTYPE_ACCOUNT_LOGIN // we have no ACCOUNT_LOGIN hook (added in 5.0.4), so we're on our own to handle that
-	if(!CommandOverrideAddEx(modinfo->handle, "SVSLOGIN", 0, cmd_svslogin)){
-		config_error("[%s] Crritical: Failed to request command override for SVSLOGIN: %s", MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle));
-	}
-	if(!CommandOverrideAddEx(modinfo->handle, "SVSMODE", 0, cmd_svsmode)){
-		config_error("[%s] Crritical: Failed to request command override for SVSMODE: %s", MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle));
-	}
-	if(!CommandOverrideAddEx(modinfo->handle, "SVS2MODE", 0, cmd_svsmode)){
-		config_error("[%s] Crritical: Failed to request command override for SVS2MODE: %s", MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle));
-	}
-#else
+
 	HookAdd(modinfo->handle, HOOKTYPE_ACCOUNT_LOGIN, 0, account_login);
-#endif // HOOKTYPE_ACCOUNT_LOGIN
-
-#if TRIGGER_LOGIN_ON_UID // 5.0.5 and 5.0.4 did not call ACCOUNT_LOGIN on UID
-	if(!CommandOverrideAddEx(modinfo->handle, "UID", 0, cmd_uid)){
-		config_error("[%s] Crritical: Failed to request command override for UID: %s", MOD_HEADER.name, ModuleGetErrorStr(modinfo->handle));
-	}
-#endif
-
 	HookAdd(modinfo->handle, HOOKTYPE_REMOTE_QUIT, 0, user_quit);
 	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_QUIT, 0, user_quit);
 
@@ -237,36 +219,36 @@ int metadatadb_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs){
 	if (type != CONFIG_MAIN)
 		return 0;
 
-	if (!ce || strcmp(ce->ce_varname, MYCONF))
+	if (!ce || strcmp(ce->name, MYCONF))
 		return 0;
 
-	for (cep = ce->ce_entries; cep; cep = cep->ce_next)
+	for (cep = ce->items; cep; cep = cep->next)
 	{
-		if (!cep->ce_vardata) {
-			config_error("%s:%i: blank %s::%s without value", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+		if (!cep->value) {
+			config_error("%s:%i: blank %s::%s without value", cep->file->filename, cep->line_number, MYCONF, cep->name);
 			errors++;
 			continue;
 		}
-		if (!strcmp(cep->ce_varname, "database")) {
-			convert_to_absolute_path(&cep->ce_vardata, PERMDATADIR);
+		if (!strcmp(cep->name, "database")) {
+			convert_to_absolute_path(&cep->value, PERMDATADIR);
 			continue;
 		}
-		if (!strcmp(cep->ce_varname, "expire-after")) {
+		if (!strcmp(cep->name, "expire-after")) {
 			// Should be an integer yo
-			for(i = 0; cep->ce_vardata[i]; i++) {
-				if(!isdigit(cep->ce_vardata[i])) {
-					config_error("%s:%i: %s::%s must be an integer between 1 and 1000 (days)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			for(i = 0; cep->value[i]; i++) {
+				if(!isdigit(cep->value[i])) {
+					config_error("%s:%i: %s::%s must be an integer between 1 and 1000 (days)", cep->file->filename, cep->line_number, MYCONF, cep->name);
 					errors++; // Increment err0r count fam
 					break;
 				}
 			}
-			if(!errors && (atoi(cep->ce_vardata) < 1 || atoi(cep->ce_vardata) > 1000)) {
-				config_error("%s:%i: %s::%s must be an integer between 1 and 1000 (days)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(!errors && (atoi(cep->value) < 1 || atoi(cep->value) > 1000)) {
+				config_error("%s:%i: %s::%s must be an integer between 1 and 1000 (days)", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 			}
 			continue;
 		}
-		config_error("%s:%i: unknown directive metadata-db::%s", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, cep->ce_varname);
+		config_error("%s:%i: unknown directive metadata-db::%s", cep->file->filename, cep->line_number, cep->name);
 		errors++;
 	}
 
@@ -281,14 +263,14 @@ int metadatadb_configrun(ConfigFile *cf, ConfigEntry *ce, int type){
 	if (type != CONFIG_MAIN)
 		return 0;
 
-	if (!ce || strcmp(ce->ce_varname, "metadata-db"))
+	if (!ce || strcmp(ce->name, "metadata-db"))
 		return 0;
 
-	for (cep = ce->ce_entries; cep; cep = cep->ce_next){
-		if(!strcmp(cep->ce_varname, "database"))
-			safe_strdup(cfg.database, cep->ce_vardata);
-		if(!strcmp(cep->ce_varname, "expire-after"))
-			cfg.expire_after = atoi(cep->ce_vardata);
+	for (cep = ce->items; cep; cep = cep->next){
+		if(!strcmp(cep->name, "database"))
+			safe_strdup(cfg.database, cep->value);
+		if(!strcmp(cep->name, "expire-after"))
+			cfg.expire_after = atoi(cep->value);
 	}
 	return 1;
 }
@@ -297,7 +279,7 @@ EVENT(write_metadatadb_evt){
 	Client *acptr;
 	list_for_each_entry(acptr, &client_list, client_node){ // process all users that are already connected
 		if(!IsUser(acptr)) continue;
-		if(isdigit(*acptr->user->svid)) continue;
+		if(!IsLoggedIn(acptr)) continue;
 		store_metadata_for_user(acptr, 1);
 	}
 	write_metadatadb();
@@ -332,7 +314,7 @@ int write_metadatadb(void){
 	ModDataInfo *usermd = findmoddata_byname("metadata_user", MODDATATYPE_CLIENT);
 	ModDataInfo *channelmd = findmoddata_byname("metadata_channel", MODDATATYPE_CHANNEL);
 	if(!usermd || !channelmd){
-		sendto_realops("[metadata-db] Error obtaining moddata for metadata! Maybe you forgot to load the metadata module?");
+		unreal_log(ULOG_ERROR, "metadata-db", "METADATA_MODDATA", NULL, "Error obtaining moddata for metadata! Maybe you forgot to load the metadata module?");
 		return 0;
 	}
 
@@ -365,7 +347,7 @@ int write_metadatadb(void){
 		/* We only care about +P (persistent) channels */
 		if(has_channel_mode(channel, 'P')){
 			FOREACH_CHANNEL_METADATA(channel, metadata){
-				if(!write_metadata_entry(fd, tmpfname, metadata, channel->chname, 0))
+				if(!write_metadata_entry(fd, tmpfname, metadata, channel->name, 0))
 					return 0;
 			}
 		}
@@ -391,7 +373,11 @@ int write_metadatadb(void){
 	unlink(cfg.database);
 #endif
 	if (rename(tmpfname, cfg.database) < 0){
-		sendto_realops_and_log("[metadata-db] Error renaming '%s' to '%s': %s (DATABASE NOT SAVED)", tmpfname, cfg.database, strerror(errno));
+		unreal_log(ULOG_ERROR, "metadata-db", "METADATA_SAVE_ERROR", NULL, "Error renaming '$oldname' to '$newname': $error (DATABASE NOT SAVED)",
+			log_data_string("oldname", tmpfname),
+			log_data_string("newname", cfg.database),
+			log_data_string("error", strerror(errno))
+		);
 		return 0;
 	}
 
@@ -432,7 +418,12 @@ int write_metadata_entry(FILE *fd, const char *tmpfname, struct metadata *metada
 
 void store_metadata(char *account, struct metadata *metadata, time_t last_seen){
 	if(TStime() - (cfg.expire_after * 60 * 60 * 24) > last_seen){
-		sendto_snomask(SNO_JUNK, "[metadata-db] Expiring metadata key %s for account %s, last seen %ld, current time %ld", metadata->name, account, (long int)last_seen, (long int)TStime());
+		unreal_log(ULOG_DEBUG, "metadata-db", "METADATA_DEBUG", NULL, "Expiring metadata key $keyname for account $account, last seen $lastseen, current time $now",
+			log_data_string("keyname", metadata->name),
+			log_data_string("account", account),
+			log_data_integer("lastseen", last_seen),
+			log_data_integer("now", TStime())
+		);
 		return; // dropping the outdated entry
 	}
 	struct metadata_storage *prev = NULL, *curr;
@@ -457,8 +448,7 @@ void store_metadata(char *account, struct metadata *metadata, time_t last_seen){
 }
 
 void send_out_metadata(char *name, char *key, char *value){
-//	do_cmd(Client *client, MessageTag *mtags, char *cmd, int parc, char *parv[])
-	char *parv[] = {
+	const char *parv[] = {
 		NULL,
 		name,
 		key,
@@ -469,7 +459,7 @@ void send_out_metadata(char *name, char *key, char *value){
 }
 
 void set_channel_metadata(Channel *channel, struct metadata *metadata){
-	send_out_metadata(channel->chname, metadata->name, metadata->value);
+	send_out_metadata(channel->name, metadata->name, metadata->value);
 }
 
 void set_user_metadata(char *account, struct metadata *metadata, time_t last_seen){
@@ -478,8 +468,8 @@ void set_user_metadata(char *account, struct metadata *metadata, time_t last_see
 	int found = 0;
 	list_for_each_entry(acptr, &client_list, client_node){
 		if(!IsUser(acptr)) continue;
-		if(!isdigit(*acptr->user->svid)){
-			if(!strcmp(acptr->user->svid, account)){
+		if(IsLoggedIn(acptr)){
+			if(!strcmp(acptr->user->account, account)){
 				found = 1;
 				send_out_metadata(acptr->name, metadata->name, metadata->value); // there may be more than one user with a single account, so no "break"
 			}
@@ -545,7 +535,7 @@ int read_metadatadb(void){
 
 		/* If we got this far, we can initialize the data with the above */
 		if(*name == '#'){ // a channel
-			channel = get_channel(&me, name, CREATE);
+			channel = make_channel(name);
 			set_channel_metadata(channel, &metadata);
 		} else {
 			set_user_metadata(name, &metadata, last_seen);
@@ -562,82 +552,11 @@ int read_metadatadb(void){
 	fclose(fd);
 
 	if (added)
-		sendto_realops_and_log("[metadata-db] Read %d metadata entries", added);
+		unreal_log(ULOG_INFO, "metadata-db", "METADATA_LOADED", NULL, "Read $count metadata entries", log_data_integer("count", added));
 	return 1;
 }
 #undef FreeMetadataEntry
 #undef R_SAFE
-
-#ifndef HOOKTYPE_ACCOUNT_LOGIN
-CMD_OVERRIDE_FUNC(cmd_svslogin){ // that's based on modules/sasl.c
-	Client *target;
-
-	CallCommandOverride(ovr, client, recv_mtags, parc, parv);
-	if (!SASL_SERVER || MyUser(client) || (parc < 3) || !parv[3])
-		return;
-	target = find_client(parv[2], NULL);
-	if(!target)
-		return;
-	sendto_snomask(SNO_JUNK, "[metadata-db] Acting on SVSLOGIN for %s", target->name);
-	account_login(target, recv_mtags);
-}
-
-CMD_OVERRIDE_FUNC(cmd_svsmode){ // and that's based on modules/svsmode.c
-	int i;
-	char *m;
-	Client *target;
-	long setflags = 0;
-
-	CallCommandOverride(ovr, client, recv_mtags, parc, parv);
-
-	if (!IsULine(client))
-		return;
-
-
-	if (parc < 3 || parv[1][0] == '#')
-		return;
-	if (!(target = find_person(parv[1], NULL)))
-		return;
-	for (m = parv[2]; *m; m++)
-		switch (*m){
-			/* we may not get these, but they shouldnt be in default */
-			case ' ':
-			case '\n':
-			case '\r':
-			case '\t':
-				break;
-			case 'd':
-				if (parv[3]){ /*  else setting deaf */
-					sendto_snomask(SNO_JUNK, "[metadata-db] Acting on SVSMODE for %s", target->name);
-					account_login(target, recv_mtags);
-				}
-				break;
-		} /*switch*/
-}
-#endif //HOOKTYPE_ACCOUNT_LOGIN
-
-#if TRIGGER_LOGIN_ON_UID
-CMD_OVERRIDE_FUNC(cmd_uid){
-	char *sstamp;
-	char *nick;
-	Client *acptr;
-
-	CallCommandOverride(ovr, client, recv_mtags, parc, parv);
-	if (parc < 13 || !IsServer(client))
-		return;
-	sstamp = parv[7];
-	nick = parv[1];
-	
-	acptr = find_person(nick, NULL);
-	if(!acptr)
-		return;
-	
-	if(IsUser(acptr) && *sstamp != '*'){
-		sendto_snomask(SNO_JUNK, "[metadata-db] Acting on UID for %s", acptr->name);
-		account_login(acptr, recv_mtags);
-	}
-}
-#endif // TRIGGER_LOGIN_ON_UID
 
 void store_metadata_for_user(Client *client, int remove){ // client must be logged in
 	struct metadata *metadata;
@@ -647,7 +566,7 @@ void store_metadata_for_user(Client *client, int remove){ // client must be logg
 	
 	usermd = findmoddata_byname("metadata_user", MODDATATYPE_CLIENT);
 	if(!usermd){
-		sendto_realops("[metadata-db] Error obtaining moddata for metadata! Maybe you forgot to load the metadata module?");
+		unreal_log(ULOG_ERROR, "metadata-db", "METADATA_MODDATA", NULL, "Error obtaining moddata for metadata! Maybe you forgot to load the metadata module?");
 		return;
 	}
 	
@@ -656,14 +575,17 @@ void store_metadata_for_user(Client *client, int remove){ // client must be logg
 		prev_sm = NULL;
 		FOREACH_STORED_METADATA(sm){
 			prev_sm = sm;
-			if(strcmp(sm->account, client->user->svid)) // other user
+			if(strcmp(sm->account, client->user->account)) // other user
 				continue;
 			if(strcmp(sm->name, metadata->name)) // key name not matching
 				continue;
 			// now let's replace the stored metadata, as the user's one has priority
 			found = 1;
 			if(strcmp(sm->value, metadata->value)){
-				sendto_snomask(SNO_JUNK, "[metadata-db] %s replacing key %s", client->name, metadata->name);
+				unreal_log(ULOG_DEBUG, "metadata-db", "METADATA_DEBUG", NULL, "Replacing key $keyname for user $client",
+					log_data_string("keyname", metadata->name),
+					log_data_client("client", client)
+				);
 				safe_free(sm->value);
 				sm->value = strdup(metadata->value);
 			}
@@ -673,11 +595,14 @@ void store_metadata_for_user(Client *client, int remove){ // client must be logg
 			continue;
 		// then save user's metadata to the storage (the user set something before logging in)
 		sm = safe_alloc(sizeof(struct metadata_storage));
-		sm->account = strdup(client->user->svid);
+		sm->account = strdup(client->user->account);
 		sm->name = strdup(metadata->name);
 		sm->value = strdup(metadata->value);
 		sm->last_seen = TStime();
-		sendto_snomask(SNO_JUNK, "[metadata-db] %s saving key %s", client->name, metadata->name);
+		unreal_log(ULOG_DEBUG, "metadata-db", "METADATA_DEBUG", NULL, "Saving key $keyname for user $client",
+			log_data_string("keyname", metadata->name),
+			log_data_client("client", client)
+		);
 		if(!prev_sm){
 			metadata_storage = sm;
 		} else {
@@ -691,7 +616,7 @@ void store_metadata_for_user(Client *client, int remove){ // client must be logg
 	prev_sm = NULL;
 	while(sm){
 		next_sm = sm->next;
-		if(!strcmp(sm->account, client->user->svid)){ // other user
+		if(!strcmp(sm->account, client->user->account)){ // other user
 			found = 0;
 			FOREACH_USER_METADATA(client, metadata){
 				if(!strcmp(sm->name, metadata->name)){
@@ -700,7 +625,10 @@ void store_metadata_for_user(Client *client, int remove){ // client must be logg
 				}
 			}
 			if(!found){ // drop from the list
-				sendto_snomask(SNO_JUNK, "[metadata-db] %s dropping key %s", client->name, sm->name);
+				unreal_log(ULOG_DEBUG, "metadata-db", "METADATA_DEBUG", NULL, "Dropping key $keyname for user $client",
+					log_data_string("keyname", sm->name),
+					log_data_client("client", client)
+				);
 				if(prev_sm){
 					prev_sm->next = sm->next;
 				} else {
@@ -726,10 +654,10 @@ int account_login(Client *client, MessageTag *recv_mtags){
 
 	usermd = findmoddata_byname("metadata_user", MODDATATYPE_CLIENT);
 	if(!usermd){
-		sendto_realops("[metadata-db] Error obtaining moddata for metadata! Maybe you forgot to load the metadata module?");
+		unreal_log(ULOG_ERROR, "metadata-db", "METADATA_MODDATA", NULL, "Error obtaining moddata for metadata! Maybe you forgot to load the metadata module?");
 		return 0;
 	}
-	if(isdigit(*client->user->svid)){ // just logged out, ignoring
+	if(!IsLoggedIn(client)){ // just logged out, ignoring
 		return 0;
 	}
 
@@ -737,7 +665,7 @@ int account_login(Client *client, MessageTag *recv_mtags){
 
 	// now let's set all stored metadata for the user
 	FOREACH_STORED_METADATA(sm){
-		if(strcmp(sm->account, client->user->svid)) // other user
+		if(strcmp(sm->account, client->user->account)) // other user
 			continue;
 		send_out_metadata(client->name, sm->name, sm->value);
 		sm->last_seen = TStime();
@@ -745,10 +673,8 @@ int account_login(Client *client, MessageTag *recv_mtags){
 	return 0;
 }
 
-int user_quit(Client *client, MessageTag *mtags, char *comment){ // store metadata for quitting users
-	if(!IsUser(client)) return 0;
-	sendto_snomask(SNO_JUNK, "[metadata-db] %s quits, svid is %s", client->name, client->user->svid);
-	if(isdigit(*client->user->svid)) return 0;
+int user_quit(Client *client, MessageTag *mtags, const char *comment){ // store metadata for quitting users
+	if(!IsUser(client) || !IsLoggedIn(client)) return 0;
 	store_metadata_for_user(client, 1);
 	return 0;
 }

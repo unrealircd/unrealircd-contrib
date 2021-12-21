@@ -9,7 +9,7 @@ module
 {
         documentation "https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md";
         troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
-        min-unrealircd-version "5.*";
+        min-unrealircd-version "6.*";
         post-install-text {
                 "The module is installed. Now all you need to do is add a loadmodule line:";
                 "loadmodule \"third/findchmodes\";";
@@ -25,19 +25,22 @@ module
 #define MSG_FINDCHMODES "FINDCHMODES"
 #define USAGE() { sendnotice(client, "Usage: /%s +character", MSG_FINDCHMODES); }
 
-#if (UNREAL_VERSION_MAJOR<2) || (UNREAL_VERSION_MAJOR==2 && UNREAL_VERSION_MINOR==0)
-#define OLDAPI // channel_modes() prototype change
-#endif
+/* copied from chanmodes/key.c */
+typedef struct ChannelKey ChannelKey;
+struct ChannelKey {
+	char key[KEYLEN+1];
+};
 
 CMD_FUNC(cmd_findchmodes);
 
 ModuleHeader MOD_HEADER = {
 	"third/findchmodes",   /* Name of module */
-	"5.1", /* Version */
+	"6.0", /* Version */
 	"Find channels by channel modes", /* Short description of module */
-	"k4be@PIRC",
-	"unrealircd-5"
+	"k4be",
+	"unrealircd-6"
 };
+
 
 MOD_INIT() {
 	CommandAdd(modinfo->handle, MSG_FINDCHMODES, cmd_findchmodes, MAXPARA, CMD_USER);
@@ -53,6 +56,13 @@ MOD_UNLOAD() {
 }
 
 CMD_FUNC(cmd_findchmodes) {
+	unsigned int hashnum;
+	char modebuf[BUFSIZE], parabuf[BUFSIZE];
+	Channel *channel;
+	int count = 0;
+	ChannelKey *r;
+	const char *arg = parv[1];
+
 	if(!IsOper(client)){
 		sendnumeric(client, ERR_NOPRIVILEGES);
 		return;
@@ -61,30 +71,25 @@ CMD_FUNC(cmd_findchmodes) {
 		USAGE();
 		return;
 	}
-	char *arg = parv[1];
+	
 	if(*arg == '+') arg++;
 	if(strlen(arg) != 1 || !isalpha(*arg)){
 		USAGE();
 		return;
 	}
-	unsigned int  hashnum;
-	Channel *channel;
-	int count = 0;
+
 	for (hashnum = 0; hashnum < CHAN_HASH_TABLE_SIZE; hashnum++){
 		for (channel = hash_get_chan_bucket(hashnum); channel; channel = channel->hnextch){
 			if (!ValidatePermissionsForPath("channel:see:list:secret",client,NULL,channel,NULL)) continue;
 			*modebuf = *parabuf = '\0';
 			modebuf[1] = '\0';
+			r = (ChannelKey *)GETPARASTRUCT(channel, 'k');
 			// using "me" here to get args for all channels, never retrieve channel keys though
-#ifdef OLDAPI
-			channel_modes((*channel->mode.key)?client:(Client *)&me, modebuf, parabuf, sizeof(modebuf), sizeof(parabuf), channel);
-#else
-			channel_modes((*channel->mode.key)?client:(Client *)&me, modebuf, parabuf, sizeof(modebuf), sizeof(parabuf), channel, 0);
-#endif
+			channel_modes((r && *r->key)?client:(Client *)&me, modebuf, parabuf, sizeof(modebuf), sizeof(parabuf), channel, 0);
 			if(strchr(modebuf, *arg)){
-				sendnumeric(client, RPL_CHANNELMODEIS, channel->chname, modebuf, parabuf);
+				sendnumeric(client, RPL_CHANNELMODEIS, channel->name, modebuf, parabuf);
 				if(IsMember(client, channel)){
-					sendnotice(client, "[findchmodes +%c] Notice: You're on %s", *arg, channel->chname);
+					sendnotice(client, "[findchmodes +%c] Notice: You're on %s", *arg, channel->name);
 				}
 				count++;
 			}

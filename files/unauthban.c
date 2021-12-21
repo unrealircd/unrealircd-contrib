@@ -25,7 +25,7 @@ module
 {
         documentation "https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md";
         troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
-        min-unrealircd-version "5.*";
+        min-unrealircd-version "6.*";
         post-install-text {
                 "The module is installed. Now all you need to do is add a loadmodule line:";
                 "loadmodule \"third/unauthban\";";
@@ -39,42 +39,22 @@ module
    
 #include "unrealircd.h"
 
-/* Maximum time (in minutes) for a ban */
-#define TIMEDBAN_MAX_TIME	9999
-
 /* Maximum length of a ban */
 #define MAX_LENGTH 128
-
-/* Split timeout event in <this> amount of iterations */
-#define TIMEDBAN_TIMER_ITERATION_SPLIT 4
-
-/* Call timeout event every <this> seconds.
- * NOTE: until all channels are processed it takes
- *       TIMEDBAN_TIMER_ITERATION_SPLIT * TIMEDBAN_TIMER.
- */
-#define TIMEDBAN_TIMER	2
-
-/* We allow a ban to (potentially) expire slightly before the deadline.
- * For example with TIMEDBAN_TIMER_ITERATION_SPLIT=4 and TIMEDBAN_TIMER=2
- * a 1 minute ban would expire at 56-63 seconds, rather than 60-67 seconds.
- * This is usually preferred.
- */
-#define TIMEDBAN_TIMER_DELTA ((TIMEDBAN_TIMER_ITERATION_SPLIT*TIMEDBAN_TIMER)/2)
 
 ModuleHeader MOD_HEADER
   = {
 	"third/unauthban",
-	"5.0",
-	"ExtBan ~I: bans that match only users that are not logged in",
-	"k4be@PIRC",
-	"unrealircd-5",
+	"6.0",
+	"ExtBan ~I or ~unauth: bans that match only users that are not logged in",
+	"k4be",
+	"unrealircd-6",
     };
 
 /* Forward declarations */
-char *unauthban_extban_conv_param(char *para_in);
-int unauthban_extban_is_ok(Client *client, Channel* channel, char *para_in, int checkt, int what, int what2);
-int unauthban_is_banned(Client *client, Channel *channel, char *ban, int chktype, char **msg, char **errmsg);
-char *unauthban_chanmsg(Client *, Client *, Channel *, char *, int);
+const char *unauthban_extban_conv_param(BanContext *b, Extban *extban);
+int unauthban_extban_is_ok(BanContext *b);
+int unauthban_is_banned(BanContext *b);
 
 MOD_TEST()
 {
@@ -83,15 +63,17 @@ MOD_TEST()
 
 MOD_INIT()
 {
-ExtbanInfo extban;
+	ExtbanInfo extban;
 	memset(&extban, 0, sizeof(ExtbanInfo));
-	extban.flag = 'I';
+	extban.letter = 'I';
+	extban.name = "unauth";
 	extban.options |= EXTBOPT_ACTMODIFIER; /* not really, but ours shouldn't be stacked from group 1 */
 	extban.options |= EXTBOPT_CHSVSMODE; /* so "SVSMODE -nick" will unset affected ~t extbans */
 	extban.options |= EXTBOPT_INVEX; /* also permit timed invite-only exceptions (+I) */
 	extban.conv_param = unauthban_extban_conv_param;
 	extban.is_ok = unauthban_extban_is_ok;
 	extban.is_banned = unauthban_is_banned;
+	extban.is_banned_events = BANCHK_ALL;
 
 	if (!ExtbanAdd(modinfo->handle, extban))
 	{
@@ -114,17 +96,18 @@ MOD_UNLOAD()
 
 /** Generic helper for our conv_param extban function.
  * Mostly copied from clean_ban_mask()
+ * FIXME: Figure out why we have this one at all and not use conv_param? ;)
  */
-char *generic_clean_ban_mask(char *mask)
+const char *generic_clean_ban_mask(BanContext *b, Extban *extban)
 {
 	char *cp, *x;
 	char *user;
 	char *host;
-	Extban *p;
 	static char maskbuf[512];
+	char *mask;
 
 	/* Work on a copy */
-	strlcpy(maskbuf, mask, sizeof(maskbuf));
+	strlcpy(maskbuf, b->banstr, sizeof(maskbuf));
 	mask = maskbuf;
 
 	cp = strchr(mask, ' ');
@@ -144,11 +127,21 @@ char *generic_clean_ban_mask(char *mask)
 	/* Extended ban? */
 	if (is_extended_ban(mask))
 	{
-		p = findmod_by_bantype(mask[1]);
-		if (!p)
+		const char *nextbanstr;
+		Extban *extban = findmod_by_bantype(mask, &nextbanstr);
+		if (!extban)
 			return NULL; /* reject unknown extban */
-		if (p->conv_param)
-			return p->conv_param(mask);
+		if (extban->conv_param)
+		{
+			const char *ret;
+			static char retbuf[512];
+			BanContext *b = safe_alloc(sizeof(BanContext));
+			b->banstr = nextbanstr;
+			ret = extban->conv_param(b, extban);
+			ret = prefix_with_extban(ret, b, extban, retbuf, sizeof(retbuf));
+			safe_free(b);
+			return ret;
+		}
 		/* else, do some basic sanity checks and cut it off at 80 bytes */
 		if ((mask[1] != ':') || (mask[2] == '\0'))
 		    return NULL; /* require a ":<char>" after extban type */
@@ -177,38 +170,36 @@ char *generic_clean_ban_mask(char *mask)
 }
 
 /** Convert ban to an acceptable format (or return NULL to fully reject it) */
-char *unauthban_extban_conv_param(char *para_in)
+const char *unauthban_extban_conv_param(BanContext *b, Extban *extban)
 {
 	static char retbuf[MAX_LENGTH+1];
 	char para[MAX_LENGTH+1];
-	char tmpmask[MAX_LENGTH+1];
-	char *newmask; /**< Cleaned matching method, such as 'n!u@h' */
+	const char *newmask; /**< Cleaned matching method, such as 'n!u@h' */
 	static int unauthban_extban_conv_param_recursion = 0;
 	
 	if (unauthban_extban_conv_param_recursion)
 		return NULL; /* reject: recursion detected! */
 
-	strlcpy(para, para_in+3, sizeof(para)); /* work on a copy (and truncate it) */
+	strlcpy(para, b->banstr, sizeof(para)); /* work on a copy (and truncate it) */
 	
 	/* ~I:n!u@h   for direct matching
 	 * ~I:~x:.... when calling another bantype
 	 */
 
-	strlcpy(tmpmask, para, sizeof(tmpmask));
 	unauthban_extban_conv_param_recursion++;
-	//newmask = extban_conv_param_nuh_or_extban(tmpmask);
-	newmask = generic_clean_ban_mask(tmpmask);
+	b->banstr = para;
+	newmask = generic_clean_ban_mask(b, extban);
 	unauthban_extban_conv_param_recursion--;
 	if (!newmask || (strlen(newmask) <= 1))
 		return NULL;
 
-	snprintf(retbuf, sizeof(retbuf), "~I:%s", newmask);
+	snprintf(retbuf, sizeof(retbuf), "%s", newmask);
 	return retbuf;
 }
 
-int unauthban_extban_syntax(Client *client, int checkt, char *reason)
+int unauthban_extban_syntax(Client *client, char *reason)
 {
-	if (MyUser(client) && (checkt == EXBCHK_PARAM))
+	if (MyUser(client))
 	{
 		sendnotice(client, "Error when setting unauth ban: %s", reason);
 		sendnotice(client, " Syntax: +b ~I:mask");
@@ -219,54 +210,50 @@ int unauthban_extban_syntax(Client *client, int checkt, char *reason)
 }
 
 /** Generic helper for sub-bans, used by our "is this ban ok?" function */
-int generic_ban_is_ok(Client *client, Channel *channel, char *mask, int checkt, int what, int what2)
+int generic_ban_is_ok(BanContext *b)
 {
-	if ((mask[0] == '~') && MyUser(client))
+	if ((b->banstr[0] == '~') && MyUser(b->client))
 	{
-		Extban *p;
+		Extban *extban;
+		const char *nextbanstr;
 
 		/* This portion is copied from clean_ban_mask() */
-		if (is_extended_ban(mask) && MyUser(client))
+		if (is_extended_ban(b->banstr) && MyUser(b->client))
 		{
-			if (RESTRICT_EXTENDEDBANS && !ValidatePermissionsForPath("immune:restrict-extendedbans",client,NULL,NULL,NULL))
+			if (RESTRICT_EXTENDEDBANS && !ValidatePermissionsForPath("immune:restrict-extendedbans",b->client,NULL,NULL,NULL))
 			{
 				if (!strcmp(RESTRICT_EXTENDEDBANS, "*"))
 				{
-					if (checkt == EXBCHK_ACCESS_ERR)
-						sendnotice(client, "Setting/removing of extended bans has been disabled");
+					if (b->is_ok_check == EXBCHK_ACCESS_ERR)
+						sendnotice(b->client, "Setting/removing of extended bans has been disabled");
 					return 0; /* REJECT */
 				}
-				if (strchr(RESTRICT_EXTENDEDBANS, mask[1]))
+				if (strchr(RESTRICT_EXTENDEDBANS, b->banstr[1]))
 				{
-					if (checkt == EXBCHK_ACCESS_ERR)
-						sendnotice(client, "Setting/removing of extended bantypes '%s' has been disabled", RESTRICT_EXTENDEDBANS);
+					if (b->is_ok_check == EXBCHK_ACCESS_ERR)
+						sendnotice(b->client, "Setting/removing of extended bantypes '%s' has been disabled", RESTRICT_EXTENDEDBANS);
 					return 0; /* REJECT */
 				}
 			}
 			/* And next is inspired by cmd_mode */
-			p = findmod_by_bantype(mask[1]);
-			if (checkt == EXBCHK_ACCESS)
+			extban = findmod_by_bantype(b->banstr, &nextbanstr);
+			if (extban && extban->is_ok)
 			{
-				if (p && p->is_ok && !p->is_ok(client, channel, mask, EXBCHK_ACCESS, what, what2) &&
-				    !ValidatePermissionsForPath("channel:override:mode:extban",client,NULL,channel,NULL))
+				b->banstr = nextbanstr;
+				if ((b->is_ok_check == EXBCHK_ACCESS) || (b->is_ok_check == EXBCHK_ACCESS_ERR))
 				{
-					return 0; /* REJECT */
-				}
-			} else
-			if (checkt == EXBCHK_ACCESS_ERR)
-			{
-				if (p && p->is_ok && !p->is_ok(client, channel, mask, EXBCHK_ACCESS, what, what2) &&
-				    !ValidatePermissionsForPath("channel:override:mode:extban",client,NULL,channel,NULL))
+					if (!extban->is_ok(b) &&
+					    !ValidatePermissionsForPath("channel:override:mode:extban",b->client,NULL,b->channel,NULL))
+					{
+						return 0; /* REJECT */
+					}
+				} else
+				if (b->is_ok_check == EXBCHK_PARAM)
 				{
-					p->is_ok(client, channel, mask, EXBCHK_ACCESS_ERR, what, what2);
-					return 0; /* REJECT */
-				}
-			} else
-			if (checkt == EXBCHK_PARAM)
-			{
-				if (p && p->is_ok && !p->is_ok(client, channel, mask, EXBCHK_PARAM, what, what2))
-				{
-					return 0; /* REJECT */
+					if (!extban->is_ok(b))
+					{
+						return 0; /* REJECT */
+					}
 				}
 			}
 		}
@@ -281,7 +268,7 @@ int generic_ban_is_ok(Client *client, Channel *channel, char *mask, int checkt, 
 }
 
 /** Validate ban ("is this ban ok?") */
-int unauthban_extban_is_ok(Client *client, Channel* channel, char *para_in, int checkt, int what, int what2)
+int unauthban_extban_is_ok(BanContext *b)
 {
 	char para[MAX_LENGTH+1];
 	char tmpmask[MAX_LENGTH+1];
@@ -290,30 +277,31 @@ int unauthban_extban_is_ok(Client *client, Channel* channel, char *para_in, int 
 	int res;
 
 	/* Always permit deletion */
-	if (what == MODE_DEL)
+	if (b->what == MODE_DEL)
 		return 1;
 
 	if (unauthban_extban_is_ok_recursion)
-		return 0; /* Recursion detected (~t:1:~t:....) */
+		return 0; /* Recursion detected (~I:~I:....) */
 
-	strlcpy(para, para_in+3, sizeof(para)); /* work on a copy (and truncate it) */
+	if (b->is_ok_check != EXBCHK_PARAM)
+		return 1;
+
+	strlcpy(para, b->banstr, sizeof(para)); /* work on a copy (and truncate it) */
 	
 	/* ~I:n!u@h   for direct matching
 	 * ~I:~x:.... when calling another bantype
 	 */
 
-	if(strlen(para) >= 2 && para[0] == '~'){
+	if(strlen(para) >= 3 && para[0] == '~'){
 		//check for other bantypes that won't be compatible
-		switch(para[1]){
-			case 't': case 'a': return unauthban_extban_syntax(client, checkt, "Invalid nested ban type");; // ~t will work with us, but only in front
-			default: break;
-		}
+		if(!strncmp(para+1, "a:", 2) || !strncmp(para+1, "t:", 2) || !strncmp(para+1, "account:", 8) || !strncmp(para+1, "time:", 5))
+			return unauthban_extban_syntax(b->client, "Invalid nested ban type"); // ~t will work with us, but only in front
 	}
 
 	strlcpy(tmpmask, para, sizeof(tmpmask));
 	unauthban_extban_is_ok_recursion++;
 	//res = extban_is_ok_nuh_extban(client, channel, tmpmask, checkt, what, what2);
-	res = generic_ban_is_ok(client, channel, tmpmask, checkt, what, what2);
+	res = generic_ban_is_ok(b);
 	unauthban_extban_is_ok_recursion--;
 	if (res == 0)
 	{
@@ -321,19 +309,17 @@ int unauthban_extban_is_ok(Client *client, Channel* channel, char *para_in, int 
 		 * invalid n!u@h syntax, unknown (sub)extbantype,
 		 * disabled extban type in conf, too much recursion, etc.
 		 */
-		return unauthban_extban_syntax(client, checkt, "Invalid matcher");
+		return unauthban_extban_syntax(b->client, "Invalid matcher");
 	}
 
 	return 1; /* OK */
 }
 
 /** Check if the user is currently banned */
-int unauthban_is_banned(Client *client, Channel *channel, char *ban, int chktype, char **msg, char **errmsg)
+int unauthban_is_banned(BanContext *b)
 {
-	if (strncmp(ban, "~I:", 3))
-		return 0; /* not for us */
-	if(IsLoggedIn(client)) return 0; // this is the magic
-	ban += 3; // skip extban prefix
-	return ban_check_mask(client, channel, ban, chktype, msg, errmsg, 0);
+	if(IsLoggedIn(b->client))
+		return 0; // this is the magic
+	return ban_check_mask(b);
 }
 

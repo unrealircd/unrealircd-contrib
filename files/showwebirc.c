@@ -9,12 +9,15 @@ module
 {
         documentation "https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md";
         troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
-        min-unrealircd-version "5.*";
+        min-unrealircd-version "6.*";
         post-install-text {
-                "The module is installed. Now all you need to do is add a loadmodule line:";
-                "loadmodule \"third/showwebirc\";";
-  				"And /REHASH the IRCd.";
-				"The module does not need any other configuration.";
+			"The module is installed. Now all you need to do is add a loadmodule line:";
+			"loadmodule \"third/showwebirc\";";
+			"Configure, who can see the webirc and websocket info (default is NOBODY!):";
+			"set { whois-details { webirc { everyone none; self full; oper full; }; websocket { everyone none; self full; oper full; } } }";
+			"And /REHASH the IRCd.";
+			"Please note that you need to use the '/WHOIS nick nick' command to see websocket info";
+			"for remote users.";
         }
 }
 *** <<<MODULE MANAGER END>>>
@@ -24,44 +27,53 @@ module
 
 ModuleHeader MOD_HEADER = {
 	"third/showwebirc",   /* Name of module */
-	"5.0", /* Version */
-	"Add SWHOIS info for WEBIRC users", /* Short description of module */
-	"k4be@PIRC",
-	"unrealircd-5"
+	"6.0", /* Version */
+	"Add whois info for WEBIRC and websocket users", /* Short description of module */
+	"k4be",
+	"unrealircd-6"
 };
 
-static int showwebirc_userconnect(Client *cptr);
+int showwebirc_whois(Client *client, Client *target, NameValuePrioList **list);
 
 MOD_INIT() {
-	if(!HookAdd(modinfo->handle, HOOKTYPE_LOCAL_CONNECT, 0, showwebirc_userconnect)) return MOD_FAILED;
+	HookAdd(modinfo->handle, HOOKTYPE_WHOIS, 0, showwebirc_whois);
+
 	return MOD_SUCCESS;
 }
 
 MOD_LOAD() {
-	Client *acptr;
-	list_for_each_entry(acptr, &client_list, client_node){
-		if(!IsUser(acptr) || !MyUser(acptr)) continue;
-		showwebirc_userconnect(acptr); // add info for all users upon module loading
-	}
 	return MOD_SUCCESS;
 }
 
 MOD_UNLOAD() {
-	Client *acptr;
-	list_for_each_entry(acptr, &client_list, client_node){
-		if(!IsUser(acptr) || !MyUser(acptr)) continue;
-		swhois_delete(acptr, "webirc", "*", &me, NULL); // delete info when unloading 
-	}
 	return MOD_SUCCESS;
 }
 
-static int showwebirc_userconnect(Client *cptr) {
+int showwebirc_whois(Client *client, Client *target, NameValuePrioList **list){
+	int policy;
 	ModDataInfo *moddata;
+	
+	/* WEBIRC */
 	moddata = findmoddata_byname("webirc", MODDATATYPE_CLIENT);
-	if(moddata == NULL) return HOOK_CONTINUE;
-	if(moddata_client(cptr, moddata).l){
-		swhois_add(cptr, "webirc", 0, "is connecting via WEBIRC", &me, NULL);
+	if(moddata != NULL){
+		policy = whois_get_policy(client, target, "webirc");
+		if(moddata_client(target, moddata).l && policy > WHOIS_CONFIG_DETAILS_NONE){
+			add_nvplist_numeric_fmt(list, 0, "webirc", client, RPL_WHOISSPECIAL, "%s :is connecting via WEBIRC", target->name);
+		}
 	}
-	return HOOK_CONTINUE;
+	
+	/* websocket */
+	if(!MyUser(target))
+		return 0; /* this is not known for remote users */
+
+	moddata = findmoddata_byname("websocket", MODDATATYPE_CLIENT);
+	if(moddata != NULL){
+		policy = whois_get_policy(client, target, "websocket");
+		if(moddata_client(target, moddata).l && policy > WHOIS_CONFIG_DETAILS_NONE){
+			add_nvplist_numeric_fmt(list, 0, "websocket", client, RPL_WHOISSPECIAL, "%s :is connecting via websocket", target->name);
+		}
+	}
+	
+	return 0;
 }
 
