@@ -31,7 +31,6 @@ long extumode_helpop = 0L;
 #define UMODE_HELPOP 'h' 
 #define IsHelpOnly(channel)    (channel->mode.mode & EXTCMODE_HELPOP)
 #define IsHelpop(x) (IsUser(x) && (x)->umodes & extumode_helpop)
-#define WHOIS_HELPOP_STRING ":%s 313 %s %s :is available for help"
 #define MSG_MYCMD "HELPOPS"
 
 CMD_FUNC(HELPOPS); // Register command function
