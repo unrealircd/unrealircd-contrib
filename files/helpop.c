@@ -10,13 +10,13 @@
 /*** <<<MODULE MANAGER START>>>
 module
 {
-        documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/helpop-lite/README.md";
+        documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/helpop/README.md";
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
         min-unrealircd-version "6.*";
         max-unrealircd-version "6.*";
         post-install-text {
                 "The module is installed. Now all you need to do is add a loadmodule line:";
-                "loadmodule \"third/helpop-lite\";";
+                "loadmodule \"third/helpop\";";
                 "And /REHASH the IRCd.";
                 "The module does not need any other configuration.";
         }
@@ -47,7 +47,7 @@ CMD_FUNC(REPORT);
 
 
 ModuleHeader MOD_HEADER = {
-	"third/helpop-lite", // Module name
+	"third/helpop", // Module name
 	"1.1", // Module Version
 	"HelpOp Lite- Provides usermode h (HelpOp) and swhois line, channelmode g (HelpOp-only room), and command /HELPOPS", // Description
 	"Valware", // Author
