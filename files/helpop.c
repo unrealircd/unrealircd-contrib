@@ -49,7 +49,7 @@ CMD_FUNC(REPORT);
 ModuleHeader MOD_HEADER = {
 	"third/helpop", // Module name
 	"1.1", // Module Version
-	"HelpOp Lite- Provides usermode h (HelpOp) and swhois line, channelmode g (HelpOp-only room), and command /HELPOPS", // Description
+	"HelpOp - Provides usermode h (HelpOp) and swhois line, channelmode g (HelpOp-only room), and command /HELPOPS", // Description
 	"Valware", // Author
 	"unrealircd-6", // Unreal Version
 };
