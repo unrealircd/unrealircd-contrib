@@ -11,8 +11,8 @@ module
 {
         documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/sayeet/README.md";
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
-        min-unrealircd-version "5.*";
-        max-unrealircd-version "5.*";
+        min-unrealircd-version "6.*";
+        max-unrealircd-version "6.*";
         post-install-text {
                 "The module is installed. Now all you need to do is add a loadmodule line:";
                 "loadmodule \"third/sacycle\";";
@@ -41,10 +41,10 @@ CMD_FUNC(yeetus);
 
 ModuleHeader MOD_HEADER = {
 	"third/sacycle",
-	"1.0",
+	"1.1",
 	"Force someone to part and rejoin a channel",
 	"Valware",
-	"unrealircd-5",
+	"unrealircd-6",
 };
 MOD_INIT()
 {
@@ -52,8 +52,11 @@ MOD_INIT()
 	MARK_AS_GLOBAL_MODULE(modinfo);
 	return MOD_SUCCESS;
 }
+
 MOD_LOAD(){ return MOD_SUCCESS; }
 MOD_UNLOAD(){ return MOD_SUCCESS; }
+
+
 CMD_FUNC(yeetus){
 	Client *target;
 	Channel *channel;
@@ -62,7 +65,7 @@ CMD_FUNC(yeetus){
 	int i;
 	char jbuf[BUFSIZE];
 	int ntargets = 0;
-	int maxtargets = max_targets_for_command("SACYCLE");
+	int maxtargets = max_targets_for_command("CYCLE");
 
 	if ((parc < 3) || BadPtr(parv[2]))
         {
@@ -70,7 +73,7 @@ CMD_FUNC(yeetus){
                 return;
         }
 
-        if (!(target = find_person(parv[1], NULL)))
+        if (!(target = find_user(parv[1], NULL)))
         {
                 sendnumeric(client, ERR_NOSUCHNICK, parv[1]);
                 return;
@@ -88,22 +91,20 @@ CMD_FUNC(yeetus){
 	{
 		
 		sendto_one(target, NULL, ":%s SACYCLE %s %s", client->id, target->id, parv[2]);
-		ircd_log(LOG_SACMDS,"SACYCLE: %s used SACYCLE to make %s part %s",
-		    client->name, target->name, parv[2]);
 		
 		return;
 	}
 
 	/* Now works like cmd_join */
 	*jbuf = 0;
-	for (i = 0, name = strtoken(&p, parv[2], ","); name; name = strtoken(&p, NULL, ","))
+	for (i = 0, name = strtoken(&p, (char *)parv[2], ","); name; name = strtoken(&p, NULL, ","))
 	{
 		if (++ntargets > maxtargets)
 		{
 			sendnumeric(client, ERR_TOOMANYTARGETS, name, maxtargets, "SACYCLE");
 			break;
 		}
-		if (!(channel = get_channel(target, name, 0)))
+		if (!(channel = find_channel(parv[2])))
 		{
 			sendnumeric(client, ERR_NOSUCHCHANNEL,
 				name);
@@ -131,7 +132,7 @@ CMD_FUNC(yeetus){
 	if (!*jbuf)
 		return;
 
-	strcpy(parv[2], jbuf);
+	strlcpy((char *)parv[2], jbuf, sizeof(parv[2]));
 
 
 	parv[0] = target->name; // nick
@@ -139,10 +140,11 @@ CMD_FUNC(yeetus){
 	parv[2] = NULL;
 	
 	sendnotice(target, "*** You were forced to cycle %s", parv[1]);
-	sendto_umode_global(UMODE_OPER, "%s used SACYCLE to make %s cycle %s",
-		client->name, target->name, parv[1]);
-	ircd_log(LOG_SACMDS,"SACYCLE: %s used SACYCLE to make %s cycle %s",
-		client->name, target->name, parv[1]);
+	if (!IsULine(client))
+		unreal_log(ULOG_INFO, "sacmds", "SACYCLE_COMMAND", client,
+		           "SACYCLE: $client used SACYCLE to make $target cycle $channel",
+		           log_data_client("target", target),
+		           log_data_string("channel", parv[1]));
 	
 	do_cmd(target, NULL, "CYCLE", 2, parv);
 	/* target may be killed now due to the part reason @ spamfilter */
