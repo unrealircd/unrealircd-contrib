@@ -1,7 +1,11 @@
 /*
   Licence: GPLv3
   Elmer
+
   Force a user to speak like Elmer Fudd
+
+  Ported from angrywolf's module:
+  https://web.archive.org/web/20161126194547/http://www.angrywolf.org/modules.php
   
   Special thanks to Jobe for helping me with casting =]
 */
@@ -121,7 +125,7 @@ CMD_FUNC(ADDELMER)
 		sendnumeric(client, ERR_NOSUCHNICK, parv[1]);
 		return;
 	}
-	if (IsOper(target))
+	if (IsOper(target) && client != target)
 	{
 		sendnumeric(client, ERR_NOPRIVILEGES);
 		return;	
@@ -154,7 +158,7 @@ CMD_FUNC(DELELMER)
 		sendnumeric(client, ERR_NOSUCHNICK, parv[1]);
 		return;
 	}
-	if (IsOper(target))
+	if (IsOper(target) && client != target)
 	{
 		sendnumeric(client, ERR_NOPRIVILEGES);
 		return;	
