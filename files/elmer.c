@@ -51,7 +51,7 @@ void elmer_free(ModData *m);
 const char *elmer_serialize(ModData *m);
 void elmer_unserialize(const char *str, ModData *m);
 
-static char *convert_to_elmer(const char **line);
+static char *convert_to_elmer(char *line);
 
 int elmer_chanmsg(Client *client, Channel *channel, Membership *lp, const char **msg, const char **errmsg, SendType sendtype);
 int elmer_usermsg(Client *client, Client *target, const char **msg, const char **errmsg, SendType sendtype);
@@ -68,7 +68,7 @@ MOD_INIT() {
 	mreq.free = elmer_free;
 	mreq.serialize = elmer_serialize;
 	mreq.unserialize = elmer_unserialize;
-	mreq.sync = MODDATA_SYNC_EARLY;
+	mreq.sync = 1;
 	mreq.type = MODDATATYPE_CLIENT;
 	elmer_md = ModDataAdd(modinfo->handle, mreq);
 	if (!elmer_md)
@@ -178,8 +178,8 @@ int elmer_chanmsg(Client *client, Channel *channel, Membership *lp, const char *
 	static char retbuf[512];
 	if (IsElmer(client))
 	{
-		strlcpy(retbuf, convert_to_elmer(msg), sizeof(retbuf));
-		*msg = retbuf;
+		strlcpy(retbuf, *msg, sizeof(retbuf));
+		*msg = convert_to_elmer(retbuf);
 	}
 	return 0;
 }
@@ -189,17 +189,17 @@ int elmer_usermsg(Client *client, Client *target, const char **msg, const char *
 	static char retbuf[512];
 	if (IsElmer(client))
 	{
-		strlcpy(retbuf, convert_to_elmer(msg), sizeof(retbuf));
-		*msg = retbuf;
+		strlcpy(retbuf, *msg, sizeof(retbuf));
+		*msg = convert_to_elmer(retbuf);
 	}
 	return 0;
 }
 
 
-static char *convert_to_elmer(const char **line)
+static char *convert_to_elmer(char *line)
 {
 	char *p;
-	for (p = (char *)*line; *p; p++)
+	for (p = line; *p; p++)
 		switch(*p)
 		{
 			case 'l':
@@ -211,5 +211,5 @@ static char *convert_to_elmer(const char **line)
 				*p = 'W';
 		}
 
-	return (char *)*line;
+	return line;
 }
