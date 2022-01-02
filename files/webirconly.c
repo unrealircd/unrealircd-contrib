@@ -6,8 +6,8 @@ module
 {
         documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/webirconly/README.md";
         troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
-        min-unrealircd-version "5.*";
-        max-unrealircd-version "5.*";
+        min-unrealircd-version "6.*";
+        max-unrealircd-version "6.*";
         post-install-text {
                 "The module is installed. Now all you need to do is add a loadmodule line:";
                 "loadmodule \"third/webirconly\";";
@@ -23,20 +23,20 @@ Cmode_t EXTCMODE_WEBONLY;
 
 #define WEBIRCONLY_FLAG 'W'
 
-#define IsWebircOnly(channel)    (channel->mode.extmode & EXTCMODE_WEBONLY)
+#define IsWebircOnly(channel)    (channel->mode.mode & EXTCMODE_WEBONLY)
 #define IsWebircUser(x) (IsUser(x) && webircchecklol(x))
 
 static int webircchecklol(Client *cptr);
 
 ModuleHeader MOD_HEADER = {
 	"third/webirconly", // Module name
-	"1.0", // Module Version
+	"1.1", // Module Version
 	"WebIRC Only - Provides channelmode W (webirc only channel)", // Description
 	"Valware", // Author
-	"unrealircd-5", // Unreal Version
+	"unrealircd-6", // Unreal Version
 };
 
-int webirconly_check (Client *client, Channel *channel, char *key, char *parv[]);
+int webirconly_check (Client *client, Channel *channel, const char *key, char **errmsg);
 
 typedef struct {
 	// Change this or add more variables, whatever suits you fam
@@ -50,7 +50,7 @@ MOD_INIT() {
 
 	memset(&req, 0, sizeof(req));
 	req.paracount = 0;
-	req.flag = WEBIRCONLY_FLAG;
+	req.letter = WEBIRCONLY_FLAG;
 	req.is_ok = extcmode_default_requirehalfop;
 	CmodeAdd(modinfo->handle, req, &EXTCMODE_WEBONLY);
 	HookAdd(modinfo->handle, HOOKTYPE_CAN_JOIN, 0, webirconly_check);
@@ -68,11 +68,11 @@ MOD_LOAD() {
 MOD_UNLOAD() {
 	return MOD_SUCCESS;
 }
-int webirconly_check (Client *client, Channel *channel, char *key, char *parv[])
+int webirconly_check (Client *client, Channel *channel, const char *key, char **errmsg)
 {
 	
 	if ((IsWebircOnly(channel) && !IsWebircUser(client)) && !IsOper(client)) {
-		sendnotice(client, "*** (%s) That channel is for web users only.",channel->chname);
+		*errmsg = ":%s That channel is for web users only.",channel->name;
 		return ERR_NEEDREGGEDNICK;
 	}
 	return 0;
