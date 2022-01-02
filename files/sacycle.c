@@ -11,8 +11,8 @@ module
 {
         documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/sayeet/README.md";
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
-        min-unrealircd-version "6.*";
-        max-unrealircd-version "6.*";
+        min-unrealircd-version "5.*";
+        max-unrealircd-version "5.*";
         post-install-text {
                 "The module is installed. Now all you need to do is add a loadmodule line:";
                 "loadmodule \"third/sacycle\";";
@@ -64,6 +64,7 @@ CMD_FUNC(yeetus){
 	char *name, *p = NULL;
 	int i;
 	char jbuf[BUFSIZE];
+	char reqtarg[BUFSIZE];
 	int ntargets = 0;
 	int maxtargets = max_targets_for_command("CYCLE");
 
@@ -94,10 +95,10 @@ CMD_FUNC(yeetus){
 		
 		return;
 	}
-
+	strlcpy(reqtarg, parv[2], sizeof(reqtarg));
 	/* Now works like cmd_join */
 	*jbuf = 0;
-	for (i = 0, name = strtoken(&p, (char *)parv[2], ","); name; name = strtoken(&p, NULL, ","))
+	for (i = 0, name = strtoken(&p, reqtarg, ","); name; name = strtoken(&p, NULL, ","))
 	{
 		if (++ntargets > maxtargets)
 		{
@@ -132,11 +133,11 @@ CMD_FUNC(yeetus){
 	if (!*jbuf)
 		return;
 
-	strlcpy((char *)parv[2], jbuf, sizeof(parv[2]));
+	strlcpy(reqtarg, jbuf, sizeof(reqtarg));
 
 
 	parv[0] = target->name; // nick
-	parv[1] = parv[2]; // chan
+	parv[1] = reqtarg; // chan
 	parv[2] = NULL;
 	
 	sendnotice(target, "*** You were forced to cycle %s", parv[1]);
