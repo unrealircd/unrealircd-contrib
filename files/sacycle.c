@@ -105,7 +105,7 @@ CMD_FUNC(yeetus){
 			sendnumeric(client, ERR_TOOMANYTARGETS, name, maxtargets, "SACYCLE");
 			break;
 		}
-		if (!(channel = find_channel(parv[2])))
+		if (!(channel = find_channel(name)))
 		{
 			sendnumeric(client, ERR_NOSUCHCHANNEL,
 				name);
