@@ -70,7 +70,10 @@ MOD_INIT() {
 	mreq.type = MODDATATYPE_CLIENT;
 	nicklock_md = ModDataAdd(modinfo->handle, mreq);
 	if (!nicklock_md)
-		abort();
+	{
+		config_error("could not register nicklock moddata");
+		return MOD_FAILED;
+	}
 	
 	CommandAdd(modinfo->handle, NLOCK, NICKLOCK, 2, CMD_OPER);
 	CommandAdd(modinfo->handle, RNLOCK, NICKUNLOCK, 1, CMD_OPER);
