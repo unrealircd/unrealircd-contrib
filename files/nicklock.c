@@ -127,7 +127,7 @@ CMD_FUNC(NICKLOCK)
 		sendnumeric(client, ERR_NEEDMOREPARAMS, NLOCK);
 		return;
 	}
-	sendnotice(client,"%s",parv[1]);
+    
 	if (!(target = find_user(parv[1], NULL))) {
 		sendnumeric(client, ERR_NOSUCHNICK, parv[1]);
 		return;
