@@ -71,8 +71,10 @@ MOD_INIT() {
 	mreq.sync = 1;
 	mreq.type = MODDATATYPE_CLIENT;
 	elmer_md = ModDataAdd(modinfo->handle, mreq);
-	if (!elmer_md)
-		abort();
+	{
+		config_error("could not wegister elmer moddata");
+		return MOD_FAILED;
+	}
 	
 	CommandAdd(modinfo->handle, ADDELM, ADDELMER, 1, CMD_OPER);
 	CommandAdd(modinfo->handle, DELELM, DELELMER, 1, CMD_OPER);
@@ -130,6 +132,8 @@ CMD_FUNC(ADDELMER)
 		sendnumeric(client, ERR_NOPRIVILEGES);
 		return;	
 	}
+	if (hunt_server(client, NULL, "ELMER", 1, parc, parv) != HUNTED_ISME)
+		return;
 	if (IsElmer(target))
 	{
 		sendnotice(client,"%s is already talking like Elmer!",target->name);
@@ -163,6 +167,8 @@ CMD_FUNC(DELELMER)
 		sendnumeric(client, ERR_NOPRIVILEGES);
 		return;	
 	}
+	if (hunt_server(client, NULL, "DELMER", 1, parc, parv) != HUNTED_ISME)
+		return;
 	if (!IsElmer(target))
 	{
 		sendnotice(client,"%s was not talking like Elmer anyway.",target->name);
