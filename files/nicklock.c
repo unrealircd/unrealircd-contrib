@@ -117,6 +117,9 @@ CMD_FUNC(NICKLOCK)
 	char oldnickname[NICKLEN+1];
 	MessageTag *mtags = NULL;
 	
+	if (hunt_server(client, NULL, "NICKLOCK", 1, parc, parv) != HUNTED_ISME)
+		return;
+	
 	if (!IsOper(client))
 	{
 		sendnumeric(client, ERR_NOPRIVILEGES);
@@ -142,8 +145,6 @@ CMD_FUNC(NICKLOCK)
 		sendnotice(client,"%s is already nicklocked.",target->name);
 		return;
 	}
-	if (hunt_server(client, NULL, "NICKLOCK", 1, parc, parv) != HUNTED_ISME)
-		return;
 	/* actually do the nick lock */
 	if (!parv[2])
 		parv[2] = target->name;
@@ -192,6 +193,8 @@ CMD_FUNC(NICKUNLOCK)
 {
 	Client *target;
 	
+	if (hunt_server(client, NULL, "NICKUNLOCK", 1, parc, parv) != HUNTED_ISME)
+		return;
 
 	if (!IsOper(client))
 	{
@@ -211,9 +214,7 @@ CMD_FUNC(NICKUNLOCK)
 		sendnumeric(client, ERR_NOPRIVILEGES);
 		return;	
 	}
-	if (hunt_server(client, NULL, "NICKUNLOCK", 1, parc, parv) != HUNTED_ISME)
-		return;
-
+	
 	if (!IsNickLock(target))
 	{
 		sendnotice(client,"%s was not nicklocked anyway.",target->name);
