@@ -142,7 +142,8 @@ CMD_FUNC(NICKLOCK)
 		sendnotice(client,"%s is already nicklocked.",target->name);
 		return;
 	}
-	
+	if (hunt_server(client, NULL, "NICKLOCK", 1, parc, parv) != HUNTED_ISME)
+		return;
 	/* actually do the nick lock */
 	if (!parv[2])
 		parv[2] = target->name;
@@ -210,11 +211,15 @@ CMD_FUNC(NICKUNLOCK)
 		sendnumeric(client, ERR_NOPRIVILEGES);
 		return;	
 	}
+	if (hunt_server(client, NULL, "NICKUNLOCK", 1, parc, parv) != HUNTED_ISME)
+		return;
+
 	if (!IsNickLock(target))
 	{
 		sendnotice(client,"%s was not nicklocked anyway.",target->name);
 		return;
 	}
+	
 	ClearNickLock(target);
 	sendnotice(client,"%s is no longer nicklocked.",target->name);
 	unreal_log(ULOG_INFO, "nick", "NICK_IS_LOCKED", target,
