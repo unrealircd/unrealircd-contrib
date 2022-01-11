@@ -109,7 +109,7 @@ int helpop_whois(Client *requester, Client *acptr, NameValuePrioList **list)
 	if (hideoper)
 		return 0;
 	if (IsHelpop(requester))
-		add_nvplist_numeric_fmt(list, 0, "helpop", requester, 291, "%s :is available for help", acptr->name);
+		add_nvplist_numeric_fmt(list, 0, "helpop", requester, 320, "%s :is available for help", acptr->name);
 	
 	return 0;
 	
