@@ -1,5 +1,6 @@
 /*
   Licence: GPLv3
+  Copyright Ⓒ 2022 Valerie Pond
   NickLock
   
   Changes the user's nick to the new nick, and forces

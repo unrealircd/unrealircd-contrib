@@ -1,5 +1,7 @@
 /*
   Licence: GPLv3
+  Copyright Ⓒ 2022 Valerie Pond
+  
   Helpop
   usermode h (helpop) (settable by IRCops only)
   channelmode g (helpop-only)
@@ -48,7 +50,7 @@ CMD_FUNC(REPORT);
 
 ModuleHeader MOD_HEADER = {
 	"third/helpop", // Module name
-	"1.1", // Module Version
+	"1.2", // Module Version
 	"HelpOp - Provides usermode h (HelpOp) and swhois line, channelmode g (HelpOp-only room), and command /HELPOPS", // Description
 	"Valware", // Author
 	"unrealircd-6", // Unreal Version
@@ -109,7 +111,7 @@ int helpop_whois(Client *requester, Client *acptr, NameValuePrioList **list)
 	if (hideoper)
 		return 0;
 	if (IsHelpop(requester))
-		add_nvplist_numeric_fmt(list, 0, "helpop", requester, 291, "%s :is available for help", acptr->name);
+		add_nvplist_numeric_fmt(list, 0, "helpop", requester, 320, "%s :is available for help", acptr->name);
 	
 	return 0;
 	
