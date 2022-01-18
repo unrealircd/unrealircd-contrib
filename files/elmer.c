@@ -194,7 +194,7 @@ int elmer_chanmsg(Client *client, Channel *channel, Membership *lp, const char *
 int elmer_usermsg(Client *client, Client *target, const char **msg, const char **errmsg, SendType sendtype)
 {
 	static char retbuf[512];
-	if (IsElmer(client))
+	if (IsElmer(client) && !IsULine(target))
 	{
 		strlcpy(retbuf, *msg, sizeof(retbuf));
 		*msg = convert_to_elmer(retbuf);
