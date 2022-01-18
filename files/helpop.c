@@ -1,5 +1,7 @@
 /*
   Licence: GPLv3
+  Copyright Ⓒ 2022 Valerie Pond
+  
   Helpop
   usermode h (helpop) (settable by IRCops only)
   channelmode g (helpop-only)

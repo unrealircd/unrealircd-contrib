@@ -1,13 +1,15 @@
 /*
-This module provides command /CHGSWHOIS which does what it says on the tin
+  This module provides command /CHGSWHOIS which does what it says on the tin
 
-This module changes a users "special whois" line to the string you specify
+  This module changes a users "special whois" line to the string you specify
 
-Syntax: CHGSWHOIS username is a bastardó
+  Syntax: CHGSWHOIS username is a bastardó
 
-This module needs to be loaded on all servers on the network
+  This module needs to be loaded on all servers on the network
 
-License: GPLv3
+  License: GPLv3
+
+  Copyright Ⓒ 2022 Valerie Pond
 */
 /*** <<<MODULE MANAGER START>>>
 module {

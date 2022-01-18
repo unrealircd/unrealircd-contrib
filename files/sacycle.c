@@ -1,5 +1,6 @@
 /* 
 	LICENSE: GPLv3
+  	Copyright Ⓒ 2022 Valerie Pond
 
 	SACYCLE command for forcing someone to cycle a channel 
 

@@ -1,5 +1,6 @@
 /*
   Licence: GPLv3
+  Copyright Ⓒ 2022 Valerie Pond
   Elmer
 
   Force a user to speak like Elmer Fudd

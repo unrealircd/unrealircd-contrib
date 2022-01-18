@@ -1,5 +1,6 @@
 /*
   Licence: GPLv3
+  Copyright Ⓒ 2022 Valerie Pond
 */
 /*** <<<MODULE MANAGER START>>>
 module
