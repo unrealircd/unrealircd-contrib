@@ -50,7 +50,7 @@ CMD_FUNC(REPORT);
 
 ModuleHeader MOD_HEADER = {
 	"third/helpop", // Module name
-	"1.2", // Module Version
+	"1.3", // Module Version
 	"HelpOp - Provides usermode h (HelpOp) and swhois line, channelmode g (HelpOp-only room), and command /HELPOPS", // Description
 	"Valware", // Author
 	"unrealircd-6", // Unreal Version
@@ -110,8 +110,8 @@ int helpop_whois(Client *requester, Client *acptr, NameValuePrioList **list)
 
 	if (hideoper)
 		return 0;
-	if (IsHelpop(requester))
-		add_nvplist_numeric_fmt(list, 0, "helpop", requester, 320, "%s :is available for help", acptr->name);
+	if (IsHelpop(acptr))
+		add_nvplist_numeric_fmt(list, 0, "helpop", acptr, 320, "%s :is available for help", acptr->name);
 	
 	return 0;
 	
