@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/kickjoindelay";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/kickjoindelay\";";
@@ -22,12 +22,6 @@ module {
 
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
-
-// Prior to v5.2.0 we didn't have a channel argument for conv_param :>
-#undef BACKPORT_CONVPARAM_NOCHANNEL
-#if (UNREAL_VERSION_TIME < 202120)
-	#define BACKPORT_CONVPARAM_NOCHANNEL
-#endif
 
 // Channel mode to add
 #define CHMODE_FLAG 'j'
@@ -54,23 +48,18 @@ struct t_kickTimer {
 };
 
 // Quality fowod declarations
-int kickjoindelay_hook_kick(Client *client, Client *victim, Channel *channel, MessageTag *mtags, char *comment);
-int kickjoindelay_hook_pre_localjoin(Client *client, Channel *channel, char *parv[]);
+int kickjoindelay_hook_kick(Client *client, Client *victim, Channel *channel, MessageTag *mtags, const char *comment);
+int kickjoindelay_hook_pre_localjoin(Client *client, Channel *channel, const char *key);
 
-int kickjoindelay_chmode_isok(Client *client, Channel *channel, char mode, char *para, int checkt, int what);
-void *kickjoindelay_chmode_put_param(void *data, char *para);
-char *kickjoindelay_chmode_get_param(void *data);
+int kickjoindelay_chmode_isok(Client *client, Channel *channel, char mode, const char *para, int checkt, int what);
+void *kickjoindelay_chmode_put_param(void *data, const char *para);
+const char *kickjoindelay_chmode_conv_param(const char *para, Client *client, Channel *channel);
+const char *kickjoindelay_chmode_get_param(void *data);
 void kickjoindelay_chmode_free_param(void *data);
 void *kickjoindelay_chmode_dup_struct(void *src);
 int kickjoindelay_chmode_sjoin_check(Channel *channel, void *ourx, void *theirx);
 void kickjoindelay_md_free(ModData *md);
 EVENT(kickjoindelay_event);
-
-#ifdef BACKPORT_CONVPARAM_NOCHANNEL
-	char *kickjoindelay_chmode_conv_param(char *para, Client *client);
-#else
-	char *kickjoindelay_chmode_conv_param(char *para, Client *client, Channel *channel);
-#endif
 
 Cmode_t extcmode_kickjoindelay = 0L; // Store bitwise value latur
 ModDataInfo *kickjoinMDI = NULL; // Persistent st0rage for kick timers
@@ -78,10 +67,10 @@ ModDataInfo *kickjoinMDI = NULL; // Persistent st0rage for kick timers
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/kickjoindelay", // Module name
-	"2.1", // Version
+	"2.2.0", // Version
 	"Chanmode +j to prevent people from rejoining too fast after a kick", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Initialisation routine (register hooks, commands and modes or create structs etc)
@@ -98,7 +87,7 @@ MOD_INIT() {
 	// Request the mode flag
 	CmodeInfo cmodereq;
 	memset(&cmodereq, 0, sizeof(cmodereq));
-	cmodereq.flag = CHMODE_FLAG; // Flag yo
+	cmodereq.letter = CHMODE_FLAG; // Flag yo
 	cmodereq.paracount = 1; // How many params?
 	cmodereq.is_ok = kickjoindelay_chmode_isok; // Custom verification function
 	cmodereq.conv_param = kickjoindelay_chmode_conv_param; // Transform the parameter(s) if necessary (i.e. +j a1 becomes +j 1)
@@ -130,16 +119,16 @@ MOD_UNLOAD() {
 }
 
 // Simply hook into KICK to get a timestamp lol
-int kickjoindelay_hook_kick(Client *client, Client *victim, Channel *channel, MessageTag *mtags, char *comment) {
+int kickjoindelay_hook_kick(Client *client, Client *victim, Channel *channel, MessageTag *mtags, const char *comment) {
 	kickTimer *cur = NULL;
 	kickTimer *newTimer = NULL;
 	kickTimer *chanTimers = NULL;
-	char *delayParam = NULL;
+	const char *delayParam = NULL;
 
 	if(!MyUser(victim))
 		return HOOK_CONTINUE;
 
-	if(channel->mode.extmode & extcmode_kickjoindelay)
+	if(has_channel_mode(channel, CHMODE_FLAG))
 		delayParam = cm_getparameter(channel, CHMODE_FLAG);
 
 	if(!delayParam)
@@ -174,20 +163,20 @@ int kickjoindelay_hook_kick(Client *client, Client *victim, Channel *channel, Me
 }
 
 // Now for the actual JOIN prevention thingy
-int kickjoindelay_hook_pre_localjoin(Client *client, Channel *channel, char *parv[]) {
+int kickjoindelay_hook_pre_localjoin(Client *client, Channel *channel, const char *key) {
 	/* Args:
 	** client: Pointer to user executing command
 	** channel: Pointer to channel struct
 	** parv: Contains the args, like a key
 	*/
 	char out[256]; // For a pretty error string
-	char *delayParam = NULL; // A char * variant of the chmode parameter
+	const char *delayParam = NULL; // A char * variant of the chmode parameter
 	int delay; // The matching int value
 	kickTimer *cur = NULL; // For iter8ion m9
 	kickTimer *chanTimers; // To store moddata shit
 
 	// Check if the target channel even has the mode set ;]
-	if(channel && channel->mode.extmode & extcmode_kickjoindelay)
+	if(has_channel_mode(channel, CHMODE_FLAG))
 		delayParam = cm_getparameter(channel, CHMODE_FLAG);
 
 	// Just in case lol
@@ -209,7 +198,7 @@ int kickjoindelay_hook_pre_localjoin(Client *client, Channel *channel, char *par
 		// Just a sanity check for delay, also checkem time diff
 		if(delay > 0 && TStime() - cur->lastkick <= delay) {
 			ircsnprintf(out, sizeof(out), "You have to wait at least %d seconds before rejoining after a kick", delay);
-			sendnumeric(client, ERR_CANNOTSENDTOCHAN, channel->chname, out, channel->chname); // Send error
+			sendnumeric(client, ERR_CANNOTSENDTOCHAN, channel->name, out, channel->name); // Send error
 			return HOOK_DENY; // Deny 'em
 		}
 	}
@@ -217,7 +206,7 @@ int kickjoindelay_hook_pre_localjoin(Client *client, Channel *channel, char *par
 	return HOOK_CONTINUE; // No hit found or is a phre$h af user fam
 }
 
-int kickjoindelay_chmode_isok(Client *client, Channel *channel, char mode, char *para, int checkt, int what) {
+int kickjoindelay_chmode_isok(Client *client, Channel *channel, char mode, const char *para, int checkt, int what) {
 	/* Args:
 	** client: Client who issues the MODE change
 	** channel: Channel to which the MODE change applies
@@ -240,9 +229,9 @@ int kickjoindelay_chmode_isok(Client *client, Channel *channel, char mode, char 
 	*/
 	if((checkt == EXCHK_ACCESS) || (checkt == EXCHK_ACCESS_ERR)) {
 		// Check if the user has at least chanops status
-		if(!is_chan_op(client, channel)) {
+		if(!check_channel_access(client, channel, "oaq")) {
 			if(checkt == EXCHK_ACCESS_ERR)
-				sendnumeric(client, ERR_CHANOPRIVSNEEDED, channel->chname);
+				sendnumeric(client, ERR_CHANOPRIVSNEEDED, channel->name);
 			return EX_DENY;
 		}
 		return EX_ALLOW;
@@ -260,12 +249,7 @@ int kickjoindelay_chmode_isok(Client *client, Channel *channel, char mode, char 
 	return EX_ALLOW; // Fallthrough, normally never reached
 }
 
-#ifdef BACKPORT_CONVPARAM_NOCHANNEL
-	char *kickjoindelay_chmode_conv_param(char *para, Client *client)
-#else
-	char *kickjoindelay_chmode_conv_param(char *para, Client *client, Channel *channel)
-#endif
-{
+const char *kickjoindelay_chmode_conv_param(const char *para, Client *client, Channel *channel) {
 	/* Args:
 	** para: Parameters for the chmode
 	** client: Client who issues the MODE change
@@ -281,7 +265,7 @@ int kickjoindelay_chmode_isok(Client *client, Channel *channel, char mode, char 
 }
 
 // Store the parameter in our struct
-void *kickjoindelay_chmode_put_param(void *data, char *para) {
+void *kickjoindelay_chmode_put_param(void *data, const char *para) {
 	/* Args:
 	** data: A void pointer to the custom aModej struct
 	** para: Parameter being set
@@ -299,7 +283,7 @@ void *kickjoindelay_chmode_put_param(void *data, char *para) {
 }
 
 // Convert whatever the parameter(s) are back to a char *
-char *kickjoindelay_chmode_get_param(void *data) {
+const char *kickjoindelay_chmode_get_param(void *data) {
 	/* Args:
 	** data: A void pointer to the custom aModej struct
 	*/

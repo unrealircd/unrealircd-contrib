@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/block_no_tls";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/block_no_tls\";";
@@ -47,10 +47,10 @@ int blockem = 0;
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/block_no_tls", // Module name
-	"2.0", // Version
+	"2.1.0", // Version
 	"Allows privileged opers to temporarily block new, non-TLS (SSL) user connections", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Initialisation routine (register hooks, commands and modes or create structs etc)
@@ -75,7 +75,7 @@ MOD_UNLOAD() {
 
 int block_notls_hook_prelocalconnect(Client *client) {
 	if(blockem && !(client->local->listener->options & LISTENER_TLS)) {
-		sendto_snomask_global(SNO_KILLS, "*** [block_no_tls] %s (%s@%s) just tried to connect without TLS", client->name, client->user->username, client->user->realhost);
+		unreal_log(ULOG_INFO, "kill", "KILL_COMMAND", client, "Client killed: $client.details ([block_no_tls] tried to connect without SSL/TLS)");
 		exit_client(client, NULL, "Non-TLS (SSL) connections are currently not allowed"); // Kbye
 		return HOOK_DENY;
 	}
@@ -98,7 +98,7 @@ CMD_FUNC(cmd_block_notls) {
 	}
 
 	// Local server notice, also broadcast em
-	sendto_realops("[block_no_tls] %s just enabled the blocking of all new, non-TLS (SSL) \002user\002 connections", client->name);
+	unreal_log(ULOG_INFO, "block_no_tls", "BLOCK_NO_TLS_CHANGED", client, "$client.details just enabled the blocking of all new, non-TLS (SSL) \002user\002 connections");
 	sendto_server(client, 0, 0, NULL, ":%s %s", client->name, MSG_BLOCK_NOTLS);
 	blockem = 1;
 }
@@ -118,7 +118,7 @@ CMD_FUNC(cmd_unblock_notls) {
 	}
 
 	// Local server notice, also broadcast em
-	sendto_realops("[block_no_tls] %s just disabled the blocking of non-TLS (SSL) connections", client->name);
+	unreal_log(ULOG_INFO, "block_no_tls", "BLOCK_NO_TLS_CHANGED", client, "$client.details just disabled the blocking of non-TLS (SSL) connections");
 	sendto_server(client, 0, 0, NULL, ":%s %s", client->name, MSG_UNBLOCK_NOTLS);
 	blockem = 0;
 }

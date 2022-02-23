@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/debug";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/debug\";";
@@ -74,10 +74,10 @@ static char *debughelp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/debug", // Module name
-	"2.0", // Version
+	"2.1.0", // Version
 	"Allows privileged opers to easily view internal (configuration) data", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Initialisation routine (register hooks, commands and modes or create structs etc)
@@ -108,9 +108,6 @@ static void dumpit(Client *client, char **p) {
 	// Using sendto_one() instead of sendnumericfmt() because the latter strips indentation and stuff ;]
 	for(; *p != NULL; p++)
 		sendto_one(client, NULL, ":%s %03d %s :%s", me.name, RPL_TEXT, client->name, *p);
-
-	// Let user take 8 seconds to read it
-	client->local->since += 8;
 }
 
 CMD_FUNC(cmd_debug) {
@@ -126,7 +123,7 @@ CMD_FUNC(cmd_debug) {
 	}
 
 	if(!BadPtr(parv[2])) { // Second arg is optional, may be a server name
-		if(hunt_server(client, NULL, ":%s DBG %s %s", 2, parc, parv) != HUNTED_ISME) // Attempt to relay message to server
+		if(hunt_server(client, NULL, "DBG", 2, parc, parv) != HUNTED_ISME) // Attempt to relay message to server
 			return;
 	}
 
@@ -149,7 +146,7 @@ void debug_opers(Client *client) {
 			continue;
 
 		char buf[BUFSIZE]; // Store the message
-		char *umodes = get_usermode_string_raw(oper->require_modes); // Converts a long to shit like +z
+		const char *umodes = get_usermode_string_raw(oper->require_modes); // Converts a long to shit like +z
 		int len = 0; // Keep track of the length imo
 
 		memset(buf, '\0', BUFSIZE); // Initialise that shit tbh

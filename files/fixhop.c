@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/fixhop";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/fixhop\";";
@@ -26,15 +26,12 @@ module {
 // Config block
 #define MYCONF "fixhop"
 
-// Prior to v5.2.0 we didn't have "security groups" :>
-#undef BACKPORT_ANTIFLOOD_NO_SECGROUPS
-#if (UNREAL_VERSION_TIME < 202115)
-	#define BACKPORT_ANTIFLOOD_NO_SECGROUPS
-#endif
-
 // Commands to override
 #define OVR_INVITE "INVITE"
 #define OVR_MODE "MODE"
+
+#define CLIENT_INVITES(client) (moddata_local_client(client, userInvitesMD).ptr)
+#define CHANNEL_INVITES(channel) (moddata_channel(channel, channelInvitesMD).ptr)
 
 #define CheckAPIError(apistr, apiobj) \
 	do { \
@@ -51,8 +48,11 @@ int fixhop_rehash(void);
 CMD_OVERRIDE_FUNC(fixhop_inviteoverride);
 CMD_OVERRIDE_FUNC(fixhop_modeoverride);
 
-// Ripped functions lol
-void send_invite_list(Client *client); // From src/modules/invite.c =]
+// Ripped functions (from src/modules/invite.c) =]
+void add_invite(Client *from, Client *to, Channel *channel, MessageTag *mtags);
+void del_invite(Client *client, Channel *channel);
+
+ModDataInfo *userInvitesMD, *channelInvitesMD;
 
 // Set config defaults here
 int allowInvite = 0; // Allow hops to /invite
@@ -64,10 +64,10 @@ int chmodeNotif = 0; // Notification to go wit it
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/fixhop", // Module name
-	"2.1", // Version
+	"2.2.0", // Version
 	"The +h access mode seems to be a little borked/limited, this module implements some tweaks for it", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Configuration testing-related hewks go in testing phase obv
@@ -89,9 +89,19 @@ MOD_INIT() {
 
 // Actually load the module here (also command overrides as they may not exist in MOD_INIT yet)
 MOD_LOAD() {
+	if(!(userInvitesMD = findmoddata_byname("invite", MODDATATYPE_LOCAL_CLIENT))) {
+		config_error("A critical error occurred for %s: unable to find client moddata for the 'invite' module", MOD_HEADER.name);
+		return MOD_FAILED;
+	}
+
+	if(!(channelInvitesMD = findmoddata_byname("invite", MODDATATYPE_CHANNEL))) {
+		config_error("A critical error occurred for %s: unable to find channel moddata for the 'invite' module", MOD_HEADER.name);
+		return MOD_FAILED;
+	}
+
 	// Since our invite override is a lil weird, it should run after all other modules have done their part :>
-	CheckAPIError("CommandOverrideAddEx(INVITE)", CommandOverrideAddEx(modinfo->handle, OVR_INVITE, 99, fixhop_inviteoverride));
-	CheckAPIError("CommandOverrideAddEx(MODE)", CommandOverrideAdd(modinfo->handle, OVR_MODE, fixhop_modeoverride));
+	CheckAPIError("CommandOverrideAdd(INVITE)", CommandOverrideAdd(modinfo->handle, OVR_INVITE, 99, fixhop_inviteoverride));
+	CheckAPIError("CommandOverrideAdd(MODE)", CommandOverrideAdd(modinfo->handle, OVR_MODE, 0, fixhop_modeoverride));
 	return MOD_SUCCESS; // We good
 }
 
@@ -99,13 +109,6 @@ MOD_LOAD() {
 MOD_UNLOAD() {
 	safe_free(disallowChmodes);
 	return MOD_SUCCESS; // We good
-}
-
-void send_invite_list(Client *client) {
-	Link *inv;
-	for(inv = client->user->invited; inv; inv = inv->next)
-		sendnumeric(client, RPL_INVITELIST, inv->value.channel->chname);
-	sendnumeric(client, RPL_ENDOFINVITELIST);
 }
 
 int fixhop_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
@@ -118,42 +121,42 @@ int fixhop_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our block, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname) {
-			config_error("%s:%i: blank %s item", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!cep->name) {
+			config_error("%s:%i: blank %s item", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
-		if(!strcmp(cep->ce_varname, "allow_invite") || !strcmp(cep->ce_varname, "disallow_widemasks") || !strcmp(cep->ce_varname, "widemask_notif") ||
-			!strcmp(cep->ce_varname, "chmode_notif"))
+		if(!strcmp(cep->name, "allow_invite") || !strcmp(cep->name, "disallow_widemasks") || !strcmp(cep->name, "widemask_notif") ||
+			!strcmp(cep->name, "chmode_notif"))
 			continue;
 
-		if(!strcmp(cep->ce_varname, "disallow_chmodes")) {
-			if(!cep->ce_vardata || strlen(cep->ce_vardata) < 1) {
-				config_error("%s:%i: no modes specified for %s::disallow_chmodes", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!strcmp(cep->name, "disallow_chmodes")) {
+			if(!cep->value || strlen(cep->value) < 1) {
+				config_error("%s:%i: no modes specified for %s::disallow_chmodes", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 				errors++; // Increment err0r count fam
 				continue;
 			}
-			for(i = 0; i < strlen(cep->ce_vardata); i++) {
-				if(!isalpha(cep->ce_vardata[i])) {
-					config_error("%s:%i: invalid mode character '%c' in %s::disallow_chmodes", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, cep->ce_vardata[i], MYCONF); // Rep0t error
+			for(i = 0; i < strlen(cep->value); i++) {
+				if(!isalpha(cep->value[i])) {
+					config_error("%s:%i: invalid mode character '%c' in %s::disallow_chmodes", cep->file->filename, cep->line_number, cep->value[i], MYCONF); // Rep0t error
 					errors++;
 				}
 			}
 			continue;
 		}
 
-		config_error_unknown(cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname); // Shit out error lol
+		config_error_unknown(cep->file->filename, cep->line_number, MYCONF, cep->name); // Shit out error lol
 		errors++; // Increment err0r count fam
 	}
 
@@ -171,40 +174,40 @@ int fixhop_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't fixhop, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 		// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname)
+		if(!cep->name)
 			continue; // Next iteration imo tbh
 
-		if(!strcmp(cep->ce_varname, "allow_invite")) {
+		if(!strcmp(cep->name, "allow_invite")) {
 			allowInvite = 1;
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "disallow_widemasks")) {
+		if(!strcmp(cep->name, "disallow_widemasks")) {
 			disallowWidemasks = 1;
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "widemask_notif")) {
+		if(!strcmp(cep->name, "widemask_notif")) {
 			widemaskNotif = 1;
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "disallow_chmodes") && cep->ce_vardata) {
-			safe_strdup(disallowChmodes, cep->ce_vardata);
+		if(!strcmp(cep->name, "disallow_chmodes") && cep->value) {
+			safe_strdup(disallowChmodes, cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "chmode_notif")) {
+		if(!strcmp(cep->name, "chmode_notif")) {
 			chmodeNotif = 1;
 			continue;
 		}
@@ -242,7 +245,7 @@ CMD_OVERRIDE_FUNC(fixhop_inviteoverride) {
 	}
 
 	// Mabe just pass the command back to invite.c =]
-	if(parc < 3 || *parv[1] == '\0' || !(target = find_person(parv[1], NULL))) {
+	if(parc < 3 || *parv[1] == '\0' || !(target = find_user(parv[1], NULL))) {
 		CallCommandOverride(ovr, client, recv_mtags, parc, parv);
 		return ;
 	}
@@ -252,7 +255,7 @@ CMD_OVERRIDE_FUNC(fixhop_inviteoverride) {
 		return;
 	}
 
-	if(!(channel = find_channel(parv[2], NULL))) {
+	if(!(channel = find_channel(parv[2]))) {
 		CallCommandOverride(ovr, client, recv_mtags, parc, parv);
 		return;
 	}
@@ -279,13 +282,13 @@ CMD_OVERRIDE_FUNC(fixhop_inviteoverride) {
 		return;
 	}
 
-	if(channel->mode.mode & MODE_INVITEONLY) {
+	if(has_channel_mode(channel, 'i')) {
 		// Hecks
-		if(!is_chan_op(client, channel) && !is_half_op(client, channel) && !IsULine(client)) {
+		if(!check_channel_access(client, channel, "ho") && !IsULine(client)) {
 			if(ValidatePermissionsForPath("channel:override:invite:invite-only", client, NULL, channel, NULL) && client == target)
 				override = 1;
 			else {
-				sendnumeric(client, ERR_CHANOPRIVSNEEDED, channel->chname);
+				sendnumeric(client, ERR_CHANOPRIVSNEEDED, channel->name);
 				return;
 			}
 		}
@@ -293,14 +296,14 @@ CMD_OVERRIDE_FUNC(fixhop_inviteoverride) {
 			if(ValidatePermissionsForPath("channel:override:invite:invite-only", client, NULL, channel, NULL) && client == target)
 				override = 1;
 			else {
-				sendnumeric(client, ERR_CHANOPRIVSNEEDED, channel->chname);
+				sendnumeric(client, ERR_CHANOPRIVSNEEDED, channel->name);
 				return;
 			}
 		}
 	}
 
-	if(SPAMFILTER_VIRUSCHANDENY && SPAMFILTER_VIRUSCHAN && !strcasecmp(channel->chname, SPAMFILTER_VIRUSCHAN) && !is_chan_op(client, channel) && !ValidatePermissionsForPath("immune:server-ban:viruschan", client, NULL, NULL, NULL)) {
-		sendnumeric(client, ERR_CHANOPRIVSNEEDED, channel->chname);
+	if(SPAMFILTER_VIRUSCHANDENY && SPAMFILTER_VIRUSCHAN && !strcasecmp(channel->name, SPAMFILTER_VIRUSCHAN) && !check_channel_access(client, channel, "o") && !ValidatePermissionsForPath("immune:server-ban:viruschan", client, NULL, NULL, NULL)) {
+		sendnumeric(client, ERR_CHANOPRIVSNEEDED, channel->name);
 		return;
 	}
 
@@ -308,28 +311,13 @@ CMD_OVERRIDE_FUNC(fixhop_inviteoverride) {
 		if(target_limit_exceeded(client, target, target->name))
 			return;
 
-	#ifdef BACKPORT_ANTIFLOOD_NO_SECGROUPS
-		if(!ValidatePermissionsForPath("immune:invite-flood", client, NULL, NULL, NULL)) {
-			if((client->user->flood.invite_t + INVITE_PERIOD) <= timeofday) {
-				client->user->flood.invite_c = 0;
-				client->user->flood.invite_t = timeofday;
-			}
-			if(client->user->flood.invite_c <= INVITE_COUNT)
-				client->user->flood.invite_c++;
-			if(client->user->flood.invite_c > INVITE_COUNT) {
-				sendnumeric(client, RPL_TRYAGAIN, "INVITE");
-				return;
-			}
-		}
-	#else
 		if(!ValidatePermissionsForPath("immune:invite-flood", client, NULL, NULL, NULL) && flood_limit_exceeded(client, FLD_INVITE)) {
 			sendnumeric(client, RPL_TRYAGAIN, "INVITE");
 			return;
 		}
-	#endif
 
 		if(!override) {
-			sendnumeric(client, RPL_INVITING, target->name, channel->chname);
+			sendnumeric(client, RPL_INVITING, target->name, channel->name);
 			if(target->user->away)
 				sendnumeric(client, RPL_AWAY, target->name, target->user->away);
 		}
@@ -338,38 +326,33 @@ CMD_OVERRIDE_FUNC(fixhop_inviteoverride) {
 	/* Send OperOverride messages */
 	if(override && MyConnect(target)) {
 		if(is_banned(client, channel, BANCHK_JOIN, NULL, NULL)) {
-			sendto_snomask_global(SNO_EYES, "*** OperOverride -- %s (%s@%s) invited him/herself into %s (overriding +b).", client->name, client->user->username, client->user->realhost, channel->chname);
-
-			/* Logging implementation added by XeRXeS */
-			ircd_log(LOG_OVERRIDE,"OVERRIDE: %s (%s@%s) invited him/herself into %s (Overriding Ban).", client->name, client->user->username, client->user->realhost, channel->chname);
+			unreal_log(ULOG_INFO, "operoverride", "OPEROVERRIDE_INVITE", client, "OperOverride -- $client.details invited themself into $channel (overriding +b).",
+				log_data_channel("channel", channel)
+			);
 		}
-		else if(channel->mode.mode & MODE_INVITEONLY) {
-			sendto_snomask_global(SNO_EYES, "*** OperOverride -- %s (%s@%s) invited him/herself into %s (overriding +i).", client->name, client->user->username, client->user->realhost, channel->chname);
-
-			/* Logging implementation added by XeRXeS */
-			ircd_log(LOG_OVERRIDE,"OVERRIDE: %s (%s@%s) invited him/herself into %s (Overriding Invite Only)", client->name, client->user->username, client->user->realhost, channel->chname);
+		else if(has_channel_mode(channel, 'i')) {
+			unreal_log(ULOG_INFO, "operoverride", "OPEROVERRIDE_INVITE", client, "OperOverride -- $client.details invited themself into $channel (overriding +i).",
+				log_data_channel("channel", channel)
+			);
 		}
-		else if(channel->mode.limit) {
-			sendto_snomask_global(SNO_EYES, "*** OperOverride -- %s (%s@%s) invited him/herself into %s (overriding +l).", client->name, client->user->username, client->user->realhost, channel->chname);
-
-			/* Logging implementation added by XeRXeS */
-			ircd_log(LOG_OVERRIDE,"OVERRIDE: %s (%s@%s) invited him/herself into %s (Overriding Limit)", client->name, client->user->username, client->user->realhost, channel->chname);
+		else if(has_channel_mode(channel, 'l')) {
+			unreal_log(ULOG_INFO, "operoverride", "OPEROVERRIDE_INVITE", client, "OperOverride -- $client.details invited themself into $channel (overriding +l).",
+				log_data_channel("channel", channel)
+			);
 		}
 
-		else if(*channel->mode.key) {
-			sendto_snomask_global(SNO_EYES, "*** OperOverride -- %s (%s@%s) invited him/herself into %s (overriding +k).", client->name, client->user->username, client->user->realhost, channel->chname);
-
-			/* Logging implementation added by XeRXeS */
-			ircd_log(LOG_OVERRIDE,"OVERRIDE: %s (%s@%s) invited him/herself into %s (Overriding Key)", client->name, client->user->username, client->user->realhost, channel->chname);
+		else if(has_channel_mode(channel, 'k')) {
+			unreal_log(ULOG_INFO, "operoverride", "OPEROVERRIDE_INVITE", client, "OperOverride -- $client.details invited themself into $channel (overriding +k).",
+				log_data_channel("channel", channel)
+			);
 		}
 		else if(has_channel_mode(channel, 'z')) {
-			sendto_snomask_global(SNO_EYES, "*** OperOverride -- %s (%s@%s) invited him/herself into %s (overriding +z).", client->name, client->user->username, client->user->realhost, channel->chname);
-
-			/* Logging implementation added by XeRXeS */
-			ircd_log(LOG_OVERRIDE,"OVERRIDE: %s (%s@%s) invited him/herself into %s (Overriding SSL/TLS-Only)", client->name, client->user->username, client->user->realhost, channel->chname);
+			unreal_log(ULOG_INFO, "operoverride", "OPEROVERRIDE_INVITE", client, "OperOverride -- $client.details invited themself into $channel (overriding +z).",
+				log_data_channel("channel", channel)
+			);
 		}
 	#ifdef OPEROVERRIDE_VERIFY
-		else if(channel->mode.mode & MODE_SECRET || channel->mode.mode & MODE_PRIVATE)
+		else if(has_channel_mode(channel, 's') || has_channel_mode(channel, 'p'))
 			override = -1;
 	#endif
 		else
@@ -378,14 +361,14 @@ CMD_OVERRIDE_FUNC(fixhop_inviteoverride) {
 
 	if(MyConnect(target)) {
 		// Hecks
-		if(IsUser(client) && (is_chan_op(client, channel) || is_half_op(client, channel) || IsULine(client) || ValidatePermissionsForPath("channel:override:invite:self", client, NULL, channel, NULL))) {
+		if(IsUser(client) && (check_channel_access(client, channel, "ho") || IsULine(client) || ValidatePermissionsForPath("channel:override:invite:self", client, NULL, channel, NULL))) {
 			MessageTag *mtags = NULL;
 
 			new_message(&me, NULL, &mtags);
 			if(override == 1)
-				sendto_channel(channel, &me, NULL, PREFIX_OP|PREFIX_ADMIN|PREFIX_OWNER, 0, SEND_ALL, mtags, ":%s NOTICE @%s :OperOverride -- %s invited him/herself into the channel.", me.name, channel->chname, client->name);
+				sendto_channel(channel, &me, NULL, "oaq", 0, SEND_ALL, mtags, ":%s NOTICE @%s :OperOverride -- %s invited themself into the channel.", me.name, channel->name, client->name);
 			else if(override == 0) {
-				sendto_channel(channel, &me, NULL, PREFIX_OP|PREFIX_ADMIN|PREFIX_OWNER, 0, SEND_ALL, mtags, ":%s NOTICE @%s :%s invited %s into the channel.", me.name, channel->chname, client->name, target->name);
+				sendto_channel(channel, &me, NULL, "oaq", 0, SEND_ALL, mtags, ":%s NOTICE @%s :%s invited %s into the channel.", me.name, channel->name, client->name, target->name);
 			}
 			add_invite(client, target, channel, mtags);
 			free_message_tags(mtags);
@@ -394,7 +377,7 @@ CMD_OVERRIDE_FUNC(fixhop_inviteoverride) {
 
 	/* Notify the person who got invited */
 	if(!is_silenced(client, target))
-		sendto_prefix_one(target, client, NULL, ":%s INVITE %s :%s", client->name, target->name, channel->chname);
+		sendto_prefix_one(target, client, NULL, ":%s INVITE %s :%s", client->name, target->name, channel->name);
 }
 
 // Hecks
@@ -408,14 +391,14 @@ CMD_OVERRIDE_FUNC(fixhop_modeoverride) {
 	int newparc; // Keep track of proper param count
 	int cont, dironly;
 	char newflags[MODEBUFLEN + 3]; // Store cleaned up flags
-	char *newparv[MAXPARA + 1]; // Ditto for masks etc
+	const char *newparv[MAXPARA + 1]; // Ditto for masks etc
 	char c; // Current flag lol, can be '+', '-' or any letturchar
 	char curdir; // Current direction (add/del etc)
-	char *p; // To check the non-wildcard length shit
-	char *mask; // Store "cleaned" ban mask
+	const char *p; // To check the non-wildcard length shit
+	const char *mask; // Store "cleaned" ban mask
 
 	// Need to be at least hops or higher on a channel for this to kicc in obv (or U-Line, to prevent bypassing this module with '/cs mode')
-	if(!MyUser(client) || IsOper(client) || (!disallowWidemasks && !disallowChmodes) || parc < 2|| !(channel = find_channel(parv[1], NULL)) || !(is_half_op(client, channel) || IsULine(client))) {
+	if(!MyUser(client) || IsOper(client) || (!disallowWidemasks && !disallowChmodes) || parc < 2|| !(channel = find_channel(parv[1])) || !(check_channel_access(client, channel, "h") || IsULine(client))) {
 		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
 		return;
 	}
@@ -427,8 +410,7 @@ CMD_OVERRIDE_FUNC(fixhop_modeoverride) {
 	newparv[0] = parv[0];
 	newparv[1] = parv[1];
 	memset(newflags, '\0', sizeof(newflags)); // Set 'em
-	for(i = 0; i < parc; i++)
-		skip[i] = 0; // Set default so the loop doesn't fuck it up as it goes along
+	memset(&skip, 0, sizeof(skip));
 
 	// Loop over every mode flag
 	for(i = 0; i < strlen(parv[2]); i++) {
@@ -478,7 +460,7 @@ CMD_OVERRIDE_FUNC(fixhop_modeoverride) {
 					break;
 
 				// On error getting dis, just let CallCommandOverride handle it
-				mask = clean_ban_mask(parv[j], (curdir == '+' ? MODE_ADD : MODE_DEL), client); // Turns "+b *" into "+b *!*@*" so we can easily check bel0w =]
+				mask = clean_ban_mask(parv[j], (curdir == '+' ? MODE_ADD : MODE_DEL), client, 0); // Turns "+b *" into "+b *!*@*" so we can easily check bel0w =]
 				if(!mask)
 					break;
 
@@ -563,10 +545,10 @@ CMD_OVERRIDE_FUNC(fixhop_modeoverride) {
 	}
 
 	if(stripped_wide && widemaskNotif)
-		sendto_one(client, NULL, ":%s NOTICE %s :[FH] Stripped %d mask(s) (too wide)", me.name, channel->chname, stripped_wide);
+		sendto_one(client, NULL, ":%s NOTICE %s :[FH] Stripped %d mask(s) (too wide)", me.name, channel->name, stripped_wide);
 
 	if(stripped_disallowed && chmodeNotif)
-		sendto_one(client, NULL, ":%s NOTICE %s :[FH] Stripped %d modes (disallowed)", me.name, channel->chname, stripped_disallowed);
+		sendto_one(client, NULL, ":%s NOTICE %s :[FH] Stripped %d modes (disallowed)", me.name, channel->name, stripped_disallowed);
 
 	// Nothing left, don't even bother passing it back =]
 	if(!newflags[0])
@@ -579,4 +561,57 @@ CMD_OVERRIDE_FUNC(fixhop_modeoverride) {
 	else
 		newparv[MAXPARA] = NULL;
 	CallCommandOverride(ovr, client, recv_mtags, newparc, newparv); // Run original function yo
+}
+
+void add_invite(Client *from, Client *to, Channel *channel, MessageTag *mtags) {
+	Link *inv, *tmp;
+
+	del_invite(to, channel);
+	/* If too many invite entries then delete the oldest one */
+	if(link_list_length(CLIENT_INVITES(to)) >= MAXCHANNELSPERUSER) {
+		for(tmp = CLIENT_INVITES(to); tmp->next; tmp = tmp->next)
+			;
+		del_invite(to, tmp->value.channel);
+
+	}
+
+	if(link_list_length(CHANNEL_INVITES(channel)) >= MAXCHANNELSPERUSER) {
+		for(tmp = CHANNEL_INVITES(channel); tmp->next; tmp = tmp->next)
+			;
+		del_invite(tmp->value.client, channel);
+	}
+
+	// Add client to the beginning of the channel invite list
+	inv = make_link();
+	inv->value.client = to;
+	inv->next = CHANNEL_INVITES(channel);
+	CHANNEL_INVITES(channel) = inv;
+
+	// Add channel to the beginning of the client invite list
+	inv = make_link();
+	inv->value.channel = channel;
+	inv->next = CLIENT_INVITES(to);
+	CLIENT_INVITES(to) = inv;
+
+	RunHook(HOOKTYPE_INVITE, from, to, channel, mtags);
+}
+
+void del_invite(Client *client, Channel *channel) {
+	Link **inv, *tmp;
+
+	for(inv = (Link **)&CHANNEL_INVITES(channel); (tmp = *inv); inv = &tmp->next) {
+		if(tmp->value.client == client) {
+			*inv = tmp->next;
+			free_link(tmp);
+			break;
+		}
+	}
+
+	for(inv = (Link **)&CLIENT_INVITES(client); (tmp = *inv); inv = &tmp->next) {
+		if(tmp->value.channel == channel) {
+			*inv = tmp->next;
+			free_link(tmp);
+			break;
+		}
+	}
 }

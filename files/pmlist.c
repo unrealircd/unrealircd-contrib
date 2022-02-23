@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/pmlist";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/pmlist\";";
@@ -22,9 +22,6 @@ module {
 
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
-
-// Since v5.0.5 some hooks now include a SendType
-#define BACKPORT_HOOK_SENDTYPE (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 5)
 
 #define MSG_PMLIST "PMLIST" // Display whitelist lol
 #define MSG_OPENPM "OPENPM" // Accept PM
@@ -60,7 +57,7 @@ struct t_pmlistEntry {
 
 // Quality fowod declarations
 static void dumpit(Client *client, char **p);
-void tryNotif(Client *client, Client *to, char *text, int notice);
+void tryNotif(Client *client, Client *to, const char *text, int notice);
 void pmlist_md_free(ModData *md);
 void pmlist_md_notice_free(ModData *md);
 int match_pmentry(Client *client, char *uid, char *nick);
@@ -70,12 +67,7 @@ void free_pmentry(pmEntry *pm);
 int pmlist_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int pmlist_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
 int pmlist_rehash(void);
-
-#if BACKPORT_HOOK_SENDTYPE
-	int pmlist_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice);
-#else
-	int pmlist_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype);
-#endif
+int pmlist_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype);
 
 long extumode_pmlist = 0L; // Store bitwise value latur
 ModDataInfo *pmlistMDI, *noticeMDI; // To store some shit with the user's Client pointur ;]
@@ -123,10 +115,10 @@ static char *pmlistHalp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/pmlist", // Module name
-	"2.0.1", // Version
+	"2.1.0", // Version
 	"Implements umode +P to allow only certain people to privately message you", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Configuration testing-related hewks go in testing phase obv
@@ -193,23 +185,18 @@ static void dumpit(Client *client, char **p) {
 	// Using sendto_one() instead of sendnumericfmt() because the latter strips indentation and stuff ;]
 	for(; *p != NULL; p++)
 		sendto_one(client, NULL, ":%s %03d %s :%s", me.name, RPL_TEXT, client->name, *p);
-
-	// Let user take 8 seconds to read it
-	client->local->since += 8;
 }
 
-#if BACKPORT_HOOK_SENDTYPE
-	int pmlist_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice) {
-#else
-	int pmlist_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype) {
-		if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
-			return HOOK_CONTINUE;
-		int notice = (sendtype == SEND_TYPE_NOTICE);
-#endif
+int pmlist_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype) {
+	if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
+		return HOOK_CONTINUE;
+	if(!text || !*text) // If there's no text then the message is already blocked :>
+		return HOOK_CONTINUE;
 
+	int notice = (sendtype == SEND_TYPE_NOTICE);
 	pmEntry *pm; // Dat entry fam
 
-	if(!IsUser(client) || IsULine(client) || IsULine(to) || IsOper(client) || client == to) // Check for exclusions imo
+	if(!IsUser(client) || IsULine(client) || IsULine(to) || client == to) // Check for exclusions imo
 		return HOOK_CONTINUE;
 
 	if(MyUser(client) && HasPMList(client) && !match_pmentry(client, to->id, to->name)) { // If YOU have +P and target is not on the list, add 'em
@@ -221,19 +208,24 @@ static void dumpit(Client *client, char **p) {
 		sendnotice(client, "[pmlist] Added %s to your whitelist", to->name); // Notify 'em
 	}
 
+	// Opers may also set +P on themselves so the recipient (possibly non-oper) should still be added (above) ;]]
+	// Opers sending to non-opers with +P is permitted always
+	if(IsOper(client))
+		return HOOK_CONTINUE;
+
 	if(!MyUser(to) || !HasPMList(to)) // If the recipient is not on this server, we can't check _their_ pmlist anyways, so fuck off here =]
 		return HOOK_CONTINUE;
 
 	if(!match_pmentry(to, client->id, client->name)) { // Attempt to match UID lol
 		tryNotif(client, to, *text, notice); // Send notice if applicable atm
 		*text = NULL;
-		// Can't return HOOK_DENY here cuz Unreal will abort() in that case :D
+		// Can't return HOOK_DENY here cuz Unreal will abort() in that case (we'd need to set errmsg to avoid it, but we need more control over when to notice) :D
 	}
 
 	return HOOK_CONTINUE;
 }
 
-void tryNotif(Client *client, Client *to, char *text, int notice) {
+void tryNotif(Client *client, Client *to, const char *text, int notice) {
 	long last = moddata_client(client, noticeMDI).l; // Get timestamp of last notice yo
 	int sendem = (!last || TStime() - last >= noticeDelay); // We past the delay nao?
 	moddata_client(client, noticeMDI).l = TStime(); // Set it to current time
@@ -276,7 +268,7 @@ int match_pmentry(Client *client, char *uid, char *nick) {
 
 	acptr = NULL;
 	if(nick)
-		acptr = find_person(nick, NULL); // Attempt to find em
+		acptr = find_user(nick, NULL); // Attempt to find em
 
 	if((pmList = moddata_local_client(client, pmlistMDI).ptr)) { // Something st0red?
 		for(pm = pmList; pm; pm = pm->next) { // Iter8 em
@@ -364,7 +356,7 @@ CMD_FUNC(cmd_openpm) {
 	if(BadPtr(parv[1]) || !HasPMList(client) || (!BadPtr(parv[2]) && strcasecmp(parv[2], "-persist")))
 		return dumpit(client, pmlistHalp); // Return help string instead
 
-	if(!(acptr = find_person(parv[1], NULL))) { // Verify target user
+	if(!(acptr = find_user(parv[1], NULL))) { // Verify target user
 		sendnumeric(client, ERR_NOSUCHNICK, parv[1]); // Send error lol
 		return;
 	}
@@ -399,7 +391,7 @@ CMD_FUNC(cmd_openpm) {
 	for(pm = pmList; pm; pm = next) { // Check if the UID is already whitelisted (check for stale entries too ;];])
 		next = pm->next; // Get next entry in advance lol
 
-		if(!find_person(pm->uid, NULL) && !pm->persist) { // Check for stale entry lol (UID no longer existing on the netwerk)
+		if(!find_user(pm->uid, NULL) && !pm->persist) { // Check for stale entry lol (UID no longer existing on the netwerk)
 			delete_pmentry(client, pm); // Delete from list lol
 			continue; // No need to check below if =]
 		}
@@ -444,7 +436,7 @@ CMD_FUNC(cmd_closepm) {
 	for(pm = pmList; pm; pm = next) { // Remove all =]
 		next = pm->next; // Get next entry in advance lol
 
-		if(!find_person(pm->uid, NULL) && !pm->persist) { // Check for stale entry lol (UID no longer existing on the netwerk)
+		if(!find_user(pm->uid, NULL) && !pm->persist) { // Check for stale entry lol (UID no longer existing on the netwerk)
 			delete_pmentry(client, pm); // Delete from list lol
 			continue; // No need to check below if =]
 		}
@@ -501,7 +493,7 @@ CMD_FUNC(cmd_pmlist) {
 	for(pm = pmList; pm; pm = next) { // Check if the UID is already whitelisted (check for stale entries too ;];])
 		next = pm->next; // Get next entry in advance lol
 
-		if(!find_person(pm->uid, NULL) && !pm->persist) { // Check for stale entry lol (UID no longer existing on the netwerk)
+		if(!find_user(pm->uid, NULL) && !pm->persist) { // Check for stale entry lol (UID no longer existing on the netwerk)
 			delete_pmentry(client, pm); // Delete from list lol
 			continue; // No need to check below if =]
 		}
@@ -541,40 +533,40 @@ int pmlist_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our block, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname) {
-			config_error("%s:%i: blank %s item", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!cep->name) {
+			config_error("%s:%i: blank %s item", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
-		if(!strcmp(cep->ce_varname, "noticetarget")) {
-			if(!cep->ce_vardata || (strcmp(cep->ce_vardata, "0") && strcmp(cep->ce_vardata, "1"))) {
-				config_error("%s:%i: %s::%s must be either 0 or 1 fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+		if(!strcmp(cep->name, "noticetarget")) {
+			if(!cep->value || (strcmp(cep->value, "0") && strcmp(cep->value, "1"))) {
+				config_error("%s:%i: %s::%s must be either 0 or 1 fam", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "noticedelay")) {
+		if(!strcmp(cep->name, "noticedelay")) {
 			// Should be an integer yo
-			if(!cep->ce_vardata) {
-				config_error("%s:%i: %s::%s must be an integer of 0 or larger m8", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(!cep->value) {
+				config_error("%s:%i: %s::%s must be an integer of 0 or larger m8", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 				continue;
 			}
-			for(i = 0; cep->ce_vardata[i]; i++) {
-				if(!isdigit(cep->ce_vardata[i])) {
-					config_error("%s:%i: %s::%s must be an integer of 0 or larger m8", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			for(i = 0; cep->value[i]; i++) {
+				if(!isdigit(cep->value[i])) {
+					config_error("%s:%i: %s::%s must be an integer of 0 or larger m8", cep->file->filename, cep->line_number, MYCONF, cep->name);
 					errors++; // Increment err0r count fam
 					break;
 				}
@@ -596,26 +588,26 @@ int pmlist_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't pmlist, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 		// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname)
+		if(!cep->name)
 			continue; // Next iteration imo tbh
 
-		if(!strcmp(cep->ce_varname, "noticetarget")) {
-			noticeTarget = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "noticetarget")) {
+			noticeTarget = atoi(cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "noticedelay")) {
-			noticeDelay = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "noticedelay")) {
+			noticeDelay = atoi(cep->value);
 			continue;
 		}
 	}

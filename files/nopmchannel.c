@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/nopmchannel";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/nopmchannel\";";
@@ -22,9 +22,6 @@ module {
 
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
-
-// Since v5.0.5 some hooks now include a SendType
-#define BACKPORT_HOOK_SENDTYPE (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 5)
 
 #define MYCONF "nopmchannel"
 
@@ -39,12 +36,7 @@ struct t_nopmchan {
 int nopmchannel_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int nopmchannel_configposttest(int *errs); // You may not need this
 int nopmchannel_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
-
-#if BACKPORT_HOOK_SENDTYPE
-	int nopmchannel_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice);
-#else
-	int nopmchannel_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype);
-#endif
+int nopmchannel_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype);
 
 // Muh globals
 int noPMCount = 0;
@@ -53,10 +45,10 @@ noPMChan *noPMList = NULL;
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/nopmchannel", // Module name
-	"2.0.1", // Version
+	"2.1.0", // Version
 	"Prevents users sharing a channel from privately messaging each other", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Configuration testing-related hewks go in testing phase obv
@@ -107,45 +99,45 @@ int nopmchannel_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs)
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our block, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname) {
-			config_error("%s:%i: blank %s item", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!cep->name) {
+			config_error("%s:%i: blank %s item", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
-		if(!cep->ce_vardata) {
-			config_error("%s:%i: blank %s value", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!cep->value) {
+			config_error("%s:%i: blank %s value", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
-		if(!strcmp(cep->ce_varname, "name")) {
-			char *chan = cep->ce_vardata;
+		if(!strcmp(cep->name, "name")) {
+			char *chan = cep->value;
 			size_t chanlen = strlen(chan);
 			if(!chanlen) {
-				config_error("%s:%i: %s::%s must be non-empty fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+				config_error("%s:%i: %s::%s must be non-empty fam", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 			}
 			else if(chan[0] != '#') {
-				config_error("%s:%i: invalid channel name '%s' for %s (must start with a \002#\002)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, chan, MYCONF);
+				config_error("%s:%i: invalid channel name '%s' for %s (must start with a \002#\002)", cep->file->filename, cep->line_number, chan, MYCONF);
 				errors++; // Increment err0r count fam
 			}
 			else if(chan[1] && !isdigit(chan[1]) && !isalpha(chan[1])) {
-				config_error("%s:%i: invalid channel name '%s' for %s (second char must be alphanumeric)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, chan, MYCONF);
+				config_error("%s:%i: invalid channel name '%s' for %s (second char must be alphanumeric)", cep->file->filename, cep->line_number, chan, MYCONF);
 				errors++; // Increment err0r count fam
 			}
 			else if(chanlen > CHANNELLEN) {
-				config_error("%s:%i: invalid channel name '%s' for %s (name is too long, must be equal to or less than %d chars)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, chan, MYCONF, CHANNELLEN);
+				config_error("%s:%i: invalid channel name '%s' for %s (name is too long, must be equal to or less than %d chars)", cep->file->filename, cep->line_number, chan, MYCONF, CHANNELLEN);
 				errors++; // Increment err0r count fam
 			}
 			else
@@ -154,7 +146,7 @@ int nopmchannel_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs)
 		}
 
 		// Anything else is unknown to us =]
-		config_warn("%s:%i: unknown item %s::%s", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname); // So display just a warning
+		config_warn("%s:%i: unknown item %s::%s", cep->file->filename, cep->line_number, MYCONF, cep->name); // So display just a warning
 	}
 
 	*errs = errors;
@@ -188,24 +180,24 @@ int nopmchannel_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!noPMCount || !ce || !ce->ce_varname)
+	if(!noPMCount || !ce || !ce->name)
 		return 0;
 
 	// If it isn't nopmchannel, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name and value l0l?
-		if(!cep->ce_varname || !cep->ce_vardata)
+		if(!cep->name || !cep->value)
 			continue; // Next iteration imo tbh
 
-		if(!strcmp(cep->ce_varname, "name")) {
-			size_t namelen = sizeof(char) * (strlen(cep->ce_vardata) + 1);
+		if(!strcmp(cep->name, "name")) {
+			size_t namelen = sizeof(char) * (strlen(cep->value) + 1);
 			*npEntry = safe_alloc(sizeof(noPMChan));
 			(*npEntry)->name = safe_alloc(namelen);
-			strncpy((*npEntry)->name, cep->ce_vardata, namelen);
+			strncpy((*npEntry)->name, cep->value, namelen);
 
 			// Premium linked list fam
 			if(last)
@@ -219,17 +211,15 @@ int nopmchannel_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 }
 
 // Actual hewk function m8
-#if BACKPORT_HOOK_SENDTYPE
-	int nopmchannel_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice) {
-#else
-	int nopmchannel_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype) {
-		if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
-			return HOOK_CONTINUE;
-#endif
-
+int nopmchannel_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype) {
 	Channel *channel;
 	Membership *lp;
 	static char errbuf[256];
+
+	if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
+		return HOOK_CONTINUE;
+	if(!text || !*text)
+		return HOOK_CONTINUE;
 
 	// Let's exclude some shit lol
 	if(!client || !to || client == to || !MyUser(client) || IsULine(client) || IsULine(to) || IsOper(client) || !IsUser(to))
@@ -237,10 +227,10 @@ int nopmchannel_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 
 	for(lp = client->user->channel; lp; lp = lp->next) {
 		channel = lp->channel;
-		if(find_npchan(channel->chname)) {
+		if(find_npchan(channel->name)) {
 			// Receiver should prolly be a member of the currently checked channel to begin with ;]
-			if(IsMember(to, channel) && !is_skochanop(client, channel) && !is_skochanop(to, channel)) {
-				ircsnprintf(errbuf, sizeof(errbuf), "You have to part from channel '%s' in order to send private messages to %s", channel->chname, to->name);
+			if(IsMember(to, channel) && !check_channel_access(client, channel, "hoaq") && !check_channel_access(to, channel, "hoaq")) {
+				ircsnprintf(errbuf, sizeof(errbuf), "You have to part from channel '%s' in order to send private messages to %s", channel->name, to->name);
 				*errmsg = errbuf;
 				return HOOK_DENY;
 			}

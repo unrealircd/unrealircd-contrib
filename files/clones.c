@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/clones";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/clones\";";
@@ -41,10 +41,10 @@ CMD_FUNC(clones);
 
 ModuleHeader MOD_HEADER = {
 	"third/clones",
-	"2.0",
+	"2.1.0", // Version
 	"Adds a command /CLONES to list all users having the same IP address matching the given options",
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 MOD_INIT() {
@@ -70,8 +70,6 @@ static void dumpit(Client *client, char **p) {
 	// Using sendto_one() instead of sendnumericfmt() because the latter strips indentation and stuff ;]
 	for(; *p != NULL; p++)
 		sendto_one(client, NULL, ":%s %03d %s :%s", me.name, RPL_TEXT, client->name, *p);
-
-	client->local->since += 8; // Needs to read it for at least 8 seconds
 }
 
 static char *clones_halp[] = {
@@ -113,7 +111,7 @@ CMD_FUNC(clones) {
 	}
 
 	if(IsParam(2)) {
-		if(hunt_server(client, NULL, ":%s CLONES %s %s", 2, parc, parv) != HUNTED_ISME)
+		if(hunt_server(client, NULL, "CLONES", 2, parc, parv) != HUNTED_ISME)
 			return;
 	}
 
@@ -144,7 +142,7 @@ CMD_FUNC(clones) {
 		}
 	}
 	else {
-		if(!(acptr = find_person(parv[1], NULL))) {
+		if(!(acptr = find_user(parv[1], NULL))) {
 			sendnumeric(client, ERR_NOSUCHNICK, parv[1]);
 			return;
 		}

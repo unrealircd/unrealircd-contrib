@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/repeatprot";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/repeatprot\";";
@@ -82,10 +82,10 @@ struct {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/repeatprot", // Module name
-	"2.0.1", // Version
+	"2.1.0", // Version
 	"G(Z)-Line/kill users (or block their messages) who spam through CTCP, INVITE, NOTICE and/or PRIVMSG", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Configuration testing-related hewks go in testing phase obv
@@ -117,9 +117,9 @@ MOD_INIT() {
 
 // Actually load the module here (also command overrides as they may not exist in MOD_INIT yet)
 MOD_LOAD() {
-	CheckAPIError("CommandOverrideAddEx(INVITE)", CommandOverrideAddEx(modinfo->handle, OVR_INVITE, -99, repeatprot_override));
-	CheckAPIError("CommandOverrideAddEx(NOTICE)", CommandOverrideAddEx(modinfo->handle, OVR_NOTICE, -99, repeatprot_override));
-	CheckAPIError("CommandOverrideAddEx(PRIVMSG)", CommandOverrideAddEx(modinfo->handle, OVR_PRIVMSG, -99, repeatprot_override));
+	CheckAPIError("CommandOverrideAdd(INVITE)", CommandOverrideAdd(modinfo->handle, OVR_INVITE, -99, repeatprot_override));
+	CheckAPIError("CommandOverrideAdd(NOTICE)", CommandOverrideAdd(modinfo->handle, OVR_NOTICE, -99, repeatprot_override));
+	CheckAPIError("CommandOverrideAdd(PRIVMSG)", CommandOverrideAdd(modinfo->handle, OVR_PRIVMSG, -99, repeatprot_override));
 	return MOD_SUCCESS; // We good
 }
 
@@ -149,66 +149,66 @@ int repeatprot_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) 
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't repeatprot, idc
-	if(strcmp(ce->ce_varname, "repeatprot"))
+	if(strcmp(ce->name, "repeatprot"))
 		return 0;
 
 		// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname) {
-			config_error("%s:%i: blank repeatprot item", cep->ce_fileptr->cf_filename, cep->ce_varlinenum); // Rep0t error
+		if(!cep->name) {
+			config_error("%s:%i: blank repeatprot item", cep->file->filename, cep->line_number); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
 		// Check for optionals first =]
-		if(!strcmp(cep->ce_varname, "action")) {
-			if(!cep->ce_vardata || (strcmp(cep->ce_vardata, "block") && strcmp(cep->ce_vardata, "kill") && strcmp(cep->ce_vardata, "gzline") && strcmp(cep->ce_vardata, "gline"))) {
-				config_error("%s:%i: repeatprot::action must be either 'block', 'kill', 'gline' or 'gzline'", cep->ce_fileptr->cf_filename, cep->ce_varlinenum);
+		if(!strcmp(cep->name, "action")) {
+			if(!cep->value || (strcmp(cep->value, "block") && strcmp(cep->value, "kill") && strcmp(cep->value, "gzline") && strcmp(cep->value, "gline"))) {
+				config_error("%s:%i: repeatprot::action must be either 'block', 'kill', 'gline' or 'gzline'", cep->file->filename, cep->line_number);
 				errors++; // Increment err0r count fam
 				continue;
 			}
 		}
 
-		if(!strcmp(cep->ce_varname, "banmsg")) {
-			if(!cep->ce_vardata || !strlen(cep->ce_vardata)) {
-				config_error("%s:%i: repeatprot::banmsg must be non-empty fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum);
+		if(!strcmp(cep->name, "banmsg")) {
+			if(!cep->value || !strlen(cep->value)) {
+				config_error("%s:%i: repeatprot::banmsg must be non-empty fam", cep->file->filename, cep->line_number);
 				errors++; // Increment err0r count fam
 				continue;
 			}
 		}
 
-		if(!strcmp(cep->ce_varname, "showblocked")) {
-			if(!cep->ce_vardata || (strcmp(cep->ce_vardata, "0") && strcmp(cep->ce_vardata, "1"))) {
-				config_error("%s:%i: repeatprot::showblocked must be either 0 or 1 fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum);
+		if(!strcmp(cep->name, "showblocked")) {
+			if(!cep->value || (strcmp(cep->value, "0") && strcmp(cep->value, "1"))) {
+				config_error("%s:%i: repeatprot::showblocked must be either 0 or 1 fam", cep->file->filename, cep->line_number);
 				errors++; // Increment err0r count fam
 				continue;
 			}
 		}
 
-		if(!strcmp(cep->ce_varname, "tkltime")) {
+		if(!strcmp(cep->name, "tkltime")) {
 			// Should be a time string imo (7d10s etc, or just 20)
-			if(!cep->ce_vardata || config_checkval(cep->ce_vardata, CFG_TIME) <= 0) {
-				config_error("%s:%i: repeatprot::tkltime must be a time string like '7d10m' or simply '20'", cep->ce_fileptr->cf_filename, cep->ce_varlinenum);
+			if(!cep->value || config_checkval(cep->value, CFG_TIME) <= 0) {
+				config_error("%s:%i: repeatprot::tkltime must be a time string like '7d10m' or simply '20'", cep->file->filename, cep->line_number);
 				errors++; // Increment err0r count fam
 				continue;
 			}
 		}
 
-		if(!strcmp(cep->ce_varname, "threshold")) {
+		if(!strcmp(cep->name, "threshold")) {
 			// Should be an integer yo
-			if(!cep->ce_vardata) {
-				config_error("%s:%i: repeatprot::threshold must be an integer of 0 or larger m8", cep->ce_fileptr->cf_filename, cep->ce_varlinenum);
+			if(!cep->value) {
+				config_error("%s:%i: repeatprot::threshold must be an integer of 0 or larger m8", cep->file->filename, cep->line_number);
 				errors++; // Increment err0r count fam
 				continue;
 			}
-			for(i = 0; cep->ce_vardata[i]; i++) {
-				if(!isdigit(cep->ce_vardata[i])) {
-					config_error("%s:%i: repeatprot::threshold must be an integer of 0 or larger m8", cep->ce_fileptr->cf_filename, cep->ce_varlinenum);
+			for(i = 0; cep->value[i]; i++) {
+				if(!isdigit(cep->value[i])) {
+					config_error("%s:%i: repeatprot::threshold must be an integer of 0 or larger m8", cep->file->filename, cep->line_number);
 					errors++; // Increment err0r count fam
 					break;
 				}
@@ -216,27 +216,27 @@ int repeatprot_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) 
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "timespan")) {
+		if(!strcmp(cep->name, "timespan")) {
 			// Should be a time string imo (7d10s etc, or just 20)
-			if(!cep->ce_vardata || config_checkval(cep->ce_vardata, CFG_TIME) <= 0) {
-				config_error("%s:%i: repeatprot::timespan must be a time string like '7d10m' or simply '20'", cep->ce_fileptr->cf_filename, cep->ce_varlinenum);
+			if(!cep->value || config_checkval(cep->value, CFG_TIME) <= 0) {
+				config_error("%s:%i: repeatprot::timespan must be a time string like '7d10m' or simply '20'", cep->file->filename, cep->line_number);
 				errors++; // Increment err0r count fam
 			}
 			continue;
 		}
 
 		// Now check for the repeatprot::triggers bl0qq
-		if(!strcmp(cep->ce_varname, "triggers")) {
+		if(!strcmp(cep->name, "triggers")) {
 			// Loop 'em
-			for(cep2 = cep->ce_entries; cep2; cep2 = cep2->ce_next) {
-				if(!cep2->ce_varname) {
-					config_error("%s:%i: blank repeatprot trigger", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum); // Rep0t error
+			for(cep2 = cep->items; cep2; cep2 = cep2->next) {
+				if(!cep2->name) {
+					config_error("%s:%i: blank repeatprot trigger", cep2->file->filename, cep2->line_number); // Rep0t error
 					errors++; // Increment err0r count fam
 					continue; // Next iteration imo tbh
 				}
 
-				if(strcmp(cep2->ce_varname, "notice") && strcmp(cep2->ce_varname, "privmsg") && strcmp(cep2->ce_varname, "ctcp") && strcmp(cep2->ce_varname, "invite")) {
-					config_error("%s:%i: invalid repeatprot trigger", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum); // Rep0t error
+				if(strcmp(cep2->name, "notice") && strcmp(cep2->name, "privmsg") && strcmp(cep2->name, "ctcp") && strcmp(cep2->name, "invite")) {
+					config_error("%s:%i: invalid repeatprot trigger", cep2->file->filename, cep2->line_number); // Rep0t error
 					errors++; // Increment err0r count fam
 					continue; // Next iteration imo tbh
 				}
@@ -246,17 +246,17 @@ int repeatprot_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) 
 		}
 
 		// Also dem exceptions
-		if(!strcmp(cep->ce_varname, "exceptions")) {
+		if(!strcmp(cep->name, "exceptions")) {
 			// Loop 'em
-			for(cep2 = cep->ce_entries; cep2; cep2 = cep2->ce_next) {
-				if(!cep2->ce_varname) {
-					config_error("%s:%i: blank exception mask", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum); // Rep0t error
+			for(cep2 = cep->items; cep2; cep2 = cep2->next) {
+				if(!cep2->name) {
+					config_error("%s:%i: blank exception mask", cep2->file->filename, cep2->line_number); // Rep0t error
 					errors++; // Increment err0r count fam
 					continue; // Next iteration imo tbh
 				}
 
-				if(!match_simple("*!*@*", cep2->ce_varname)) {
-					config_error("%s:%i: invalid nick!user@host exception mask", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum); // Rep0t error
+				if(!match_simple("*!*@*", cep2->name)) {
+					config_error("%s:%i: invalid nick!user@host exception mask", cep2->file->filename, cep2->line_number); // Rep0t error
 					errors++; // Increment err0r count fam
 					continue; // Next iteration imo tbh
 				}
@@ -289,24 +289,24 @@ int repeatprot_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't repeatprot, idc
-	if(strcmp(ce->ce_varname, "repeatprot"))
+	if(strcmp(ce->name, "repeatprot"))
 		return 0;
 
 		// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname)
+		if(!cep->name)
 			continue; // Next iteration imo tbh
 
 		// Check for optionals first =]
-		if(!strcmp(cep->ce_varname, "action")) {
-			switch(cep->ce_vardata[1]) {
+		if(!strcmp(cep->name, "action")) {
+			switch(cep->value[1]) {
 				case 'l':
-					muhcfg.tklAction = (cep->ce_vardata[0] == 'b' ? 'b' : 'G');
+					muhcfg.tklAction = (cep->value[0] == 'b' ? 'b' : 'G');
 					break;
 				case 'i':
 					muhcfg.tklAction = 'k';
@@ -320,61 +320,61 @@ int repeatprot_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "banmsg")) {
-			safe_strdup(muhcfg.banmsg, cep->ce_vardata);
+		if(!strcmp(cep->name, "banmsg")) {
+			safe_strdup(muhcfg.banmsg, cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "showblocked")) {
-			muhcfg.showBlocked = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "showblocked")) {
+			muhcfg.showBlocked = atoi(cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "tkltime")) {
-			muhcfg.tklTime = config_checkval(cep->ce_vardata, CFG_TIME);
+		if(!strcmp(cep->name, "tkltime")) {
+			muhcfg.tklTime = config_checkval(cep->value, CFG_TIME);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "threshold")) {
-			muhcfg.repeatThreshold = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "threshold")) {
+			muhcfg.repeatThreshold = atoi(cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "timespan")) {
-			muhcfg.trigTimespan = config_checkval(cep->ce_vardata, CFG_TIME);
+		if(!strcmp(cep->name, "timespan")) {
+			muhcfg.trigTimespan = config_checkval(cep->value, CFG_TIME);
 			continue;
 		}
 
 		// Now check for the repeatprot::triggers bl0qq
-		if(!strcmp(cep->ce_varname, "triggers")) {
+		if(!strcmp(cep->name, "triggers")) {
 			// Loop 'em
-			for(cep2 = cep->ce_entries; cep2; cep2 = cep2->ce_next) {
-				if(!cep2->ce_varname)
+			for(cep2 = cep->items; cep2; cep2 = cep2->next) {
+				if(!cep2->name)
 					continue; // Next iteration imo tbh
 
-				else if(!strcmp(cep2->ce_varname, "notice"))
+				else if(!strcmp(cep2->name, "notice"))
 					muhcfg.trigNotice = 1;
 
-				else if(!strcmp(cep2->ce_varname, "privmsg"))
+				else if(!strcmp(cep2->name, "privmsg"))
 					muhcfg.trigPrivmsg = 1;
 
-				else if(!strcmp(cep2->ce_varname, "ctcp"))
+				else if(!strcmp(cep2->name, "ctcp"))
 					muhcfg.trigCTCP = 1;
 
-				else if(!strcmp(cep2->ce_varname, "invite"))
+				else if(!strcmp(cep2->name, "invite"))
 					muhcfg.trigInvite = 1;
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "exceptions")) {
+		if(!strcmp(cep->name, "exceptions")) {
 			// Loop 'em
-			for(cep2 = cep->ce_entries; cep2; cep2 = cep2->ce_next) {
-				if(!cep2->ce_varname)
+			for(cep2 = cep->items; cep2; cep2 = cep2->next) {
+				if(!cep2->name)
 					continue; // Next iteration imo tbh
 
 				// Get size
-				size_t masklen = sizeof(char) * (strlen(cep2->ce_varname) + 1);
+				size_t masklen = sizeof(char) * (strlen(cep2->name) + 1);
 
 				// Allocate mem0ry for the current entry
 				*exEntry = safe_alloc(sizeof(muhExcept));
@@ -383,7 +383,7 @@ int repeatprot_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 				(*exEntry)->mask = safe_alloc(masklen);
 
 				// Copy that shit fam
-				strlcpy((*exEntry)->mask, cep2->ce_varname, masklen);
+				strlcpy((*exEntry)->mask, cep2->name, masklen);
 
 				// Premium linked list fam
 				if(last)
@@ -409,30 +409,29 @@ void setcfg(void) {
 
 void dropMessage(Client *client, char *cmd, char *msg) {
 	int kill = 0, xline = 0; // Whether to kill or G/GZ-Line
-	char snomsg[BUFSIZE]; // Message to send to 0pers =]
-	ircsnprintf(snomsg, sizeof(snomsg), "*** [repeatprot] \037\002%s\002\037 flood from \002%s\002", cmd, client->name); // Initialise that shit with some basic inf0
+	char opermsg[BUFSIZE]; // Message to send to 0pers =]
+	ircsnprintf(opermsg, sizeof(opermsg), "*** [repeatprot] \037\002%s\002\037 flood from \002%s\002", cmd, client->name); // Initialise that shit with some basic inf0
 
 	switch(muhcfg.tklAction) { // Checkem action to apply
 		case 'b': // Block 'em
-			ircsnprintf(snomsg + strlen(snomsg), sizeof(snomsg), " [action: \037block\037, body: %s]", msg);
+			ircsnprintf(opermsg + strlen(opermsg), sizeof(opermsg), " [action: \037block\037, body: %s]", msg);
 			blockIt(client);
 			break;
 		case 'k': // Kill pls
-			ircsnprintf(snomsg + strlen(snomsg), sizeof(snomsg), " [action: \037kill\037, body: %s]", msg);
+			ircsnprintf(opermsg + strlen(opermsg), sizeof(opermsg), " [action: \037kill\037, body: %s]", msg);
 			kill = 1; // Delay the actual kill for a bit
 			break;
 		case 'G': // *-Lines
 		case 'Z': // y0
-			ircsnprintf(snomsg + strlen(snomsg), sizeof(snomsg), " [action: \037%s-Line\037, body: %s]", (muhcfg.tklAction == 'Z' ? "GZ" : "G"), msg);
+			ircsnprintf(opermsg + strlen(opermsg), sizeof(opermsg), " [action: \037%s-Line\037, body: %s]", (muhcfg.tklAction == 'Z' ? "GZ" : "G"), msg);
 			xline = 1; // Delay the actual *-Line for a bit
 			break;
 		default: // Shouldn't happen kek (like, ever)
-			ircsnprintf(snomsg + strlen(snomsg), sizeof(snomsg), " [UNKNOWN ACTION, body: %s]", msg);
+			ircsnprintf(opermsg + strlen(opermsg), sizeof(opermsg), " [UNKNOWN ACTION, body: %s]", msg);
 			break;
 	}
 
-	// Send snomasks before actually rip'ing the user (muh chronology pls)
-	sendto_snomask_global(SNO_EYES, "%s", snomsg);
+	unreal_log(ULOG_INFO, "repeatprot", "REPEATPROT_TRIGGERED", client, opermsg);
 
 	// Checkem delayed actions
 	if(kill)
@@ -449,7 +448,7 @@ void blockIt(Client *client) {
 void doKill(Client *client) {
 	char msg[BUFSIZE];
 	snprintf(msg, sizeof(msg), "Killed (%s)", muhcfg.banmsg);
-	sendto_snomask_global(SNO_KILLS, "*** [repeatprot] Received KILL message for %s!%s@%s", client->name, client->user->username, client->user->realhost);
+	unreal_log(ULOG_INFO, "kill", "KILL_COMMAND", client, "[repeatprot] Received KILL message for $client.details");
 	exit_client(client, NULL, msg);
 }
 
@@ -464,7 +463,7 @@ void doXLine(char flag, Client *client) {
 		tkltype[1] = '\0';
 
 		// Build TKL args
-		char *tkllayer[9] = {
+		const char *tkllayer[9] = {
 			me.name,
 			"+",
 			tkltype,
@@ -538,7 +537,7 @@ CMD_OVERRIDE_FUNC(repeatprot_override) {
 	}
 
 	// Allow messages TO self and U-Lines ;3
-	acptr = find_person(parv[1], NULL); // Attempt to find message target
+	acptr = find_user(parv[1], NULL); // Attempt to find message target
 	if(!acptr || acptr == client || IsULine(acptr)) {
 		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
 		return;

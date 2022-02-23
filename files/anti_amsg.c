@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/anti_amsg";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/anti_amsg\";";
@@ -53,10 +53,10 @@ ModDataInfo *amsgMDI; // To store every user's last message with their client po
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/anti_amsg", // Module name
-	"2.0", // Version
+	"2.1.0", // Version
 	"Drop messages originating from /amsg", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Initialisation routine (register hooks, commands and modes or create structs etc)
@@ -76,7 +76,7 @@ MOD_INIT() {
 
 // Actually load the module here (also command overrides as they may not exist in MOD_INIT yet)
 MOD_LOAD() {
-	CheckAPIError("CommandOverrideAdd(PRIVMSG)", CommandOverrideAdd(modinfo->handle, OVR_PRIVMSG, anti_amsg_override));
+	CheckAPIError("CommandOverrideAdd(PRIVMSG)", CommandOverrideAdd(modinfo->handle, OVR_PRIVMSG, 0, anti_amsg_override));
 	return MOD_SUCCESS; // We good
 }
 

@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/websocket_restrict";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/websocket_restrict\";";
@@ -36,8 +36,8 @@ struct t_chanstrukk {
 // Quality fowod declarations
 void doGZLine(Client *client, char *fullErr);
 int websocket_restrict_prelocalconnect(Client *client);
-int websocket_restrict_prelocaljoin(Client *client, Channel *channel, char *parv[]);
-int websocket_restrict_packet_in(Client *client, char *readbuf, int *length);
+int websocket_restrict_prelocaljoin(Client *client, Channel *channel, const char *key);
+int websocket_restrict_packet_in(Client *client, const char *readbuf, int *length);
 int websocket_restrict_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int websocket_restrict_configposttest(int *errs);
 int websocket_restrict_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
@@ -53,10 +53,10 @@ int chanCount = 0;
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/websocket_restrict", // Module name
-	"2.0", // Version
+	"2.1.0", // Version
 	"Impose restrictions on websocket connections", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Configuration testing-related hewks go in testing phase obv
@@ -108,7 +108,7 @@ void doGZLine(Client *client, char *fullErr) {
 	char setTime[100], expTime[100];
 	ircsnprintf(setTime, sizeof(setTime), "%li", TStime());
 	ircsnprintf(expTime, sizeof(expTime), "%li", TStime() + zlineTime);
-	char *tkllayer[9] = {
+	const char *tkllayer[9] = {
 		me.name,
 		"+",
 		"Z",
@@ -154,7 +154,7 @@ int websocket_restrict_prelocalconnect(Client *client) {
 	return HOOK_CONTINUE; // We good
 }
 
-int websocket_restrict_prelocaljoin(Client *client, Channel *channel, char *parv[]) {
+int websocket_restrict_prelocaljoin(Client *client, Channel *channel, const char *key) {
 	muhchan *chan;
 	int found;
 	ModDataInfo *websocket_md;
@@ -170,26 +170,26 @@ int websocket_restrict_prelocaljoin(Client *client, Channel *channel, char *parv
 
 	found = 0;
 	for(chan = chanList; chan; chan = chan->next) {
-		if(!strcasecmp(channel->chname, chan->name)) {
+		if(!strcasecmp(channel->name, chan->name)) {
 			found = 1;
 			break;
 		}
 	}
 	if(!found) {
-		sendnotice(client, "[websocket_restrict] Not allowed to join %s", channel->chname);
+		sendnotice(client, "[websocket_restrict] Not allowed to join %s", channel->name);
 		return HOOK_DENY;
 	}
 	return HOOK_CONTINUE;
 }
 
 // Check restrictions for websocket users trying shit meant for non-websocket users
-int websocket_restrict_packet_in(Client *client, char *readbuf, int *length) {
+int websocket_restrict_packet_in(Client *client, const char *readbuf, int *length) {
 	/* Return values:
 	** -1: Don't touch this client anymore, it might have been killed lol
 	** 0: Don't process this data, but you can read another packet if you want
 	** > 0 means: Allow others to process this data still
 	*/
-	if((client->local->receiveM == 0) && (*length > 8) && !strncmp(readbuf, "GET ", 4)) {
+	if(client->local->traffic.messages_received == 0 && (*length > 8) && !strncmp(readbuf, "GET ", 4)) {
 		ModDataInfo *websocket_md;
 		if(!(websocket_md = findmoddata_byname("websocket", MODDATATYPE_CLIENT))) // Something went wrong getting ModDataInfo
 			return 1; // Let others process the data
@@ -234,47 +234,47 @@ int websocket_restrict_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our block, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep || !cep->ce_varname)
+		if(!cep || !cep->name)
 			continue;
 
 		// Checkem port restrictions
-		if(!strcmp(cep->ce_varname, "port")) {
-			if(!cep->ce_vardata) { // Sanity check lol
-				config_error("%s:%i: no value specified for %s::port", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF);
+		if(!strcmp(cep->name, "port")) {
+			if(!cep->value) { // Sanity check lol
+				config_error("%s:%i: no value specified for %s::port", cep->file->filename, cep->line_number, MYCONF);
 				errors++; // Increment err0r count fam
 				continue;
 			}
 
-			pot = atoi(cep->ce_vardata); // Convert em
+			pot = atoi(cep->value); // Convert em
 			if(pot > 1024 && pot <= 65535) // Check port range lol
 				c_numPorts++; // Got a valid port
 			else {
-				config_error("%s:%i: invalid %s::port '%s' (must be higher than 1024 and lower than or equal to 65535)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_vardata);
+				config_error("%s:%i: invalid %s::port '%s' (must be higher than 1024 and lower than or equal to 65535)", cep->file->filename, cep->line_number, MYCONF, cep->value);
 				errors++; // Increment err0r count fam
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "zlinetime")) {
+		if(!strcmp(cep->name, "zlinetime")) {
 			// Should be an integer yo
-			if(!cep->ce_vardata) {
-				config_error("%s:%i: %s::zlinetime must be an integer of 0 or larger m8", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF);
+			if(!cep->value) {
+				config_error("%s:%i: %s::zlinetime must be an integer of 0 or larger m8", cep->file->filename, cep->line_number, MYCONF);
 				errors++; // Increment err0r count fam
 				continue;
 			}
-			for(i = 0; cep->ce_vardata[i]; i++) {
-				if(!isdigit(cep->ce_vardata[i])) {
-					config_error("%s:%i: %s::zlinetime must be an integer of 0 or larger m8", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF);
+			for(i = 0; cep->value[i]; i++) {
+				if(!isdigit(cep->value[i])) {
+					config_error("%s:%i: %s::zlinetime must be an integer of 0 or larger m8", cep->file->filename, cep->line_number, MYCONF);
 					errors++; // Increment err0r count fam
 					break;
 				}
@@ -283,21 +283,21 @@ int websocket_restrict_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int
 		}
 
 		// Here comes a nested block =]
-		if(!strcmp(cep->ce_varname, "channels")) {
+		if(!strcmp(cep->name, "channels")) {
 			// Loop 'em again
-			for(cep2 = cep->ce_entries; cep2; cep2 = cep2->ce_next) {
-				if(!cep2->ce_varname || !strlen(cep2->ce_varname)) {
-					config_error("%s:%i: blank %s::%s item", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep->ce_varname); // Rep0t error
+			for(cep2 = cep->items; cep2; cep2 = cep2->next) {
+				if(!cep2->name || !strlen(cep2->name)) {
+					config_error("%s:%i: blank %s::%s item", cep2->file->filename, cep2->line_number, MYCONF, cep->name); // Rep0t error
 					errors++; // Increment err0r count fam
 					continue; // Next iteration imo tbh
 				}
-				if(cep2->ce_varname[0] != '#') {
-					config_error("%s:%i: invalid channel name '%s': must start with #", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, cep2->ce_varname); // Rep0t error
+				if(cep2->name[0] != '#') {
+					config_error("%s:%i: invalid channel name '%s': must start with #", cep2->file->filename, cep2->line_number, cep2->name); // Rep0t error
 					errors++; // Increment err0r count fam
 					continue; // Next iteration imo tbh
 				}
-				if(strlen(cep2->ce_varname) > CHANNELLEN) {
-					config_error("%s:%i: invalid channel name '%s': must not exceed %d characters in length", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, cep2->ce_varname, CHANNELLEN);
+				if(strlen(cep2->name) > CHANNELLEN) {
+					config_error("%s:%i: invalid channel name '%s': must not exceed %d characters in length", cep2->file->filename, cep2->line_number, cep2->name, CHANNELLEN);
 					errors++; // Increment err0r count fam
 					continue; // Next iteration imo tbh
 				}
@@ -306,7 +306,7 @@ int websocket_restrict_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int
 			continue;
 		}
 
-		config_warn("%s:%i: unknown directive %s::%s", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+		config_warn("%s:%i: unknown directive %s::%s", cep->file->filename, cep->line_number, MYCONF, cep->name);
 	}
 
 	*errs = errors;
@@ -344,44 +344,44 @@ int websocket_restrict_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our block, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	i = 0;
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep || !cep->ce_varname)
+		if(!cep || !cep->name)
 			continue;
 
-		if(!strcmp(cep->ce_varname, "port")) {
-			if(!cep->ce_vardata)
+		if(!strcmp(cep->name, "port")) {
+			if(!cep->value)
 				continue;
 
-			pot = atoi(cep->ce_vardata);
+			pot = atoi(cep->value);
 			if(pot > 1024 && pot <= 65535) // Got a valid port
 				WSOnlyPorts[i++] = pot;
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "zlinetime")) {
-			zlineTime = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "zlinetime")) {
+			zlineTime = atoi(cep->value);
 			continue;
 		}
 
 		// Nesting
-		if(!strcmp(cep->ce_varname, "channels")) {
+		if(!strcmp(cep->name, "channels")) {
 			// Loop 'em
-			for(cep2 = cep->ce_entries; cep2; cep2 = cep2->ce_next) {
-				if(!cep2->ce_varname)
+			for(cep2 = cep->items; cep2; cep2 = cep2->next) {
+				if(!cep2->name)
 					continue; // Next iteration imo tbh
 
 				// Gotta get em length yo
-				size_t namelen = sizeof(char) * (strlen(cep2->ce_varname) + 1);
+				size_t namelen = sizeof(char) * (strlen(cep2->name) + 1);
 
 				// Allocate mem0ry for the current entry
 				*chan = safe_alloc(sizeof(muhchan));
@@ -390,7 +390,7 @@ int websocket_restrict_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 				(*chan)->name = safe_alloc(namelen);
 
 				// Copy that shit fam
-				strncpy((*chan)->name, cep2->ce_varname, namelen);
+				strncpy((*chan)->name, cep2->name, namelen);
 
 				// Premium linked list fam
 				if(last)

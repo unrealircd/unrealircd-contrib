@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/textshun";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/textshun\";";
@@ -22,9 +22,6 @@ module {
 
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
-
-// Since v5.0.5 some hooks now include a SendType
-#define BACKPORT_HOOK_SENDTYPE (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 5)
 
 // Command strings
 #define MSG_TEXTSHUN "TEXTSHUN"
@@ -63,18 +60,12 @@ void check_tlines(void);
 void add_tline(TLine *newtl);
 void del_tline(TLine *muhtl);
 TLine *get_tlines(void);
-TLine *find_tline(char *nickrgx, char *bodyrgx);
+TLine *find_tline(const char *nickrgx, const char *bodyrgx);
 TLine *match_tline(Client *client, char *text);
+int _check_cansend(Client *client, const char **text);
 int textshun_hook_serversync(Client *client);
-int _check_cansend(Client *client, char **text);
-
-#if BACKPORT_HOOK_SENDTYPE
-	int textshun_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice);
-	int textshun_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice);
-#else
-	int textshun_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, SendType sendtype);
-	int textshun_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype);
-#endif
+int textshun_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype);
+int textshun_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype);
 
 ModDataInfo *textshunMDI; // To store the T-Lines with &me lol (hack so we don't have to use a .db file or some shit)
 int TLC; // A counter for T-Lines so we can change the moddata back to NULL
@@ -114,10 +105,10 @@ static char *muhhalp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/textshun", // Module name
-	"2.0.2", // Version
+	"2.1.0", // Version
 	"Drop messages based on nick and body", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Initialisation routine (register hooks, commands and modes or create structs etc)
@@ -181,9 +172,6 @@ static void dumpit(Client *client, char **p) {
 	// Using sendto_one() instead of sendnumericfmt() because the latter strips indentation and stuff ;]
 	for(; *p != NULL; p++)
 		sendto_one(client, NULL, ":%s %03d %s :%s", me.name, RPL_TEXT, client->name, *p);
-
-	// Let user take 8 seconds to read it
-	client->local->since += 8;
 }
 
 EVENT(textshun_event) {
@@ -230,7 +218,14 @@ void check_tlines(void) {
 			short_date(last->set, gmt);
 
 			// Send expiration notice to all _local_ opers lol (every server checks expirations itself newaysz y0)
-			sendto_snomask(SNO_TKL, "*** Expiring T-Line set by %s at %s GMT for nick /%s/ and body /%s/ [reason: %s]", last->setby, gmt, last->nickrgx, last->bodyrgx, last->raisin);
+			unreal_log(ULOG_INFO, "textshun", "TEXTSHUN_EXPIRE", NULL, "Expiring T-Line set by $setby at $gmt GMT for nick /$nickrgx/ and body /$bodyrgx/ [reason: $raisin]",
+				log_data_string("setby", last->setby),
+				log_data_string("gmt", gmt),
+				log_data_string("nickrgx", last->nickrgx),
+				log_data_string("bodyrgx", last->bodyrgx),
+				log_data_string("raisin", last->raisin)
+			);
+
 
 			safe_free(last->nickrgx); // Gotta
 			safe_free(last->bodyrgx); // free
@@ -310,7 +305,7 @@ TLine *get_tlines(void) {
 }
 
 // Find a specific T-Line (based on nick and body regex lol)
-TLine *find_tline(char *nickrgx, char *bodyrgx) {
+TLine *find_tline(const char *nickrgx, const char *bodyrgx) {
 	TLine *TLineList, *tEntry; // Head and iter8or fam
 	if((TLineList = get_tlines())) { // Check if the list even has entries kek
 		for(tEntry = TLineList; tEntry; tEntry = tEntry->next) { // Iter8 em
@@ -362,11 +357,14 @@ TLine *match_tline(Client *client, char *text) {
 }
 
 // Internal function called by the pre*msg hooks ;];]
-int _check_cansend(Client *client, char **text) {
+int _check_cansend(Client *client, const char **text) {
 	TLine *tEntry; // Iter8or
 	char *body;
 
 	if(!MyConnect(client)) // No need to check if it's not our client =]
+		return HOOK_CONTINUE;
+
+	if(!text || !*text) // If there's no text then the message is already blocked :>
 		return HOOK_CONTINUE;
 
 	// Strip all markup shit (bold, italikk etc) and colours
@@ -374,8 +372,12 @@ int _check_cansend(Client *client, char **text) {
 		return HOOK_CONTINUE;
 
 	if(!IsServer(client) && !IsMe(client) && !IsULine(client) && !IsOper(client) && (tEntry = match_tline(client, body))) { // Servers, U-Lines and opers are exempt for obv raisins
-		// If match, send notices to all other opers =]
-		sendto_snomask_global(SNO_TKL, "*** T-Line for nick /%s/ and body /%s/ matched by %s [body: %s]", tEntry->nickrgx, tEntry->bodyrgx, client->name, body);
+		// If match, send notices to opers =]
+		unreal_log(ULOG_INFO, "textshun", "TEXTSHUN_MATCH", client, "T-Line for nick /$nickrgx/ and body /$bodyrgx/ matched by $client.details [body: $body]",
+			log_data_string("nickrgx", tEntry->nickrgx),
+			log_data_string("bodyrgx", tEntry->bodyrgx),
+			log_data_string("body", body)
+		);
 		*text = NULL;
 		// Can't return HOOK_DENY here cuz Unreal will abort() in that case :D
 	}
@@ -398,28 +400,17 @@ int textshun_hook_serversync(Client *client) {
 }
 
 // Pre message hewks lol
-#if BACKPORT_HOOK_SENDTYPE
-	int textshun_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice) {
-		return _check_cansend(client, text);
-	}
+int textshun_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype) {
+	if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
+		return HOOK_CONTINUE;
+	return _check_cansend(client, text);
+}
 
-	int textshun_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice) {
-		return _check_cansend(client, text);
-	}
-
-#else
-	int textshun_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, SendType sendtype) {
-		if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
-			return HOOK_CONTINUE;
-		return _check_cansend(client, text);
-	}
-
-	int textshun_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype) {
-		if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
-			return HOOK_CONTINUE;
-		return _check_cansend(client, text);
-	}
-#endif
+int textshun_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype) {
+	if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
+		return HOOK_CONTINUE;
+	return _check_cansend(client, text);
+}
 
 // Function for /TLINE etc
 CMD_FUNC(textshun) {
@@ -427,12 +418,13 @@ CMD_FUNC(textshun) {
 	Match *exprNick, *exprBody; // For verifying the regexes
 	char *regexerr;
 	TLine *TLineList, *newtl, *tEntry; // Quality struct pointers
-	char *nickrgx, *bodyrgx, *exptmp, *setby; // Muh args
+	const char *nickrgx, *bodyrgx, *exptmp, *setby; // Muh args
 	char raisin[BUFSIZE]; // Reasons may or may not be pretty long
 	char gmt[128], gmt2[128]; // For a pretty timestamp instead of UNIX time lol
 	char cur, prev, prev2; // For checking time strings
 	long setat, expire; // After how many seconds the T-Line should expire
 	int i, rindex, del, nickrgx_ok, bodyrgx_ok; // Iterat0rs and "booleans" =]
+	const char *what, *log_event;
 
 	if((!IsServer(client) && !IsULine(client) && !IsOper(client)) || !ValidatePermissionsForPath("textshun", client, NULL, NULL, NULL)) {
 		sendnumeric(client, ERR_NOPRIVILEGES); // Check ur privilege fam
@@ -600,25 +592,58 @@ CMD_FUNC(textshun) {
 	// Propagate the T-Line to other local servers fam (excluding the direction it came from ;])
 	sendto_server(client, 0, 0, NULL, ":%s TLINE %s %s %s %ld %ld %s :%s", me.id, (del ? "DEL" : "ADD"), nickrgx, bodyrgx, tEntry->set, tEntry->expire, setby, tEntry->raisin);
 
-	// Also send snomask notices to all local opers =]
 	// Make pretty set timestamp first tho
 	*gmt2 = '\0';
 	short_date(tEntry->set, gmt2);
 
+	log_event = (del ? "TEXTSHUN_DEL" : "TEXTSHUN_ADD");
+	what = (del ? "deleted" : "added");
 	if(tEntry->expire == 0) { // Permanent lol
-		if(IsServer(client)) // Show "set at" during sync phase ;]
-			sendto_snomask(SNO_TKL, "*** Permanent T-Line %sed by %s at %s GMT for nick /%s/ and body /%s/ [reason: %s]", (del ? "delet" : "add"), setby, gmt2, nickrgx, bodyrgx, tEntry->raisin);
-		else
-			sendto_snomask(SNO_TKL, "*** Permanent T-Line %sed by %s for nick /%s/ and body /%s/ [reason: %s]", (del ? "delet" : "add"), setby, nickrgx, bodyrgx, tEntry->raisin);
+		if(IsServer(client)) { // Show "set at" during sync phase ;]
+			unreal_log(ULOG_INFO, "textshun", log_event, client, "Permanent T-Line $what by $setby at $gmt GMT for nick /$nickrgx/ and body /$bodyrgx/ [reason: $raisin]",
+				log_data_string("what", what),
+				log_data_string("setby", setby),
+				log_data_string("gmt", gmt2),
+				log_data_string("nickrgx", nickrgx),
+				log_data_string("bodyrgx", bodyrgx),
+				log_data_string("raisin", tEntry->raisin)
+			);
+		}
+		else {
+			unreal_log(ULOG_INFO, "textshun", log_event, client, "Permanent T-Line $what by $setby for nick /$nickrgx/ and body /$bodyrgx/ [reason: $raisin]",
+				log_data_string("what", what),
+				log_data_string("setby", setby),
+				log_data_string("nickrgx", nickrgx),
+				log_data_string("bodyrgx", bodyrgx),
+				log_data_string("raisin", tEntry->raisin)
+			);
+		}
 	}
 	else {
 		// Make pretty expiration timestamp if not a permanent T-Line
 		*gmt = '\0';
 		short_date(tEntry->set + tEntry->expire, gmt);
-		if(IsServer(client)) // Show "set at" during sync phase ;]
-			sendto_snomask(SNO_TKL, "*** T-Line %sed by %s at %s GMT for nick /%s/ and body /%s/, expiring at %s GMT [reason: %s]", (del ? "delet" : "add"), setby, gmt2, nickrgx, bodyrgx, gmt, tEntry->raisin);
-		else
-			sendto_snomask(SNO_TKL, "*** T-Line %sed by %s for nick /%s/ and body /%s/, expiring at %s GMT [reason: %s]", (del ? "delet" : "add"), setby, nickrgx, bodyrgx, gmt, tEntry->raisin);
+		if(IsServer(client)) { // Show "set at" during sync phase ;]
+			unreal_log(ULOG_INFO, "textshun", log_event, client, "T-Line $what by $setby at $gmt GMT for nick /$nickrgx/ and body /$bodyrgx/, expiring at $gmt_expire GMT [reason: $raisin]",
+				log_data_string("what", what),
+				log_data_string("setby", setby),
+				log_data_string("gmt", gmt2),
+				log_data_string("nickrgx", nickrgx),
+				log_data_string("bodyrgx", bodyrgx),
+				log_data_string("gmt_expire", gmt),
+				log_data_string("raisin", tEntry->raisin)
+			);
+		}
+		else {
+			unreal_log(ULOG_INFO, "textshun", log_event, client, "T-Line $what by $setby for nick /$nickrgx/ and body /$bodyrgx/, expiring at $gmt_expire GMT [reason: $raisin]",
+				log_data_string("what", what),
+				log_data_string("setby", setby),
+				log_data_string("nickrgx", nickrgx),
+				log_data_string("bodyrgx", bodyrgx),
+				log_data_string("gmt_expire", gmt),
+				log_data_string("raisin", tEntry->raisin)
+			);
+		}
 	}
 
 	// Delete em famamlamlamlmal

@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/noinvite";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/noinvite\";";
@@ -44,10 +44,10 @@ long extumode_noinvite = 0L; // Store bitwise value latur
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/noinvite", // Module name
-	"2.0", // Version
+	"2.1.0", // Version
 	"Adds umode +N to block invites", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Initialisation routine (register hooks, commands and modes or create structs etc)
@@ -73,7 +73,7 @@ MOD_UNLOAD() {
 
 int noinvite_hook(Client *client, Client *target, Channel *channel, int *override) {
 	if(!IsULine(client) && !IsOper(client) && (target->umodes & extumode_noinvite)) {
-		sendto_one(client, NULL, ":%s NOTICE %s :%s has blocked all invites", me.name, channel->chname, target->name);
+		sendto_one(client, NULL, ":%s NOTICE %s :%s has blocked all invites", me.name, channel->name, target->name);
 		return HOOK_DENY;
 	}
 	return HOOK_CONTINUE;

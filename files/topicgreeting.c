@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/topicgreeting";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/topicgreeting\";";
@@ -26,7 +26,7 @@ module {
 #define CHMODE_FLAG 'g' // As in greet obv =]
 
 // Dem macros yo
-#define HasTopicgreet(x) ((x) && (x)->mode.extmode & extcmode_topicgreeting)
+#define HasTopicgreet(x) ((x) && has_channel_mode((x), CHMODE_FLAG))
 
 #define CheckAPIError(apistr, apiobj) \
 	do { \
@@ -37,7 +37,7 @@ module {
 	} while(0)
 
 // Quality fowod declarations
-int topicgreeting_localjoin(Client *client, Channel *channel, MessageTag *recv_mtags, char *parv[]);
+int topicgreeting_localjoin(Client *client, Channel *channel, MessageTag *recv_mtags);
 
 // Muh globals
 Cmode_t extcmode_topicgreeting = 0L; // Store bitwise value latur
@@ -45,10 +45,10 @@ Cmode_t extcmode_topicgreeting = 0L; // Store bitwise value latur
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/topicgreeting", // Module name
-	"2.0", // Version
+	"2.1.0", // Version
 	"Greet users who join a channel by changing the topic (channel mode +g)", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Initialisation routine (register hooks, commands and modes or create structs etc)
@@ -56,7 +56,7 @@ MOD_INIT() {
 	// Request the mode flag
 	CmodeInfo cmodereq;
 	memset(&cmodereq, 0, sizeof(cmodereq));
-	cmodereq.flag = CHMODE_FLAG; // Flag yo
+	cmodereq.letter = CHMODE_FLAG; // Flag yo
 	cmodereq.paracount = 0; // How many params?
 	cmodereq.is_ok = extcmode_default_requirechop; // For paramless modes that simply require +o/+a/+q etc
 	CheckAPIError("CmodeAdd(extcmode_topicgreeting)", CmodeAdd(modinfo->handle, cmodereq, &extcmode_topicgreeting));
@@ -78,9 +78,9 @@ MOD_UNLOAD() {
 	return MOD_SUCCESS; // We good
 }
 
-int topicgreeting_localjoin(Client *client, Channel *channel, MessageTag *recv_mtags, char *parv[]) {
+int topicgreeting_localjoin(Client *client, Channel *channel, MessageTag *recv_mtags) {
 	// Let's make sure we don't greet ButtServ and co lol
-	if(channel && (channel->mode.extmode & extcmode_topicgreeting) && !IsULine(client)) {
+	if(HasTopicgreet(channel) && !IsULine(client)) {
 		char str[BUFSIZE];
 		int tlen, nlen;
 		time_t ttime;
@@ -110,8 +110,8 @@ int topicgreeting_localjoin(Client *client, Channel *channel, MessageTag *recv_m
 
 			// Broadcast that shit twice; once to local users using server *name* and another for remote users with em SID
 			new_message(&me, NULL, &mtags);
-			sendto_channel(channel, &me, NULL, 0, 0, SEND_LOCAL, mtags, ":%s TOPIC %s :%s", me.name, channel->chname, channel->topic);
-			sendto_channel(channel, &me, NULL, 0, 0, SEND_REMOTE, mtags, ":%s TOPIC %s :%s", me.id, channel->chname, channel->topic);
+			sendto_channel(channel, &me, NULL, 0, 0, SEND_LOCAL, mtags, ":%s TOPIC %s :%s", me.name, channel->name, channel->topic);
+			sendto_channel(channel, &me, NULL, 0, 0, SEND_REMOTE, mtags, ":%s TOPIC %s :%s", me.id, channel->name, channel->topic);
 			free_message_tags(mtags);
 		}
 	}

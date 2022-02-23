@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/uline_nickhost";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/uline_nickhost\";";
@@ -41,10 +41,10 @@ CMD_OVERRIDE_FUNC(uline_nickhost_override);
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/uline_nickhost", // Module name
-	"2.0", // Version
+	"2.1.0", // Version
 	"Requires people to address services like NickServ@services.my.net", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Initialisation routine (register hooks, commands and modes or create structs etc)
@@ -55,8 +55,8 @@ MOD_INIT() {
 
 // Actually load the module here (also command overrides as they may not exist in MOD_INIT yet)
 MOD_LOAD() {
-	CheckAPIError("CommandOverrideAdd(PRIVMSG)", CommandOverrideAdd(modinfo->handle, OVR_PRIVMSG, uline_nickhost_override));
-	CheckAPIError("CommandOverrideAdd(NOTICE)", CommandOverrideAdd(modinfo->handle, OVR_NOTICE, uline_nickhost_override));
+	CheckAPIError("CommandOverrideAdd(PRIVMSG)", CommandOverrideAdd(modinfo->handle, OVR_PRIVMSG, 0, uline_nickhost_override));
+	CheckAPIError("CommandOverrideAdd(NOTICE)", CommandOverrideAdd(modinfo->handle, OVR_NOTICE, 0, uline_nickhost_override));
 	return MOD_SUCCESS; // We good
 }
 
@@ -72,12 +72,12 @@ CMD_OVERRIDE_FUNC(uline_nickhost_override) {
 	char nickhost[NICKLEN + HOSTLEN + 2]; // Full nick@server mask thingy, HOSTLEN is the limit for server names anyways so ;]
 
 	// Check argument sanity and see if we can find a target pointer (and if that's a U-Line as well)
-	if(BadPtr(parv[1]) || !(acptr = find_person(parv[1], NULL)) || !IsULine(acptr)) {
+	if(BadPtr(parv[1]) || !(acptr = find_user(parv[1], NULL)) || !IsULine(acptr)) {
 		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
 		return;
 	}
 
-	ircsnprintf(nickhost, sizeof(nickhost), "%s@%s", acptr->name, acptr->srvptr->name);
+	ircsnprintf(nickhost, sizeof(nickhost), "%s@%s", acptr->name, acptr->direction->name);
 	if(strcasecmp(parv[1], nickhost)) { // Check if exact match (case-insensitivity is a go)
 		sendnotice(client, "*** Please use %s when addressing services bots", nickhost); // Notice lol
 		return;

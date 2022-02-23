@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/portsifresi";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/portsifresi\";";
@@ -53,10 +53,10 @@ static PSIFre *portsifresiList = NULL;
 /* Main Module Header For UnrealIRCd */
 ModuleHeader MOD_HEADER = {
 	"third/portsifresi",
-	"2.0",
+	"2.1.0", // Version
 	"Protect specific ports with a password",
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 /* MOD_TEST Function */
@@ -168,21 +168,21 @@ int portsifresi_hook_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *
 	if(type != CONFIG_MAIN)
 		return 0;
 
-	if(!ce || !ce->ce_varname || strcmp(ce->ce_varname, "psifre"))
+	if(!ce || !ce->name || strcmp(ce->name, "psifre"))
 		return 0;
 
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
-		if(!cep->ce_varname || !(portlen = strlen(cep->ce_varname)) || !cep->ce_vardata || !(passlen = strlen(cep->ce_vardata))) {
-			config_error("%s:%i: empty/incomplete psifre entry (should be of the format: <port> \"<password>\";)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum);
+	for(cep = ce->items; cep; cep = cep->next) {
+		if(!cep->name || !(portlen = strlen(cep->name)) || !cep->value || !(passlen = strlen(cep->value))) {
+			config_error("%s:%i: empty/incomplete psifre entry (should be of the format: <port> \"<password>\";)", cep->file->filename, cep->line_number);
 			errors++;
 			continue;
 		}
 
 		validport = 1;
-		p = cep->ce_varname;
+		p = cep->name;
 		while(*p) {
 			if(!isdigit(*p)) {
-				config_error("%s:%i: invalid psifre port number '%s' (not an actual number)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, cep->ce_varname);
+				config_error("%s:%i: invalid psifre port number '%s' (not an actual number)", cep->file->filename, cep->line_number, cep->name);
 				errors++;
 				validport = 0;
 				break;
@@ -193,15 +193,15 @@ int portsifresi_hook_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *
 		if(!validport)
 			continue;
 
-		port = atoi(cep->ce_varname);
+		port = atoi(cep->name);
 		if(portlen > 5 || port <= 1024 || port > 65535) {
-			config_error("%s:%i: psifre port number %s is out of range (minimum is 1025 and maximum is 65535)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, cep->ce_varname);
+			config_error("%s:%i: psifre port number %s is out of range (minimum is 1025 and maximum is 65535)", cep->file->filename, cep->line_number, cep->name);
 			errors++;
 			continue;
 		}
 
 		if(passlen > PASSWDLEN) {
-			config_error("%s:%i: psifre password for port %d is too long (exceeds internal max length of %d)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, port, PASSWDLEN);
+			config_error("%s:%i: psifre password for port %d is too long (exceeds internal max length of %d)", cep->file->filename, cep->line_number, port, PASSWDLEN);
 			errors++;
 			continue;
 		}
@@ -217,14 +217,14 @@ int portsifresi_hook_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 	if(type != CONFIG_MAIN)
 		return 0;
 
-	if(!ce || !ce->ce_varname || strcmp(ce->ce_varname, "psifre"))
+	if(!ce || !ce->name || strcmp(ce->name, "psifre"))
 		return 0;
 
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Shouldn't really be possible but whatevs =]
-		if(!cep->ce_varname || !strlen(cep->ce_varname) || !cep->ce_vardata || !strlen(cep->ce_vardata))
+		if(!cep->name || !strlen(cep->name) || !cep->value || !strlen(cep->value))
 			continue;
-		addPortPassword(cep->ce_varname, cep->ce_vardata);
+		addPortPassword(cep->name, cep->value);
 	}
 	return 1;
 }

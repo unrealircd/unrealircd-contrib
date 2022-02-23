@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/message_commonchans";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/message_commonchans\";";
@@ -23,9 +23,6 @@ module {
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
 
-// Since v5.0.5 some hooks now include a SendType
-#define BACKPORT_HOOK_SENDTYPE (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 5)
-
 #define UMODE_FLAG 'c'
 
 #define CheckAPIError(apistr, apiobj) \
@@ -37,21 +34,17 @@ module {
 	} while(0)
 
 // Quality fowod declarations
-#if BACKPORT_HOOK_SENDTYPE
-	int commchans_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice);
-#else
-	int commchans_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype);
-#endif
+int commchans_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype);
 
 long extumode_commonchans = 0; // Store bitwise value latur
 
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/message_commonchans", // Module name
-	"2.0.1", // Version
+	"2.1.0", // Version
 	"Adds umode +c to prevent people who aren't sharing a channel with you from messaging you", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Initialisation routine (register hooks, commands and modes or create structs etc)
@@ -77,13 +70,11 @@ MOD_UNLOAD() {
 }
 
 // Actual hewk function m8
-#if BACKPORT_HOOK_SENDTYPE
-	int commchans_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice) {
-#else
-	int commchans_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype) {
-		if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
-			return HOOK_CONTINUE;
-#endif
+int commchans_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype) {
+	if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
+		return HOOK_CONTINUE;
+	if(!text || !*text)
+		return HOOK_CONTINUE;
 
 	if(!MyUser(client) || client == to || IsULine(client) || IsULine(to) || IsOper(client) || !(to->umodes & extumode_commonchans) || has_common_channels(client, to))
 		return HOOK_CONTINUE;

@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/autojoin_byport";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/autojoin_byport\";";
@@ -48,10 +48,10 @@ unsigned short checkedem = 0;
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/autojoin_byport", // Module name
-	"2.0", // Version
+	"2.1.0", // Version
 	"Auto-join channels on connect based on connection port", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Configuration testing-related hewks go in testing phase obv
@@ -104,27 +104,27 @@ int autojoin_byport_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *e
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our block, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		checkedem = 1;
 		// Do we even have a valid pair l0l?
-		if(!cep->ce_varname || !cep->ce_vardata) {
-			config_error("%s:%i: blank %s item", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!cep->name || !cep->value) {
+			config_error("%s:%i: blank %s item", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
 		// The "name" is the port numba ;]
-		for(i = 0; cep->ce_varname[i]; i++) {
-			if(!isdigit(cep->ce_varname[i])) {
-				config_error("%s:%i: invalid port '%s' for %s (must be higher than 1024 and lower than or equal to 65535)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, cep->ce_varname, MYCONF);
+		for(i = 0; cep->name[i]; i++) {
+			if(!isdigit(cep->name[i])) {
+				config_error("%s:%i: invalid port '%s' for %s (must be higher than 1024 and lower than or equal to 65535)", cep->file->filename, cep->line_number, cep->name, MYCONF);
 				errors++; // Increment err0r count fam
 				break;
 			}
@@ -133,32 +133,32 @@ int autojoin_byport_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *e
 			continue;
 
 		// Check port range lol
-		pot = atoi(cep->ce_varname);
+		pot = atoi(cep->name);
 		if(!pot || pot <= 1024 || pot > 65535) { // Last condition should never b tru, but let's just checkem =]
-			config_error("%s:%i: invalid port '%s' for %s (must be higher than 1024 and lower than or equal to 65535)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, cep->ce_varname, MYCONF);
+			config_error("%s:%i: invalid port '%s' for %s (must be higher than 1024 and lower than or equal to 65535)", cep->file->filename, cep->line_number, cep->name, MYCONF);
 			errors++; // Increment err0r count fam
 			continue;
 		}
 
 		// Checkem channels YO
-		safe_strdup(tmp, cep->ce_vardata);
+		safe_strdup(tmp, cep->value);
 		for(chan = strtoken(&p, tmp, ","); chan; chan = strtoken(&p, NULL, ",")) {
 			if(chan[0] != '#') {
-				config_error("%s:%i: invalid channel name '%s' for %s (must start with a \002#\002)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, chan, MYCONF);
+				config_error("%s:%i: invalid channel name '%s' for %s (must start with a \002#\002)", cep->file->filename, cep->line_number, chan, MYCONF);
 				errors++; // Increment err0r count fam
 				safe_free(tmp);
 				continue;
 			}
 
 			if(!isdigit(chan[1]) && !isalpha(chan[1])) {
-				config_error("%s:%i: invalid channel name '%s' for %s (second char must be alphanumeric)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, chan, MYCONF);
+				config_error("%s:%i: invalid channel name '%s' for %s (second char must be alphanumeric)", cep->file->filename, cep->line_number, chan, MYCONF);
 				errors++; // Increment err0r count fam
 				safe_free(tmp);
 				continue;
 			}
 
 			if(strlen(chan) > CHANNELLEN) {
-				config_error("%s:%i: invalid channel name '%s' for %s (name is too long, must be equal to or less than %d chars)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, chan, MYCONF, CHANNELLEN);
+				config_error("%s:%i: invalid channel name '%s' for %s (name is too long, must be equal to or less than %d chars)", cep->file->filename, cep->line_number, chan, MYCONF, CHANNELLEN);
 				errors++; // Increment err0r count fam
 				safe_free(tmp);
 				continue;
@@ -197,29 +197,29 @@ int autojoin_byport_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!AJCount || !ce || !ce->ce_varname)
+	if(!AJCount || !ce || !ce->name)
 		return 0;
 
 	// If it isn't autojoin_byport, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
-		if(!cep->ce_varname || !cep->ce_vardata) // Sanity checc l0l
+	for(cep = ce->items; cep; cep = cep->next) {
+		if(!cep->name || !cep->value) // Sanity checc l0l
 			continue;
 
-		safe_strdup(tmp, cep->ce_vardata);
+		safe_strdup(tmp, cep->value);
 		for(chan = strtoken(&p, tmp, ","); chan; chan = strtoken(&p, NULL, ",")) {
 			// Allocate mem0ry for the current entry
 			*ajEntry = safe_alloc(sizeof(AJPort));
 
 			// Allocate/initialise shit here
-			size_t chanlen = sizeof(char) * (strlen(cep->ce_vardata) + 1);
-			(*ajEntry)->port = atoi(cep->ce_varname);
+			size_t chanlen = sizeof(char) * (strlen(cep->value) + 1);
+			(*ajEntry)->port = atoi(cep->name);
 			(*ajEntry)->channel = safe_alloc(chanlen);
 
-			strncpy((*ajEntry)->channel, cep->ce_vardata, chanlen); // Copy that shit fam
+			strncpy((*ajEntry)->channel, cep->value, chanlen); // Copy that shit fam
 
 			// Premium linked list fam
 			if(last)
@@ -239,7 +239,7 @@ int autojoin_byport_localconnect(Client *client) {
 	if(client && client->local && client->local->listener) { // Just some sanity checks fam
 		for(ajEntry = ajoinpList; ajEntry; ajEntry = ajEntry->next) { // Loop em
 			if(ajEntry->port == client->local->listener->port) { // Matched em port
-				char *parv[] = { // Make args for modularised command
+				const char *parv[] = { // Make args for modularised command
 					NULL,
 					ajEntry->channel,
 					NULL,

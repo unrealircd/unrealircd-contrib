@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/denyban";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/denyban\";";
@@ -46,7 +46,7 @@ struct t_denyBan {
 };
 
 // Quality fowod declarations
-denyBan *find_denyBan(char *mask);
+denyBan *find_denyBan(const char *mask);
 char *replaceem(char *str, char *search, char *replace);
 int denyban_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int denyban_configposttest(int *errs);
@@ -65,10 +65,10 @@ char *denyReason = NULL; // What message to display
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/denyban", // Module name
-	"2.0.1", // Version
+	"2.1.0", // Version
 	"Deny specific ban masks network-wide", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Configuration testing-related hewks go in testing phase obv
@@ -90,8 +90,8 @@ MOD_INIT() {
 }
 
 MOD_LOAD() {
-	CheckAPIError("CommandOverrideAdd(MODE)", CommandOverrideAdd(modinfo->handle, OVR_MODE, denyban_modeoverride));
-	CheckAPIError("CommandOverrideAdd(SAMODE)", CommandOverrideAdd(modinfo->handle, OVR_SAMODE, denyban_modeoverride));
+	CheckAPIError("CommandOverrideAdd(MODE)", CommandOverrideAdd(modinfo->handle, OVR_MODE, 0, denyban_modeoverride));
+	CheckAPIError("CommandOverrideAdd(SAMODE)", CommandOverrideAdd(modinfo->handle, OVR_SAMODE, 0, denyban_modeoverride));
 	return MOD_SUCCESS; // We good
 }
 
@@ -113,13 +113,13 @@ MOD_UNLOAD() {
 	return MOD_SUCCESS; // We good
 }
 
-denyBan *find_denyBan(char *mask) {
+denyBan *find_denyBan(const char *mask) {
 	denyBan *dbEntry; // Muh iter80r
 	for(dbEntry = denyBanList; dbEntry; dbEntry = dbEntry->next) {
 		// Check if the denied entry's mask matches the user-specified mask
 		// BAN_ALL is special obv ;]
 		if(!strcmp(dbEntry->mask, "BAN_ALL")) {
-			char *p = mask;
+			const char *p = mask;
 			int banall = 1; // Default to trve, we only need one mismatch to break out
 			while(*p) { // While we have a char
 				// The +b mask must match *!*@*, *!*@******, *!*@*.***, etc =]
@@ -180,31 +180,31 @@ int denyban_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our block, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname) {
-			config_error("%s:%i: blank %s item", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!cep->name) {
+			config_error("%s:%i: blank %s item", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
-		if(!strcmp(cep->ce_varname, "mask")) {
-			if(!cep->ce_vardata || !strlen(cep->ce_vardata)) {
-				config_error("%s:%i: %s::mask must be non-empty fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF);
+		if(!strcmp(cep->name, "mask")) {
+			if(!cep->value || !strlen(cep->value)) {
+				config_error("%s:%i: %s::mask must be non-empty fam", cep->file->filename, cep->line_number, MYCONF);
 				errors++; // Increment err0r count fam
 				continue;
 			}
 
-			if(strcmp(cep->ce_vardata, "BAN_ALL") && (strlen(cep->ce_vardata) < 5 || !strchr(cep->ce_vardata, '!') || !strchr(cep->ce_vardata, '@'))) {
-				config_error("%s:%i: %s::mask must be a wildcard match on a full nick mask, like: nick!ident@host", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF);
+			if(strcmp(cep->value, "BAN_ALL") && (strlen(cep->value) < 5 || !strchr(cep->value, '!') || !strchr(cep->value, '@'))) {
+				config_error("%s:%i: %s::mask must be a wildcard match on a full nick mask, like: nick!ident@host", cep->file->filename, cep->line_number, MYCONF);
 				errors++; // Increment err0r count fam
 				continue;
 			}
@@ -212,31 +212,31 @@ int denyban_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "allowopers")) {
-			if(!cep->ce_vardata || (strcmp(cep->ce_vardata, "0") && strcmp(cep->ce_vardata, "1"))) {
-				config_error("%s:%i: %s::allowopers must be either 0 or 1 fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF);
+		if(!strcmp(cep->name, "allowopers")) {
+			if(!cep->value || (strcmp(cep->value, "0") && strcmp(cep->value, "1"))) {
+				config_error("%s:%i: %s::allowopers must be either 0 or 1 fam", cep->file->filename, cep->line_number, MYCONF);
 				errors++; // Increment err0r count fam
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "denynotice")) {
-			if(!cep->ce_vardata || (strcmp(cep->ce_vardata, "0") && strcmp(cep->ce_vardata, "1"))) {
-				config_error("%s:%i: %s::denynotice must be either 0 or 1 fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF);
+		if(!strcmp(cep->name, "denynotice")) {
+			if(!cep->value || (strcmp(cep->value, "0") && strcmp(cep->value, "1"))) {
+				config_error("%s:%i: %s::denynotice must be either 0 or 1 fam", cep->file->filename, cep->line_number, MYCONF);
 				errors++; // Increment err0r count fam
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "reason")) {
-			if(!cep->ce_vardata || strlen(cep->ce_vardata) <= 2) {
-				config_error("%s:%i: %s::reason must be longer than 2 characters", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF);
+		if(!strcmp(cep->name, "reason")) {
+			if(!cep->value || strlen(cep->value) <= 2) {
+				config_error("%s:%i: %s::reason must be longer than 2 characters", cep->file->filename, cep->line_number, MYCONF);
 				errors++; // Increment err0r count fam
 			}
 			continue;
 		}
 
-		config_warn("%s:%i: unknown directive %s::%s", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+		config_warn("%s:%i: unknown directive %s::%s", cep->file->filename, cep->line_number, MYCONF, cep->name);
 	}
 
 	*errs = errors;
@@ -266,22 +266,22 @@ int denyban_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't denyban, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 		// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname && cep->ce_vardata)
+		if(!cep->name && cep->value)
 			continue; // Next iteration imo tbh
 
-		if(!strcmp(cep->ce_varname, "mask")) {
+		if(!strcmp(cep->name, "mask")) {
 			// Lengths to alloc8 the struct vars with in a bit
-			size_t masklen = sizeof(char) * (strlen(cep->ce_vardata) + 1);
+			size_t masklen = sizeof(char) * (strlen(cep->value) + 1);
 
 			// Allocate mem0ry for the current entry
 			*dbEntry = safe_alloc(sizeof(denyBan));
@@ -290,7 +290,7 @@ int denyban_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 			(*dbEntry)->mask = safe_alloc(masklen);
 
 			// Copy that shit fam
-			strncpy((*dbEntry)->mask, cep->ce_vardata, masklen);
+			strncpy((*dbEntry)->mask, cep->value, masklen);
 
 			// Premium linked list fam
 			if(last)
@@ -301,18 +301,18 @@ int denyban_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "allowopers")) {
-			allowOpers = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "allowopers")) {
+			allowOpers = atoi(cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "denynotice")) {
-			denyNotice = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "denynotice")) {
+			denyNotice = atoi(cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "reason")) {
-			safe_strdup(denyReason, cep->ce_vardata);
+		if(!strcmp(cep->name, "reason")) {
+			safe_strdup(denyReason, cep->value);
 			continue;
 		}
 	}
@@ -339,15 +339,15 @@ CMD_OVERRIDE_FUNC(denyban_modeoverride) {
 	int newparc; // Keep track of proper param count
 	int cont, dironly;
 	char newflags[MODEBUFLEN + 3]; // Store cleaned up flags
-	char *newparv[MAXPARA + 1]; // Ditto for masks etc
+	const char *newparv[MAXPARA + 1]; // Ditto for masks etc
 	char c; // Current flag lol, can be '+', '-' or any letturchar
 	char curdir; // Current direction (add/del etc)
-	char *mask; // Store "cleaned" ban mask
+	const char *mask; // Store "cleaned" ban mask
 	char *reason; // Message to display
 	char num[8]; // Store stripped as char lol
 
 	// Need to be at least hops or higher on a channel for this to kicc in obv (or U-Line, to prevent bypassing this module with '/cs mode')
-	if(!MyUser(client) || (IsOper(client) && allowOpers) || parc < 3 || !(channel = find_channel(parv[1], NULL)) || !(is_skochanop(client, channel) || IsULine(client))) {
+	if(!MyUser(client) || (IsOper(client) && allowOpers) || parc < 3 || !(channel = find_channel(parv[1])) || !(check_channel_access(client, channel, "hoaq") || IsULine(client))) {
 		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
 		return;
 	}
@@ -386,8 +386,8 @@ CMD_OVERRIDE_FUNC(denyban_modeoverride) {
 				if(curdir != '+')
 					break;
 
-				// On error getting dis, just let CallCommandOverride handle it
-				mask = clean_ban_mask(parv[j], MODE_ADD, client); // Turns "+b *" into "+b *!*@*" so we can easily check bel0w =]
+				// Turn "+b *" into "+b *!*@*" so we can easily check bel0w =]
+				mask = clean_ban_mask(parv[j], (curdir == '-' ? MODE_DEL : MODE_ADD), client, 0);
 				if(!mask)
 					break;
 
@@ -468,13 +468,13 @@ CMD_OVERRIDE_FUNC(denyban_modeoverride) {
 		if(denyReason && match_simple("*$num*", denyReason)) {
 			snprintf(num, sizeof(num), "%d", stripped);
 			reason = replaceem(denyReason, "$num", num);
-			sendto_one(client, NULL, ":%s NOTICE %s :%s", me.name, channel->chname, reason);
+			sendto_one(client, NULL, ":%s NOTICE %s :%s", me.name, channel->name, reason);
 			safe_free(reason);
 		}
 		else if(denyReason)
-			sendto_one(client, NULL, ":%s NOTICE %s :%s", me.name, channel->chname, denyReason);
+			sendto_one(client, NULL, ":%s NOTICE %s :%s", me.name, channel->name, denyReason);
 		else
-			sendto_one(client, NULL, ":%s NOTICE %s :[DB] Stripped %d mask(s) (denied)", me.name, channel->chname, stripped);
+			sendto_one(client, NULL, ":%s NOTICE %s :[DB] Stripped %d mask(s) (denied)", me.name, channel->name, stripped);
 	}
 
 	// Nothing left, don't even bother passing it back =]

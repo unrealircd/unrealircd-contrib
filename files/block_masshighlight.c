@@ -9,8 +9,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/block_masshighlight";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/block_masshighlight\";";
@@ -24,15 +24,12 @@ module {
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
 
-// Since v5.0.5 some hooks now include a SendType
-#define BACKPORT_HOOK_SENDTYPE (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 5)
-
 // Config block
 #define MYCONF "block_masshighlight"
 
 // Channel mode for exempting from highlight checks
-#define IsNocheckHighlights(channel) (channel->mode.extmode & extcmode_nocheck_masshl)
 #define CHMODE_CHAR 'B'
+#define IsNocheckHighlights(x) ((x) && has_channel_mode((x), CHMODE_CHAR))
 
 // Dem macros yo
 #define CheckAPIError(apistr, apiobj) \
@@ -45,7 +42,7 @@ module {
 
 // Quality fowod declarations
 int is_accessmode_exempt(Client *client, Channel *channel);
-int extcmode_requireowner(Client *client, Channel *channel, char mode, char *para, int checkt, int what);
+int extcmode_requireowner(Client *client, Channel *channel, char mode, const char *para, int checkt, int what);
 void doXLine(char flag, Client *client);
 int masshighlight_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int masshighlight_configposttest(int *errs);
@@ -54,12 +51,7 @@ void masshighlight_md_free(ModData *md);
 void masshighlight_client_md_free(ModData *md);
 int masshighlight_get_client_moddata(Client *client, Channel *channel);
 void masshighlight_set_client_moddata(Client *client, Channel *channel, int hl_count);
-
-#if BACKPORT_HOOK_SENDTYPE
-	int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice);
-#else
-	int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, SendType sendtype);
-#endif
+int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype);
 
 int spamf_ugly_vchanoverride = 0; // For viruschan shit =]
 ModDataInfo *massHLMDI; // To store some shit with the channel ;]
@@ -76,7 +68,7 @@ struct {
 	unsigned short int banident; // Whether to ban ident@host or simply *@host
 	unsigned short int multiline; // Check over multiple lines or just the one ;]
 	unsigned short int allow_authed; // Allow identified users to bypass this shit
-	unsigned int allow_accessmode; // Lowest channel access mode privilege to bypass the limit
+	const char *allow_accessmode; // Channel access mode privileges to bypass the limit (we'll concatenate all relevant levels so it becomes e.g. "oaq", which we can then pass to internal functions)
 	unsigned short int percent; // How many characters in a message recognised as a nickname is enough for the message to be rejected
 	unsigned short int show_opers_origmsg; // Display the suspicious message to operators
 
@@ -95,19 +87,19 @@ struct {
 	unsigned short int got_show_opers_origmsg;
 } muhcfg;
 
-struct user_hls {
-	char *chname;
+struct user_highlight {
+	char *name;
 	int count;
-	struct user_hls *next;
+	struct user_highlight *next;
 };
 
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/block_masshighlight", // Module name
-	"2.1.1", // Version
+	"2.2.0", // Version
 	"Prevent mass highlights network-wide", // Description
 	"Gottem / k4be", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Configuration testing-related hewks go in testing phase obv
@@ -132,7 +124,7 @@ MOD_INIT() {
 
 	memset(&mreq, 0, sizeof(mreq));
 	mreq.type = MODDATATYPE_LOCAL_CLIENT; // Apply to clients
-	mreq.name = "masshighlight_clent"; // Name it
+	mreq.name = "masshighlight_client"; // Name it
 	mreq.free = masshighlight_client_md_free; // Function to free 'em
 	massHLUserMDI = ModDataAdd(modinfo->handle, mreq);
 	CheckAPIError("ModDataAdd(masshighlight_client)", massHLUserMDI);
@@ -141,7 +133,7 @@ MOD_INIT() {
 	CmodeInfo req;
 	memset(&req, 0, sizeof(req));
 	req.paracount = 0; // No args required ;]
-	req.flag = CHMODE_CHAR;
+	req.letter = CHMODE_CHAR;
 	req.is_ok = extcmode_requireowner; // Need owner privs to set em imo tbh
 	CheckAPIError("CmodeAdd(extcmode_nocheck_masshl)", CmodeAdd(modinfo->handle, req, &extcmode_nocheck_masshl));
 
@@ -167,30 +159,26 @@ MOD_UNLOAD() {
 
 // Client exempted through allow_accessmode?
 int is_accessmode_exempt(Client *client, Channel *channel) {
-	Membership *lp; // For checkin' em list access level =]
-
 	if(IsServer(client) || IsMe(client)) // Allow servers always lel
 		return 1;
 
-	if(!muhcfg.allow_accessmode) // Don't even bother ;]
+	if(!muhcfg.allow_accessmode[0]) // Don't even bother ;]
 		return 0;
 
 	if(channel) { // Sanity cheqq
-		if((lp = find_membership_link(client->user->channel, channel))) {
-			if(lp->flags & muhcfg.allow_accessmode)
-				return 1;
-		}
+		if(check_channel_access(client, channel, muhcfg.allow_accessmode))
+			return 1;
 	}
 
 	return 0; // No valid channel/membership or doesn't have enough axx lol
 }
 
 // Testing for owner status on channel
-int extcmode_requireowner(Client *client, Channel *channel, char mode, char *para, int checkt, int what) {
-	if(IsUser(client) && is_chanowner(client, channel))
+int extcmode_requireowner(Client *client, Channel *channel, char mode, const char *para, int checkt, int what) {
+	if(IsUser(client) && check_channel_access(client, channel, "q"))
 		return EX_ALLOW;
 	if(checkt == EXCHK_ACCESS_ERR)
-		sendnumeric(client, ERR_CHANOWNPRIVNEEDED, channel->chname);
+		sendnumeric(client, ERR_CHANOWNPRIVNEEDED, channel->name);
 	return EX_DENY;
 }
 
@@ -206,7 +194,7 @@ void doXLine(char flag, Client *client) {
 		tkltype[1] = '\0';
 
 		// Build TKL args
-		char *tkllayer[9] = {
+		const char *tkllayer[9] = {
 			// :SERVER +FLAG IDENT HOST SETBY EXPIRATION SETAT :REASON
 			me.name,
 			"+",
@@ -235,196 +223,188 @@ int masshighlight_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *err
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our block, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname) {
-			config_error("%s:%i: blank %s item", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!cep->name) {
+			config_error("%s:%i: blank %s item", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
-		if(!strcmp(cep->ce_varname, "action")) {
+		if(!strcmp(cep->name, "action")) {
 			muhcfg.got_action = 1;
-			if(!cep->ce_vardata || !strlen(cep->ce_vardata)) {
-				config_error("%s:%i: %s::%s must be non-empty fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(!cep->value || !strlen(cep->value)) {
+				config_error("%s:%i: %s::%s must be non-empty fam", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 				continue;
 			}
 
 			// Checkem valid actions
-			if(strcmp(cep->ce_vardata, "drop") && strcmp(cep->ce_vardata, "notice") && strcmp(cep->ce_vardata, "gline") && strcmp(cep->ce_vardata, "zline") &&
-				strcmp(cep->ce_vardata, "kill") && strcmp(cep->ce_vardata, "tempshun") && strcmp(cep->ce_vardata, "shun") && strcmp(cep->ce_vardata, "viruschan")) {
-				config_error("%s:%i: %s::%s must be one of: drop, notice, gline, zline, shun, tempshun, kill, viruschan", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(strcmp(cep->value, "drop") && strcmp(cep->value, "notice") && strcmp(cep->value, "gline") && strcmp(cep->value, "zline") &&
+				strcmp(cep->value, "kill") && strcmp(cep->value, "tempshun") && strcmp(cep->value, "shun") && strcmp(cep->value, "viruschan")) {
+				config_error("%s:%i: %s::%s must be one of: drop, notice, gline, zline, shun, tempshun, kill, viruschan", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++;
 			}
 
 			if(!errors)
-				muhcfg.action = cep->ce_vardata[0]; // We need this value to be set in posttest
+				muhcfg.action = cep->value[0]; // We need this value to be set in posttest
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "reason")) {
+		if(!strcmp(cep->name, "reason")) {
 			muhcfg.got_reason = 1;
-			if(!cep->ce_vardata || strlen(cep->ce_vardata) < 4) {
-				config_error("%s:%i: %s::%s must be at least 4 characters long", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(!cep->value || strlen(cep->value) < 4) {
+				config_error("%s:%i: %s::%s must be at least 4 characters long", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "delimiters")) {
+		if(!strcmp(cep->name, "delimiters")) {
 			muhcfg.got_delimiters = 1;
-			if(!cep->ce_vardata || !strlen(cep->ce_vardata)) {
-				config_error("%s:%i: %s::%s must contain at least one character", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(!cep->value || !strlen(cep->value)) {
+				config_error("%s:%i: %s::%s must contain at least one character", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "duration")) {
+		if(!strcmp(cep->name, "duration")) {
 			muhcfg.got_duration = 1;
 			// Should be a time string imo (7d10s etc, or just 20)
-			if(!cep->ce_vardata || config_checkval(cep->ce_vardata, CFG_TIME) <= 0) {
-				config_error("%s:%i: %s::%s must be a time string like '7d10m' or simply '20'", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(!cep->value || config_checkval(cep->value, CFG_TIME) <= 0) {
+				config_error("%s:%i: %s::%s must be a time string like '7d10m' or simply '20'", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "maxnicks")) {
+		if(!strcmp(cep->name, "maxnicks")) {
 			muhcfg.got_maxnicks = 1;
 			// Should be an integer yo
-			if(!cep->ce_vardata) {
-				config_error("%s:%i: %s::%s must be an integer between 1 and 512 m8", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(!cep->value) {
+				config_error("%s:%i: %s::%s must be an integer between 1 and 512 m8", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 				continue;
 			}
-			for(i = 0; cep->ce_vardata[i]; i++) {
-				if(!isdigit(cep->ce_vardata[i])) {
-					config_error("%s:%i: %s::%s must be an integer between 1 and 512 m8", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			for(i = 0; cep->value[i]; i++) {
+				if(!isdigit(cep->value[i])) {
+					config_error("%s:%i: %s::%s must be an integer between 1 and 512 m8", cep->file->filename, cep->line_number, MYCONF, cep->name);
 					errors++; // Increment err0r count fam
 					break;
 				}
 			}
 			if(!errors) {
-				tmp = atoi(cep->ce_vardata);
+				tmp = atoi(cep->value);
 				if(tmp <= 0 || tmp > 512) {
-					config_error("%s:%i: %s::%s must be an integer between 1 and 512 m8", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+					config_error("%s:%i: %s::%s must be an integer between 1 and 512 m8", cep->file->filename, cep->line_number, MYCONF, cep->name);
 					errors++; // Increment err0r count fam
 				}
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "snotice")) {
+		if(!strcmp(cep->name, "snotice")) {
 			muhcfg.got_snotice = 1;
-			if(!cep->ce_vardata || (strcmp(cep->ce_vardata, "0") && strcmp(cep->ce_vardata, "1"))) {
-				config_error("%s:%i: %s::%s must be either 0 or 1 fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(!cep->value || (strcmp(cep->value, "0") && strcmp(cep->value, "1"))) {
+				config_error("%s:%i: %s::%s must be either 0 or 1 fam", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "banident")) {
+		if(!strcmp(cep->name, "banident")) {
 			muhcfg.got_banident = 1;
-			if(!cep->ce_vardata || (strcmp(cep->ce_vardata, "0") && strcmp(cep->ce_vardata, "1"))) {
-				config_error("%s:%i: %s::%s must be either 0 or 1 fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(!cep->value || (strcmp(cep->value, "0") && strcmp(cep->value, "1"))) {
+				config_error("%s:%i: %s::%s must be either 0 or 1 fam", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "multiline")) {
+		if(!strcmp(cep->name, "multiline")) {
 			muhcfg.got_multiline = 1;
-			if(!cep->ce_vardata || (strcmp(cep->ce_vardata, "0") && strcmp(cep->ce_vardata, "1"))) {
-				config_error("%s:%i: %s::%s must be either 0 or 1 fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(!cep->value || (strcmp(cep->value, "0") && strcmp(cep->value, "1"))) {
+				config_error("%s:%i: %s::%s must be either 0 or 1 fam", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "allow_authed")) {
+		if(!strcmp(cep->name, "allow_authed")) {
 			muhcfg.got_allow_authed = 1;
-			if(!cep->ce_vardata || (strcmp(cep->ce_vardata, "0") && strcmp(cep->ce_vardata, "1"))) {
-				config_error("%s:%i: %s::%s must be either 0 or 1 fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(!cep->value || (strcmp(cep->value, "0") && strcmp(cep->value, "1"))) {
+				config_error("%s:%i: %s::%s must be either 0 or 1 fam", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "allow_accessmode")) {
+		if(!strcmp(cep->name, "allow_accessmode")) {
 			muhcfg.got_allow_accessmode = 1;
-			if(!cep->ce_vardata || !strlen(cep->ce_vardata)) {
-				config_error("%s:%i: %s::%s must be either non-empty or not specified at all", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(!cep->value || !strlen(cep->value)) {
+				config_error("%s:%i: %s::%s must be either non-empty or not specified at all", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 				continue;
 			}
 
-			if(strlen(cep->ce_vardata) > 1) {
-				config_error("%s:%i: %s::%s must be exactly one character (mode) in length", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(strlen(cep->value) > 1) {
+				config_error("%s:%i: %s::%s must be exactly one character (mode) in length", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 				continue;
 			}
 
-			if(strcmp(cep->ce_vardata, "v") && strcmp(cep->ce_vardata, "h") && strcmp(cep->ce_vardata, "o")
-		#ifdef PREFIX_AQ
-				&& strcmp(cep->ce_vardata, "a") && strcmp(cep->ce_vardata, "q")
-		#endif
-			) {
-				config_error("%s:%i: %s::%s must be one of: v, h, o"
-		#ifdef PREFIX_AQ
-				", a, q"
-		#endif
-				, cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(strcmp(cep->value, "v") && strcmp(cep->value, "h") && strcmp(cep->value, "o") && strcmp(cep->value, "a") && strcmp(cep->value, "q")) {
+				config_error("%s:%i: %s::%s must be one of: v, h, o, a, q", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++;
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "percent")) {
+		if(!strcmp(cep->name, "percent")) {
 			muhcfg.got_percent = 1;
 			// Should be an integer yo
-			if(!cep->ce_vardata) {
-				config_error("%s:%i: %s::%s must be an integer between 1 and 100 m8", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(!cep->value) {
+				config_error("%s:%i: %s::%s must be an integer between 1 and 100 m8", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 				continue;
 			}
-			for(i = 0; cep->ce_vardata[i]; i++) {
-				if(!isdigit(cep->ce_vardata[i])) {
-					config_error("%s:%i: %s::%s must be an integer between 1 and 100 m8", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			for(i = 0; cep->value[i]; i++) {
+				if(!isdigit(cep->value[i])) {
+					config_error("%s:%i: %s::%s must be an integer between 1 and 100 m8", cep->file->filename, cep->line_number, MYCONF, cep->name);
 					errors++; // Increment err0r count fam
 					break;
 				}
 			}
 			if(!errors) {
-				tmp = atoi(cep->ce_vardata);
+				tmp = atoi(cep->value);
 				if(tmp <= 0 || tmp > 100) {
-					config_error("%s:%i: %s::%s must be an integer between 1 and 100 m8", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+					config_error("%s:%i: %s::%s must be an integer between 1 and 100 m8", cep->file->filename, cep->line_number, MYCONF, cep->name);
 					errors++; // Increment err0r count fam
 				}
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "show_opers_origmsg")) {
+		if(!strcmp(cep->name, "show_opers_origmsg")) {
 			muhcfg.got_show_opers_origmsg = 1;
-			if(!cep->ce_vardata || (strcmp(cep->ce_vardata, "0") && strcmp(cep->ce_vardata, "1"))) {
-				config_error("%s:%i: %s::%s must be either 0 or 1 fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(!cep->value || (strcmp(cep->value, "0") && strcmp(cep->value, "1"))) {
+				config_error("%s:%i: %s::%s must be either 0 or 1 fam", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 			}
 			continue;
 		}
 
 		// Anything else is unknown to us =]
-		config_warn("%s:%i: unknown item %s::%s", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname); // So display just a warning
+		config_warn("%s:%i: unknown item %s::%s", cep->file->filename, cep->line_number, MYCONF, cep->name); // So display just a warning
 	}
 
 	*errs = errors;
@@ -468,7 +448,7 @@ int masshighlight_configposttest(int *errs) {
 		muhcfg.allow_authed = 0; // Default to n0 fam
 
 	if(!muhcfg.got_allow_accessmode)
-		muhcfg.allow_accessmode = 0; // None ;]
+		muhcfg.allow_accessmode = "\0"; // None ;]
 
 	if(!muhcfg.got_percent)
 		muhcfg.percent = 1; // 1%, max sensitivity
@@ -489,92 +469,90 @@ int masshighlight_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't masshighlight, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname)
+		if(!cep->name)
 			continue; // Next iteration imo tbh
 
-		if(!strcmp(cep->ce_varname, "delimiters")) {
-			safe_strdup(muhcfg.delimiters, cep->ce_vardata);
+		if(!strcmp(cep->name, "delimiters")) {
+			safe_strdup(muhcfg.delimiters, cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "reason")) {
-			safe_strdup(muhcfg.reason, cep->ce_vardata);
+		if(!strcmp(cep->name, "reason")) {
+			safe_strdup(muhcfg.reason, cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "duration")) {
-			muhcfg.duration = config_checkval(cep->ce_vardata, CFG_TIME);
+		if(!strcmp(cep->name, "duration")) {
+			muhcfg.duration = config_checkval(cep->value, CFG_TIME);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "maxnicks")) {
-			muhcfg.maxnicks = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "maxnicks")) {
+			muhcfg.maxnicks = atoi(cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "snotice")) {
-			muhcfg.snotice = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "snotice")) {
+			muhcfg.snotice = atoi(cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "banident")) {
-			muhcfg.banident = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "banident")) {
+			muhcfg.banident = atoi(cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "multiline")) {
-			muhcfg.multiline = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "multiline")) {
+			muhcfg.multiline = atoi(cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "allow_authed")) {
-			muhcfg.allow_authed = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "allow_authed")) {
+			muhcfg.allow_authed = atoi(cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "allow_accessmode")) {
-			muhcfg.allow_accessmode = 0;
-			switch(cep->ce_vardata[0]) {
+		if(!strcmp(cep->name, "allow_accessmode")) {
+			switch(cep->value[0]) {
 				case 'v':
-					muhcfg.allow_accessmode |= CHFL_VOICE;
-					// Fall through
+					muhcfg.allow_accessmode = "vhoaq";
+					break;
 				case 'h':
-					muhcfg.allow_accessmode |= CHFL_HALFOP;
-					// Fall through
+					muhcfg.allow_accessmode = "hoaq";
+					break;
 				case 'o':
-					muhcfg.allow_accessmode |= CHFL_CHANOP;
-			#ifdef PREFIX_AQ
-					// Fall through
+					muhcfg.allow_accessmode = "oaq";
+					break;
 				case 'a':
-					muhcfg.allow_accessmode |= CHFL_CHANADMIN;
-					// Fall through
+					muhcfg.allow_accessmode = "aq";
+					break;
 				case 'q':
-					muhcfg.allow_accessmode |= CHFL_CHANOWNER;
-			#endif
-					// Fall through
+					muhcfg.allow_accessmode = "q";
+					break;
 				default:
+					muhcfg.allow_accessmode = "\0";
 					break;
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "percent")) {
-			muhcfg.percent = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "percent")) {
+			muhcfg.percent = atoi(cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "show_opers_origmsg")) {
-			muhcfg.show_opers_origmsg = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "show_opers_origmsg")) {
+			muhcfg.show_opers_origmsg = atoi(cep->value);
 			continue;
 		}
 	}
@@ -588,10 +566,10 @@ void masshighlight_md_free(ModData *md) {
 }
 
 void masshighlight_client_md_free(ModData *md) {
-	struct user_hls *hl, *next_hl;
+	struct user_highlight *hl, *next_hl;
 	for(hl = md->ptr; hl; hl = next_hl) { // Cleaning the list
 		next_hl = hl->next;
-		safe_free(hl->chname);
+		safe_free(hl->name);
 		safe_free(hl);
 	}
 	md->ptr = NULL;
@@ -599,31 +577,31 @@ void masshighlight_client_md_free(ModData *md) {
 
 // These functions are used with external messages (unusual)
 int masshighlight_get_client_moddata(Client *client, Channel *channel) {
-	struct user_hls *hl;
+	struct user_highlight *hl;
 	if(!MyUser(client)) // Somehow got called for non-local client
 		return 0;
 
 	for(hl = moddata_local_client(client, massHLUserMDI).ptr; hl; hl = hl->next) {
-		if(!strcasecmp(channel->chname, hl->chname))
+		if(!strcasecmp(channel->name, hl->name))
 			return hl->count;
 	}
 	return 0; // None was found
 }
 
 void masshighlight_set_client_moddata(Client *client, Channel *channel, int hl_count) {
-	struct user_hls *hl, *prev_hl;
+	struct user_highlight *hl, *prev_hl;
 	if(!MyUser(client)) // Somehow got called for non-local client
 		return;
 
 	prev_hl = NULL;
 	for(hl = moddata_local_client(client, massHLUserMDI).ptr; hl; hl = hl->next) {
-		if(!strcasecmp(channel->chname, hl->chname)) {
+		if(!strcasecmp(channel->name, hl->name)) {
 			if(hl_count == 0) { // Let's free the memory
 				if(!prev_hl) // It's the first list item
 					moddata_local_client(client, massHLUserMDI).ptr = hl->next;
 				else
 					prev_hl->next = hl->next; // Update the list link
-				safe_free(hl->chname); // Release memory
+				safe_free(hl->name); // Release memory
 				safe_free(hl);
 			}
 			else // Have some data, update the list
@@ -634,22 +612,20 @@ void masshighlight_set_client_moddata(Client *client, Channel *channel, int hl_c
 	}
 
 	// No data found for this client/user combination
-	hl = safe_alloc(sizeof(struct user_hls)); // Create a new structure
+	hl = safe_alloc(sizeof(struct user_highlight)); // Create a new structure
 	hl->count = hl_count;
-	hl->chname = strdup(channel->chname);
+	hl->name = strdup(channel->name);
 	if(!prev_hl) // No data stored for this user yet
 		moddata_local_client(client, massHLUserMDI).ptr = hl; // First item
 	else
 		prev_hl->next = hl; // Append to list
 }
 
-#if BACKPORT_HOOK_SENDTYPE
-	int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice) {
-#else
-	int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, SendType sendtype) {
-		if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
-			return HOOK_CONTINUE;
-#endif
+int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype) {
+	if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
+		return HOOK_CONTINUE;
+	if(!text || !*text)
+		return HOOK_CONTINUE;
 
 	int hl_cur; // Current highlight count yo
 	char *p; // For tokenising that shit
@@ -660,7 +636,7 @@ void masshighlight_set_client_moddata(Client *client, Channel *channel, int hl_c
 	int clearem; // For clearing the counter
 	char joinbuf[CHANNELLEN + 4]; // For viruschan, need to make room for "0,#viruschan" etc ;];]
 	char killbuf[256]; // For rewriting the kill message
-	char *vcparv[3]; // Arguments for viruschan JOIN
+	const char *vcparv[3]; // Arguments for viruschan JOIN
 	int bypass_nsauth; // If config var allow_authed is tr00 and user es logged in
 	char gotnicks[1024]; // For storing nicks that were mentioned =]
 	int hl_new; // Store highlight count for further processing
@@ -697,7 +673,7 @@ void masshighlight_set_client_moddata(Client *client, Channel *channel, int hl_c
 		for(werd = strtoken(&p, cleantext, muhcfg.delimiters); werd; werd = strtoken(&p, NULL, muhcfg.delimiters)) { // Split that shit
 			werdlen = strlen(werd);
 			msglen += werdlen; // We do not count ze delimiters, otherwise the percents would get strangely low
-			if((acptr = find_person(werd, NULL)) && (find_membership_link(acptr->user->channel, channel))) { // User mentioned another user in this channel
+			if((acptr = find_user(werd, NULL)) && (find_membership_link(acptr->user->channel, channel))) { // User mentioned another user in this channel
 				if(!(strstr(gotnicks, acptr->id))) { // Do not count the same nickname appended multiple times to a single message
 					ircsnprintf(gotnicks, sizeof(gotnicks), "%s%s,", gotnicks, acptr->id);
 					hl_new++; // Got another highlight this round
@@ -725,57 +701,82 @@ void masshighlight_set_client_moddata(Client *client, Channel *channel, int hl_c
 		if(blockem) { // Need to bl0ck?
 			switch(muhcfg.action) {
 				case 'd': // Drop silently
-					if(muhcfg.snotice)
-						sendto_snomask_global(SNO_EYES, "*** [block_masshighlight] Detected highlight spam in %s by %s, dropping silently", channel->chname, client->name);
+					if(muhcfg.snotice) {
+						unreal_log(ULOG_INFO, "block_masshighlight", "BLOCK_MASSHIGHLIGHT_DETECTED", client, "Detected highlight spam in $channel by $client.details, dropping silently",
+							log_data_channel("channel", channel)
+						);
+					}
 					break;
 
 				case 'n': // Drop, but send notice
-					if(muhcfg.snotice)
-						sendto_snomask_global(SNO_EYES, "*** [block_masshighlight] Detected highlight spam in %s by %s, dropping with a notice", channel->chname, client->name);
+					if(muhcfg.snotice) {
+						unreal_log(ULOG_INFO, "block_masshighlight", "BLOCK_MASSHIGHLIGHT_DETECTED", client, "Detected highlight spam in $channel by $client.details, dropping with a notice",
+							log_data_channel("channel", channel)
+						);
+					}
 
 					// Not doing sendnotice() here because we send to *client* but the channel in the notice is actually the intended *target*, which means they'll get a notice in the proper window ;];;]];
-					sendto_one(client, NULL, ":%s NOTICE %s :%s", me.name, channel->chname, muhcfg.reason);
+					sendto_one(client, NULL, ":%s NOTICE %s :%s", me.name, channel->name, muhcfg.reason);
 					break;
 
 				case 'k': // Kill em all
-					if(muhcfg.snotice)
-						sendto_snomask_global(SNO_EYES, "*** [block_masshighlight] Detected highlight spam in %s by %s, killing 'em", channel->chname, client->name);
+					if(muhcfg.snotice) {
+						unreal_log(ULOG_INFO, "block_masshighlight", "BLOCK_MASSHIGHLIGHT_DETECTED", client, "Detected highlight spam in $channel by $client.details, killing 'em",
+							log_data_channel("channel", channel)
+						);
+					}
 
 					// Notify user of being killed
 					sendto_prefix_one(client, &me, NULL, ":%s KILL %s :%s", me.name, client->name, muhcfg.reason);
 
 					// Oper notice
+					unreal_log(ULOG_INFO, "kill", "KILL_COMMAND", client, "Client killed: $client.details ($reason)",
+						log_data_string("reason", muhcfg.reason)
+					);
+
 					ircsnprintf(killbuf, sizeof(killbuf), "Killed: %s", muhcfg.reason);
-					sendto_snomask_global(SNO_KILLS, "*** Received KILL message for %s (%s@%s): %s", client->name, client->user->username, GetHost(client), muhcfg.reason);
 					exit_client(client, NULL, killbuf);
 					break;
 
 				case 't': // Tempshun kek
-					if(muhcfg.snotice)
-						sendto_snomask_global(SNO_EYES, "*** [block_masshighlight] Detected highlight spam in %s by %s, setting tempshun", channel->chname, client->name);
+					if(muhcfg.snotice) {
+						unreal_log(ULOG_INFO, "block_masshighlight", "BLOCK_MASSHIGHLIGHT_DETECTED", client, "Detected highlight spam in $channel by $client.details, setting tempshun",
+							log_data_channel("channel", channel)
+						);
+					}
 
-					sendto_snomask(SNO_TKL, "Temporary shun added on user %s (%s@%s) [%s]", client->name,
-						(client->user ? client->user->username : "unknown"),
-						(client->user ? client->user->realhost : GetIP(client)),
-						muhcfg.reason);
 					SetShunned(client); // Ez m0de
+					unreal_log(ULOG_INFO, "tkl", "TKL_ADD_TEMPSHUN", client, "Temporary shun added on user $client.details [reason: $shun_reason]",
+						log_data_string("shun_reason", muhcfg.reason)
+					);
+
 					break;
 
 				case 's': // Shun, ...
 				case 'g': // ...G-Line and ...
 				case 'z': // ...Z-Line share the same internal function ;];]
 					if(muhcfg.snotice) {
-						if(muhcfg.action == 's')
-							sendto_snomask_global(SNO_EYES, "*** [block_masshighlight] Detected highlight spam in %s by %s, shunning 'em", channel->chname, client->name);
-						else
-							sendto_snomask_global(SNO_EYES, "*** [block_masshighlight] Detected highlight spam in %s by %s, setting %c-Line", channel->chname, client->name, toupper(muhcfg.action));
+						if(muhcfg.action == 's') {
+							unreal_log(ULOG_INFO, "block_masshighlight", "BLOCK_MASSHIGHLIGHT_DETECTED", client, "Detected highlight spam in $channel by $client.details, shunning 'em",
+								log_data_channel("channel", channel)
+							);
+						}
+						else {
+							unreal_log(ULOG_INFO, "block_masshighlight", "BLOCK_MASSHIGHLIGHT_DETECTED", client, "Detected highlight spam in $channel by $client.details, setting $tkltype-Line",
+								log_data_channel("channel", channel),
+								log_data_char("tkltype", toupper(muhcfg.action))
+							);
+						}
 					}
 					doXLine(muhcfg.action, client);
 					break;
 
 				case 'v': // Viruschan lol
-					if(muhcfg.snotice)
-						sendto_snomask_global(SNO_EYES, "*** [block_masshighlight] Detected highlight spam in %s by %s, following viruschan protocol", channel->chname, client->name);
+					if(muhcfg.snotice) {
+						unreal_log(ULOG_INFO, "block_masshighlight", "BLOCK_MASSHIGHLIGHT_DETECTED", client, "Detected highlight spam in $channel by $client.details, following viruschan protocol",
+							log_data_channel("channel", channel)
+						);
+					}
 
 					// This bit is ripped from tkl.c with some logic changes to suit what we need to do =]
 					snprintf(joinbuf, sizeof(joinbuf), "0,%s", SPAMFILTER_VIRUSCHAN);
@@ -793,8 +794,11 @@ void masshighlight_set_client_moddata(Client *client, Channel *channel, int hl_c
 				default:
 					break;
 			}
-			if(muhcfg.show_opers_origmsg)
-				sendto_snomask_global(SNO_EYES, "*** [block_masshighlight] The message was: %s", *text);
+			if(muhcfg.show_opers_origmsg) {
+				unreal_log(ULOG_INFO, "block_masshighlight", "BLOCK_MASSHIGHLIGHT_OPERMSG", client, "The message was: $origmsg",
+					log_data_string("origmsg", *text)
+				);
+			}
 			*text = NULL; // NULL makes Unreal drop the message entirely afterwards ;3
 			// Can't return HOOK_DENY here cuz Unreal will abort() in that case :D
 		}

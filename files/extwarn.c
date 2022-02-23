@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/extwarn";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/extwarn\";";
@@ -37,10 +37,10 @@ EVENT(extwarn_event);
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/extwarn", // Module name
-	"2.0", // Version
+	"2.1.0", // Version
 	"Enables additional configuration error checking", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Initialisation routine (register hooks, commands and modes or create structs etc)

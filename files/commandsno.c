@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/commandsno";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/commandsno\";";
@@ -44,20 +44,19 @@ struct _cmdovr {
 CMD_OVERRIDE_FUNC(commandsno_override_cmd);
 int commandsno_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int commandsno_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
-int commandsno_hook_stats(Client *client, char *stats);
+int commandsno_hook_stats(Client *client, const char *stats);
 int commandsno_hook_rehash(void);
 static void InitConf(void);
 static void FreeConf(void);
 
 char *cmdlist;
-long SNO_COMMAND = 0L;
 
 ModuleHeader MOD_HEADER = {
 	"third/commandsno",
-	"2.0",
-	"Adds snomask +C: lets IRC operators see command usages",
+	"2.1.0", // Version
+	"Lets IRC operators see command usages",
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 MOD_TEST() {
@@ -67,8 +66,6 @@ MOD_TEST() {
 
 MOD_INIT() {
 	InitConf();
-
-	CheckAPIError("SnomaskAdd(SNO_COMMAND)", SnomaskAdd(modinfo->handle, FLAG_CMD, umode_allow_opers, &SNO_COMMAND));
 
 	MARK_AS_GLOBAL_MODULE(modinfo);
 
@@ -90,7 +87,7 @@ MOD_LOAD() {
 				continue;
 
 			snprintf(apibuf, sizeof(apibuf), "CommandOverrideAdd(%s)", cmd);
-			CheckAPIError(apibuf, CommandOverrideAdd(modinfo->handle, cmd, commandsno_override_cmd));
+			CheckAPIError(apibuf, CommandOverrideAdd(modinfo->handle, cmd, 0, commandsno_override_cmd));
 		}
 	}
 	return MOD_SUCCESS;
@@ -121,11 +118,11 @@ int commandsno_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) 
 	if(type != CONFIG_SET)
 		return 0;
 
-	if(strcmp(ce->ce_varname, "commandsno"))
+	if(strcmp(ce->name, "commandsno"))
 		return 0;
 
-	if(!ce->ce_vardata || !strlen(ce->ce_vardata)) {
-		config_error("%s:%i: set::%s without contents", ce->ce_fileptr->cf_filename, ce->ce_varlinenum, ce->ce_varname);
+	if(!ce->value || !strlen(ce->value)) {
+		config_error("%s:%i: set::%s without contents", ce->file->filename, ce->line_number, ce->name);
 		errors++;
 	}
 	*errs = errors;
@@ -136,15 +133,15 @@ int commandsno_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 	if(type != CONFIG_SET)
 		return 0;
 
-	if(strcmp(ce->ce_varname, "commandsno"))
+	if(strcmp(ce->name, "commandsno"))
 		return 0;
 
-	safe_strdup(cmdlist, ce->ce_vardata);
+	safe_strdup(cmdlist, ce->value);
 	return 1;
 }
 
-int commandsno_hook_stats(Client *client, char *stats) {
-	if(*stats == 'S')
+int commandsno_hook_stats(Client *client, const char *stats) {
+	if(*stats == 'S') // Corresponds to "set" stats
 		sendnumericfmt(client, RPL_TEXT, ":commandsno: %s", cmdlist ? cmdlist : "<none>");
 	return HOOK_CONTINUE;
 }
@@ -163,7 +160,10 @@ CMD_OVERRIDE_FUNC(commandsno_override_cmd) {
 		if(!mybuf[0])
 			strcpy(mybuf, "<none>");
 
-		sendto_snomask_global(SNO_COMMAND, "%s (%s@%s) used command %s (params: %s)", client->name, client->user->username, client->user->realhost, ovr->command->cmd, mybuf);
+		unreal_log(ULOG_INFO, "commandsno", "COMMANDSNO_USAGE", client, "$client.details used command $command (params: $params)",
+			log_data_string("command", ovr->command->cmd),
+			log_data_string("params", mybuf)
+		);
 	}
 
 	CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo

@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/block_notlsident";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/block_notlsident\";";
@@ -40,10 +40,10 @@ char **blockedIdents; // Dynamic array ;]
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/block_notlsident", // Module name
-	"2.0.1", // Version
-	"Restrict certain idents to SSL connections only", // Description
+	"2.1.0", // Version
+	"Restrict certain idents to SSL/TLS connections only", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Configuration testing-related hewks go in testing phase obv
@@ -97,28 +97,28 @@ int block_notlsident_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our block, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid entry l0l?
-		if(!cep->ce_varname || !cep->ce_vardata || !strlen(cep->ce_vardata)) {
-			config_error("%s:%i: blank %s item", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!cep->name || !cep->value || !strlen(cep->value)) {
+			config_error("%s:%i: blank %s item", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
-		if(!strcmp(cep->ce_varname, "ident")) {
+		if(!strcmp(cep->name, "ident")) {
 			bicount++;
 			continue;
 		}
 
-		config_warn("%s:%i: unknown item %s::%s", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname); // Rep0t warn if unknown directive =]
+		config_warn("%s:%i: unknown item %s::%s", cep->file->filename, cep->line_number, MYCONF, cep->name); // Rep0t warn if unknown directive =]
 	}
 
 	*errs = errors;
@@ -144,23 +144,23 @@ int block_notlsident_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		return 0;
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't block_notlsident, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
 	i = 0;
 	blockedIdents = safe_alloc(bicount * sizeof(char *));
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid entry l0l?
-		if(!cep->ce_varname || !cep->ce_vardata)
+		if(!cep->name || !cep->value)
 			continue; // Next iteration imo tbh
 
-		if(!strcmp(cep->ce_varname, "ident")) {
-			blockedIdents[i++] = strdup(cep->ce_vardata);
+		if(!strcmp(cep->name, "ident")) {
+			blockedIdents[i++] = strdup(cep->value);
 			continue;
 		}
 	}
@@ -170,7 +170,7 @@ int block_notlsident_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 
 int block_notlsident_prelocalconnect(Client *client) {
 	if(!(client->local->listener->options & LISTENER_TLS) && find_bident(client->user->username)) {
-		sendto_snomask_global(SNO_KILLS, "*** [block_notlsident] Ident %s (%s@%s) just tried to connect without SSL", client->user->username, client->name, client->user->realhost);
+		unreal_log(ULOG_INFO, "kill", "KILL_COMMAND", client, "Client killed: $client.details ([block_notlsident] tried to connect without SSL/TLS)");
 		exit_client(client, NULL, "Illegal ident"); // Kbye
 		return HOOK_DENY;
 	}

@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/report";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/report\";";
@@ -68,12 +68,12 @@ struct cfgstruct {
 
 // Quality fowod declarations
 static void dumpit(Client *client, char **p);
-Report *addem_report(int id, time_t deet, char *reporturd, const char *msg);
+Report *addem_report(int id, time_t deet, const char *reporturd, const char *msg);
 void freem_report(Report *reportItem);
 void notifyopers_add(Report *reportItem);
-void notifyopers_del(char *byuser, Report *reportItem);
-void notifyopers_synclimitreached(int id, time_t deet, char *reporturd, const char *msg);
-void syncem(Client *excludem, Client *to_one, char *flag, char *byuser, Report *reportItem);
+void notifyopers_del(const char *byuser, Report *reportItem);
+void notifyopers_synclimitreached(int id, time_t deet, const char *reporturd, const char *msg);
+void syncem(Client *excludem, Client *to_one, char *flag, const char *byuser, Report *reportItem);
 void setcfg(void);
 int gottem_getmodconf(ConfigEntry *ce, int type);
 void report_moddata_free(ModData *md);
@@ -118,10 +118,10 @@ ModDataInfo *reportMDI; // To store the rep0ts with &me lol (hack so we don't ha
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/report", // Module name
-	"1.0.2", // Version
+	"1.1.0", // Version
 	"For reporting bad stuff to the assigned IRC operators", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Configuration testing-related hewks go in testing phase obv
@@ -193,12 +193,9 @@ static void dumpit(Client *client, char **p) {
 	// Using sendto_one() instead of sendnumericfmt() because the latter strips indentation and stuff ;]
 	for(; *p != NULL; p++)
 		sendto_one(client, NULL, ":%s %03d %s :%s", me.name, RPL_TEXT, client->name, *p);
-
-	// Let user take 8 seconds to read it
-	client->local->since += 8;
 }
 
-Report *addem_report(int id, time_t deet, char *reporturd, const char *msg) {
+Report *addem_report(int id, time_t deet, const char *reporturd, const char *msg) {
 	// This function can be passed 0 for the first 2 arguments, in that case we'll auto-set that shit
 	// Otherwise we'll use em as-is ;];];];];]];];];
 	Report *reportItem = safe_alloc(sizeof(Report));
@@ -242,7 +239,7 @@ void notifyopers_add(Report *reportItem) {
 	}
 }
 
-void notifyopers_del(char *byuser, Report *reportItem) {
+void notifyopers_del(const char *byuser, Report *reportItem) {
 	char buf[BUFSIZE];
 	Client *operclient;
 
@@ -253,7 +250,7 @@ void notifyopers_del(char *byuser, Report *reportItem) {
 	}
 }
 
-void notifyopers_synclimitreached(int id, time_t deet, char *reporturd, const char *msg) {
+void notifyopers_synclimitreached(int id, time_t deet, const char *reporturd, const char *msg) {
 	char buf[BUFSIZE];
 	Client *operclient;
 
@@ -266,7 +263,7 @@ void notifyopers_synclimitreached(int id, time_t deet, char *reporturd, const ch
 	}
 }
 
-void syncem(Client *excludem, Client *to_one, char *flag, char *byuser, Report *reportItem) {
+void syncem(Client *excludem, Client *to_one, char *flag, const char *byuser, Report *reportItem) {
 	char buf[BUFSIZE];
 
 	if(*flag == '-')
@@ -302,15 +299,15 @@ int gottem_getmodconf(ConfigEntry *ce, int type) {
 		return 0;
 
 	// Check for valid config entries first (should at least have a name kek)
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our block, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Verify that it's actually a bl0cc/section, it has a line number if so :>
-	if(!ce->ce_sectlinenum)
+	if(!ce->section_linenumber)
 		return 0;
 
 	return 1;
@@ -332,75 +329,75 @@ int report_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 		return 0; // Returning 0 means idgaf bout dis (i.e. mark/keep marked as unknown)
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
 		// This should already be checked by Unreal's core functions but there's no harm in having it here too =]
-		if(!cep->ce_varname) {
-			config_error("%s:%i: blank %s item", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF);
+		if(!cep->name) {
+			config_error("%s:%i: blank %s item", cep->file->filename, cep->line_number, MYCONF);
 			errors++;
 			continue;
 		}
 
-		if(!cep->ce_vardata) {
-			config_error("%s:%i: blank %s value", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF);
+		if(!cep->value) {
+			config_error("%s:%i: blank %s value", cep->file->filename, cep->line_number, MYCONF);
 			errors++;
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "min-chars")) {
+		if(!strcmp(cep->name, "min-chars")) {
 			if(muhcfg.got_min_chars) {
-				config_error("%s:%i: duplicate %s::%s directive", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+				config_error("%s:%i: duplicate %s::%s directive", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++;
 				continue;
 			}
 
 			// Should be an integer y0
 			muhcfg.got_min_chars = 1;
-			for(i = 0; cep->ce_vardata[i]; i++) {
-				if(!isdigit(cep->ce_vardata[i])) {
-					config_error("%s:%i: %s::%s must be an integer between 1 and 50", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			for(i = 0; cep->value[i]; i++) {
+				if(!isdigit(cep->value[i])) {
+					config_error("%s:%i: %s::%s must be an integer between 1 and 50", cep->file->filename, cep->line_number, MYCONF, cep->name);
 					errors++;
 					break;
 				}
 			}
 
 			// If we still have a valid char, then the loop broke early due to an error, so we don't need to check the range yet ;];];];];]
-			if(cep->ce_vardata[i])
+			if(cep->value[i])
 				continue;
 
-			i = atoi(cep->ce_vardata);
+			i = atoi(cep->value);
 			if(i < 1 || i > 50) {
-				config_error("%s:%i: %s::%s must be an integer between 1 and 50", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+				config_error("%s:%i: %s::%s must be an integer between 1 and 50", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++;
 			}
 
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "max-reports")) {
+		if(!strcmp(cep->name, "max-reports")) {
 			if(muhcfg.got_max_reports) {
-				config_error("%s:%i: duplicate %s::%s directive", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+				config_error("%s:%i: duplicate %s::%s directive", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++;
 				continue;
 			}
 
 			// Should be an integer y0
 			muhcfg.got_max_reports = 1;
-			for(i = 0; cep->ce_vardata[i]; i++) {
-				if(!isdigit(cep->ce_vardata[i])) {
-					config_error("%s:%i: %s::%s must be an integer between 1 and 200", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			for(i = 0; cep->value[i]; i++) {
+				if(!isdigit(cep->value[i])) {
+					config_error("%s:%i: %s::%s must be an integer between 1 and 200", cep->file->filename, cep->line_number, MYCONF, cep->name);
 					errors++;
 					break;
 				}
 			}
 
 			// If we still have a valid char, then the loop broke early due to an error, so we don't need to check the range yet ;];];];];]
-			if(cep->ce_vardata[i])
+			if(cep->value[i])
 				continue;
 
-			i = atoi(cep->ce_vardata);
+			i = atoi(cep->value);
 			if(i < 1 || i > 200) {
-				config_error("%s:%i: %s::%s must be an integer between 1 and 200", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+				config_error("%s:%i: %s::%s must be an integer between 1 and 200", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++;
 			}
 
@@ -408,7 +405,7 @@ int report_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 		}
 
 		// Anything else is unknown to us =]
-		config_warn("%s:%i: unknown item %s::%s", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname); // So display just a warning
+		config_warn("%s:%i: unknown item %s::%s", cep->file->filename, cep->line_number, MYCONF, cep->name); // So display just a warning
 	}
 
 	*errs = errors;
@@ -422,17 +419,17 @@ int report_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 	if(!gottem_getmodconf(ce, type))
 		return 0;
 
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
-		if(!cep->ce_varname)
+	for(cep = ce->items; cep; cep = cep->next) {
+		if(!cep->name)
 			continue;
 
-		if(!strcmp(cep->ce_varname, "min-chars")) {
-			muhcfg.min_chars = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "min-chars")) {
+			muhcfg.min_chars = atoi(cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "max-reports")) {
-			muhcfg.max_reports = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "max-reports")) {
+			muhcfg.max_reports = atoi(cep->value);
 			continue;
 		}
 	}
@@ -472,7 +469,7 @@ CMD_FUNC(report) {
 	}
 
 	// Big hecks go here
-	make_nick_user_host_r(reporturd, client->name, client->user->username, client->user->realhost);
+	make_nick_user_host_r(reporturd, sizeof(reporturd), client->name, client->user->username, client->user->realhost);
 	msg = StripControlCodes(parv[1]); // Strip col0urs and other markup etc
 	if(strlen(msg) < muhcfg.min_chars) {
 		sendnotice(client, "*** [report] Your comment is too short: must be at least %d characters long", muhcfg.min_chars);
@@ -519,7 +516,7 @@ CMD_FUNC(reportlist) {
 CMD_FUNC(reportdel) {
 	Report *reportItem;
 	int id;
-	char *p; // For checking if we actually got a number/integer for ID lel
+	const char *p; // For checking if we actually got a number/integer for ID lel
 
 	if(!MyUser(client))
 		return;
@@ -574,8 +571,8 @@ CMD_FUNC(reportsync) {
 	int id;
 	int is_signed; // Synonymous for "pls notify"
 	time_t deet;
-	char *byuser, *reporturd, *msg;
-	char *p;
+	const char *byuser, *reporturd, *msg;
+	const char *p;
 
 	// Only accept shit from local servers 0fc
 	if(!IsServer(client) || !MyConnect(client))
@@ -588,13 +585,13 @@ CMD_FUNC(reportsync) {
 	// For any malformed shit we'll simply notify all local opers, as it may indicate a module version mismatch or some shit =]
 	// Let's start with the bare minimum to run at least one command successfully (which is delete lol)
 	if(parc < 3 || BadPtr(parv[2])) {
-		sendto_realops("[report] Malformed %s command from %s: not enough arguments", MSG_REPORTSYNC, client->name);
+		unreal_log(ULOG_ERROR, "report", "REPORT_SYNC_ERROR", client, "Malformed REPORT command from $client.name: not enough arguments");
 		return;
 	}
 
 	// Should have at least something lel
 	if(!strlen(parv[1])) {
-		sendto_realops("[report] Malformed %s command from %s: 'ID' argument has no length", MSG_REPORTSYNC, client->name);
+		unreal_log(ULOG_ERROR, "report", "REPORT_SYNC_ERROR", client, "Malformed REPORT command from $client.name: 'ID' argument has no length");
 		return;
 	}
 
@@ -611,7 +608,7 @@ CMD_FUNC(reportsync) {
 	// Then ID
 	for(; *p; p++) {
 		if(!isdigit(*p)) {
-			sendto_realops("[report] Malformed %s command from %s: invalid ID (must be numeric)", MSG_REPORTSYNC, client->name);
+			unreal_log(ULOG_ERROR, "report", "REPORT_SYNC_ERROR", client, "Malformed REPORT command from $client.name: invalid ID (must be numeric)");
 			break;
 		}
 	}
@@ -619,7 +616,7 @@ CMD_FUNC(reportsync) {
 	// Now check the amount of arguments for additions too
 	if(flag == '+') {
 		if(parc < 5 || BadPtr(parv[4])) {
-			sendto_realops("[report] Malformed %s command from %s: not enough arguments", MSG_REPORTSYNC, client->name);
+			unreal_log(ULOG_ERROR, "report", "REPORT_SYNC_ERROR", client, "Malformed REPORT command from $client.name: not enough arguments");
 			return;
 		}
 	}
@@ -641,13 +638,13 @@ CMD_FUNC(reportsync) {
 	if(flag == '-') {
 		// Should prolly have a reportItem huh
 		if(!reportItem) {
-			sendto_realops("[report] Malformed %s command from %s: received ID #%d but doesn't exist on our end", MSG_REPORTSYNC, client->name, id);
+			unreal_log(ULOG_ERROR, "report", "REPORT_SYNC_ERROR", client, "Malformed REPORT command from $client.name: received ID #$id but doesn't exist on our end", log_data_integer("id", id));
 			return;
 		}
 
 		byuser = parv[2];
 		if(!strlen(byuser)) {
-			sendto_realops("[report] Malformed %s command from %s: 'byuser' argument has no length", MSG_REPORTSYNC, client->name);
+			unreal_log(ULOG_ERROR, "report", "REPORT_SYNC_ERROR", client, "Malformed REPORT command from $client.name: 'byuser' argument has no length");
 			return;
 		}
 
@@ -662,13 +659,13 @@ CMD_FUNC(reportsync) {
 
 	// Now the deet
 	if(!strlen(parv[2])) {
-		sendto_realops("[report] Malformed %s command from %s: 'timestamp' argument has no length", MSG_REPORTSYNC, client->name);
+		unreal_log(ULOG_ERROR, "report", "REPORT_SYNC_ERROR", client, "Malformed REPORT command from $client.name: 'timestamp' argument has no length");
 		return;
 	}
 
 	for(p = parv[2]; *p; p++) {
 		if(!isdigit(*p)) {
-			sendto_realops("[report] Malformed %s command from %s: invalid timestamp (must be numeric)", MSG_REPORTSYNC, client->name);
+			unreal_log(ULOG_ERROR, "report", "REPORT_SYNC_ERROR", client, "Malformed REPORT command from $client.name: invalid timestamp (must be numeric)");
 			return;
 		}
 	}
@@ -682,17 +679,23 @@ CMD_FUNC(reportsync) {
 	msg = parv[4]; // We don't check the min-chars here; in case it changed inbetween we should still accept noncompliant rep0ts ;]
 
 	if(!strlen(reporturd)) {
-		sendto_realops("[report] Malformed %s command from %s: 'reporter' argument has no length", MSG_REPORTSYNC, client->name);
+		unreal_log(ULOG_ERROR, "report", "REPORT_SYNC_ERROR", client, "Malformed REPORT command from $client.name: 'reporter' argument has no length");
 		return;
 	}
 	if(!strlen(msg)) {
-		sendto_realops("[report] Malformed %s command from %s: 'message' argument has no length", MSG_REPORTSYNC, client->name);
+		unreal_log(ULOG_ERROR, "report", "REPORT_SYNC_ERROR", client, "Malformed REPORT command from $client.name: 'message' argument has no length");
 		return;
 	}
 
 	if(reportItem) {
-		if(reportItem->deet != deet)
-			sendto_realops("[report] Malformed %s command from %s: duplicate ID #%d) [%s] by [%s]: %s", MSG_REPORTSYNC, client->name, id, pretty_date(deet), reporturd, msg);
+		if(reportItem->deet != deet) {
+			unreal_log(ULOG_ERROR, "report", "REPORT_SYNC_ERROR", client, "Malformed REPORT command from $client.name: duplicate ID #$id) [$deet] by [$reporturd]: $msg",
+				log_data_integer("id", id),
+				log_data_string("deet", pretty_date(deet)),
+				log_data_string("reporturd", reporturd),
+				log_data_string("msg", msg)
+			);
+		}
 		return;
 	}
 

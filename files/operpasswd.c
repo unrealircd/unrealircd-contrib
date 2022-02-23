@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/operpasswd";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/operpasswd\";";
@@ -31,14 +31,6 @@ struct _fcount {
 	u_int count;
 };
 
-#define FlagOperPass 'O'
-
-#define UMODE_DENY 0
-#define UMODE_ALLOW 1
-
-#define ENABLE_GLOBAL_NOTICES 0x0001
-#define ENABLE_LOGGING 0x0002
-
 #define CheckAPIError(apistr, apiobj) \
 	do { \
 		if(!(apiobj)) { \
@@ -52,43 +44,39 @@ static void FreeConf(void);
 
 CMD_OVERRIDE_FUNC(operpasswd_ovr_oper);
 int operpasswd_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
+int operpasswd_configposttest(int *errs);
 int operpasswd_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
-int operpasswd_hook_quit(Client *client, MessageTag *recv_mtags, char *comment);
+int operpasswd_hook_quit(Client *client, MessageTag *recv_mtags, const char *comment);
 int operpasswd_hook_rehash(void);
 static void del_failop_counts(void);
-int umode_allow_operpriv(Client *client, int what);
 
 static FCount *FailedOperups = NULL;
-static char *textbuf = NULL;
-
-long SNO_OPERPASS = 0L;
 
 struct {
-	unsigned char options;
 	u_int max_failed_operups;
 	char *failop_kill_reason;
+
+	u_int has_max_failed_operups;
+	u_int has_failop_kill_reason;
 } Settings;
 
 ModuleHeader MOD_HEADER = {
 	"third/operpasswd",
-	"2.0",
-	"Snomask for failed OPER attempts with the ability to kill",
+	"2.1.0", // Version
+	"Kill users with too many failed OPER attempts",
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 MOD_TEST() {
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGTEST, 0, operpasswd_configtest);
+	HookAdd(modinfo->handle, HOOKTYPE_CONFIGPOSTTEST, 0, operpasswd_configposttest);
 	return MOD_SUCCESS;
 }
 
 MOD_INIT() {
-	//ModuleSetOptions(modinfo->handle, MOD_OPT_PERM); // May break shit, so commented out
 	FailedOperups = NULL;
-	textbuf = NULL;
 	InitConf();
-
-	CheckAPIError("SnomaskAdd(SNO_OPERPASS)", SnomaskAdd(modinfo->handle, FlagOperPass, umode_allow_operpriv, &SNO_OPERPASS));
 
 	MARK_AS_GLOBAL_MODULE(modinfo);
 
@@ -100,14 +88,13 @@ MOD_INIT() {
 
 MOD_LOAD() {
 	// Non-default (lower) priority so we can go *after* set::restrict-commands (if someone decides to override OPER, that is =])
-	CheckAPIError("CommandOverrideAddEx(OPER)", CommandOverrideAddEx(modinfo->handle, "OPER", 10, operpasswd_ovr_oper));
+	CheckAPIError("CommandOverrideAdd(OPER)", CommandOverrideAdd(modinfo->handle, "OPER", 10, operpasswd_ovr_oper));
 	return MOD_SUCCESS;
 }
 
 MOD_UNLOAD() {
 	FreeConf();
 	del_failop_counts();
-	safe_free(textbuf);
 	return MOD_SUCCESS;
 }
 
@@ -126,11 +113,9 @@ int operpasswd_hook_rehash() {
 }
 
 static void del_failop_counts() {
-	FCount *f;
-	ListStruct *next;
-
-	for(f = FailedOperups; f; f = (FCount *) next) {
-		next = (ListStruct *)f->next;
+	FCount *f, *next;
+	for(f = FailedOperups; f; f = next) {
+		next = f->next;
 		DelListItem(f, FailedOperups);
 		safe_free(f);
 	}
@@ -138,60 +123,80 @@ static void del_failop_counts() {
 
 static FCount *find_failop_count(Client *client) {
 	FCount *f;
-
 	for(f = FailedOperups; f; f = f->next) {
 		if(f->client == client)
 			break;
 	}
-
 	return f;
-}
-
-int umode_allow_operpriv(Client *client, int what) {
-	/* don't check access remotely */
-	return(!MyUser(client) || ValidatePermissionsForPath("operpasswd", client, NULL, NULL, NULL)) ? UMODE_ALLOW : UMODE_DENY;
 }
 
 int operpasswd_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 	ConfigEntry *cep;
 	int errors = 0;
+	int i;
 
 	if(type != CONFIG_MAIN)
 		return 0;
 
-	if(!strcmp(ce->ce_varname, "operpasswd")) {
-		for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
-			if(!cep->ce_varname) {
-				config_error("%s:%i: blank %s item", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, ce->ce_varname);
+	if(!strcmp(ce->name, "operpasswd")) {
+		for(cep = ce->items; cep; cep = cep->next) {
+			if(!cep->name) {
+				config_error("%s:%i: blank %s item", cep->file->filename, cep->line_number, ce->name);
 				errors++;
 				continue;
 			}
 
-			if(!cep->ce_vardata) {
-				config_error("%s:%i: %s::%s without value", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, ce->ce_varname, cep->ce_varname);
+			if(!cep->value || !strlen(cep->value)) {
+				config_error("%s:%i: %s::%s without value", cep->file->filename, cep->line_number, ce->name, cep->name);
 				errors++;
 				continue;
 			}
 
-			if(!strcmp(cep->ce_varname, "enable-global-notices"))
-				;
-			else if(!strcmp(cep->ce_varname, "enable-logging"))
-				;
-			else if(!strcmp(cep->ce_varname, "max-failed-operups"))
-				;
-			else if(!strcmp(cep->ce_varname, "failop-kill-reason"))
-				;
-			else {
-				config_error("%s:%i: unknown directive operpasswd::%s", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, cep->ce_varname);
-				errors++;
+			if(!strcmp(cep->name, "max-failed-operups")) {
+				if(Settings.has_max_failed_operups) {
+					config_error("%s:%i: duplicate value for %s::%s", cep->file->filename, cep->line_number, ce->name, cep->name);
+					errors++;
+					continue;
+				}
+
+				Settings.has_max_failed_operups = 1;
+				i = atoi(cep->value);
+				if(i < 0 || i > 100) {
+					config_error("%s:%i: invalid value for %s::%s (must be an integer from 1-100, inclusive)", cep->file->filename, cep->line_number, ce->name, cep->name);
+					errors++;
+				}
+				continue;
 			}
 
+			if(!strcmp(cep->name, "failop-kill-reason")) {
+				if(Settings.has_failop_kill_reason) {
+					config_error("%s:%i: duplicate value for %s::%s", cep->file->filename, cep->line_number, ce->name, cep->name);
+					errors++;
+					continue;
+				}
+
+				Settings.has_failop_kill_reason = 1;
+				continue;
+			}
+
+			config_error("%s:%i: unknown directive operpasswd::%s", cep->file->filename, cep->line_number, cep->name);
+			errors++;
 		}
+
 		*errs = errors;
 		return errors ? -1 : 1;
 	}
 
 	return 0;
+}
+
+int operpasswd_configposttest(int *errs) {
+	if(!Settings.has_max_failed_operups) {
+		config_error("[operpasswd] max-failed-operups is a required configuration setting");
+		(*errs)++;
+		return -1;
+	}
+	return 1;
 }
 
 int operpasswd_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
@@ -200,38 +205,20 @@ int operpasswd_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 	if(type != CONFIG_MAIN)
 		return 0;
 
-	if(!strcmp(ce->ce_varname, "operpasswd")) {
-		for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
-			if(!strcmp(cep->ce_varname, "enable-global-notices")) {
-				if(config_checkval(cep->ce_vardata, CFG_YESNO))
-					Settings.options |= ENABLE_GLOBAL_NOTICES;
-			}
-			else if(!strcmp(cep->ce_varname, "enable-logging")) {
-				if(config_checkval(cep->ce_vardata, CFG_YESNO))
-					Settings.options |= ENABLE_LOGGING;
-			}
-			else if(!strcmp(cep->ce_varname, "max-failed-operups"))
-				Settings.max_failed_operups = atoi(cep->ce_vardata);
-			else if(!strcmp(cep->ce_varname, "failop-kill-reason")) {
-				safe_strdup(Settings.failop_kill_reason, cep->ce_vardata);
-			}
+	if(!strcmp(ce->name, "operpasswd")) {
+		for(cep = ce->items; cep; cep = cep->next) {
+			if(!strcmp(cep->name, "max-failed-operups"))
+				Settings.max_failed_operups = atoi(cep->value);
+			else if(!strcmp(cep->name, "failop-kill-reason"))
+				safe_strdup(Settings.failop_kill_reason, cep->value);
 		}
-
-		if(Settings.options) {
-			if(!textbuf)
-				textbuf = safe_alloc(BUFSIZE);
-		}
-
-		if(!Settings.max_failed_operups)
-			del_failop_counts();
-
 		return 1;
 	}
 
 	return 0;
 }
 
-int operpasswd_hook_quit(Client *client, MessageTag *recv_mtags, char *comment) {
+int operpasswd_hook_quit(Client *client, MessageTag *recv_mtags, const char *comment) {
 	FCount *f;
 	if((f = find_failop_count(client))) {
 		DelListItem(f, FailedOperups);
@@ -250,18 +237,6 @@ CMD_OVERRIDE_FUNC(operpasswd_ovr_oper) {
 		return;
 
 	if(!IsOper(client)) {
-		if(Settings.options) {
-			snprintf(textbuf, BUFSIZE, "[operpasswd] From: %s, login: %s", client->name, parv[1]);
-
-			if(Settings.options & ENABLE_GLOBAL_NOTICES)
-				sendto_snomask_global(SNO_OPERPASS, "*** %s", textbuf);
-			else
-				sendto_snomask(SNO_OPERPASS, "*** %s", textbuf);
-
-			if(Settings.options & ENABLE_LOGGING)
-				ircd_log(LOG_OPER, "%s", textbuf);
-		}
-
 		if(Settings.max_failed_operups) {
 			if(!(f = find_failop_count(client))) {
 				f = safe_alloc(sizeof(FCount));

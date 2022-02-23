@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/pubnetinfo";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/pubnetinfo\";";
@@ -42,10 +42,10 @@ int is_loopback_ip(char *ip);
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/pubnetinfo", // Module name
-	"2.0", // Version
+	"2.1.0", // Version
 	"Display public network/server information such as SSL/TLS links", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Initialisation routine (register hooks, commands and modes or create structs etc)
@@ -83,14 +83,14 @@ CMD_FUNC(pubnetinfo) {
 	// Gets args: Client *client, MessageTag *recv_mtags, int parc, char *parv[]
 	Client *acptr, *from;
 	int tls, localhost;
-	char *serv;
+	const char *serv;
 
 	serv = NULL;
 	from = (IsUser(client) ? client : NULL); // Respond to client executing command by default
 
 	// In case of forwarding, first arg is user to respond to and second is the server we gettin info fer
 	if(IsServer(client) && !BadPtr(parv[1]) && !BadPtr(parv[2])) {
-		from = find_person(parv[1], NULL);
+		from = find_user(parv[1], NULL);
 		serv = parv[2];
 	}
 
@@ -105,10 +105,10 @@ CMD_FUNC(pubnetinfo) {
 			continue;
 
 		// Can only get proper status if the server is directly linked to us =]
-		if(strcasecmp(acptr->serv->up, me.name)) {
+		if(acptr->uplink != &me) {
 			// Only forward if the user requesting this shit is local to us imo
 			if(MyUser(from))
-				sendto_one(acptr->direction, NULL, ":%s %s %s :%s", me.id, MSG_PUBNETINFO, from->name, acptr->name);
+				sendto_one(acptr->uplink, NULL, ":%s %s %s :%s", me.id, MSG_PUBNETINFO, from->name, acptr->name);
 			continue;
 		}
 
@@ -117,8 +117,8 @@ CMD_FUNC(pubnetinfo) {
 		localhost = -1;
 
 		// Checkem link config
-		if(acptr->serv->conf)
-			tls = ((acptr->serv->conf->outgoing.options & CONNECT_TLS) ? 1 : 0);
+		if(acptr->server->conf)
+			tls = ((acptr->server->conf->outgoing.options & CONNECT_TLS) ? 1 : 0);
 
 		// Checkem IP
 		if(acptr->ip)

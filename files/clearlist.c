@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/clearlist";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/clearlist\";";
@@ -79,10 +79,10 @@ static char *clearListhelp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/clearlist",
-	"2.0",
+	"2.1.0", // Version
 	"Adds CLEARLIST command to clear out banlists in bulk",
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Initialisation routine (register hooks, commands and modes or create structs etc)
@@ -111,9 +111,6 @@ static void dumpit(Client *client, char **p) {
 	// Using sendto_one() instead of sendnumericfmt() because the latter strips indentation and stuff ;]
 	for(; *p != NULL; p++)
 		sendto_one(client, NULL, ":%s %03d %s :%s", me.name, RPL_TEXT, client->name, *p);
-
-	// Let user take 8 seconds to read it
-	client->local->since += 8;
 }
 
 CMD_FUNC(clearlist) {
@@ -121,7 +118,7 @@ CMD_FUNC(clearlist) {
 	Ban *muhList, *ban, *bnext; // Pointer to em banlist, also pointers to ban entries
 	listType *ltype; // Pointer to our listType struct
 	char flag; // Store current flag/type for dat dere iteration fam
-	char *types, *rawmask; // Pointers to store arguments
+	const char *types, *rawmask; // Pointers to store arguments
 	char remflags[MAXMODEPARAMS + 2], *remstr[MAXMODEPARAMS + 1]; // Some buffers to store flags and masks to remove
 	size_t remlen; // Keep track of all masks' lengths =]
 	Channel *channel; // Pointer to channel m8
@@ -145,13 +142,13 @@ CMD_FUNC(clearlist) {
 
 	types = parv[2]; // Store flags arg
 	rawmask = parv[3]; // Store n!i@h mask arg
-	if(!(channel = find_channel(parv[1], NULL))) { // Can we even find the channel?
+	if(!(channel = find_channel(parv[1]))) { // Can we even find the channel?
 		sendnotice(client, "Channel %s doesn't exist", parv[1]); // Lolnope
 		return; // Actual critical error
 	}
 
 	// Gotta be IRC oper or have +a or +q to use this shit
-	if(!IsOper(client) && !is_chanowner(client, channel) && !is_chanadmin(client, channel)) {
+	if(!IsOper(client) && !check_channel_access(client, channel, "aq")) {
 		sendnotice(client, "You're not allowed to do that (need +a, +q or IRC operator status)"); // Ain't gonna happen fam
 		return; // Actual critical error
 	}
@@ -213,12 +210,12 @@ CMD_FUNC(clearlist) {
 				if(!strchr(remflags, flag)) // So let's skip that shit
 					continue;
 
-				char *newparv[MAXPARA + 1]; // Gonna need new parv lol
+				const char *newparv[MAXPARA + 1]; // Gonna need new parv lol
 				newparv[0] = client->name;
-				newparv[1] = channel->chname;
+				newparv[1] = channel->name;
 				newparv[2] = remflags;
-				for(i = 3, j = 0; i < MAXPARA && remstr[j]; i++, j++)
-					newparv[i] = remstr[j];
+				for(i = 3, j = 0; i < MAXPARA && remstr[j];)
+					newparv[i++] = remstr[j++];
 				newparv[i] = NULL; // Some functions may depend on this ;]
 				do_cmd(client, NULL, "MODE", i, newparv); // This shit takes care of removing it locally as well as br0adcasting it ;]
 
@@ -234,6 +231,6 @@ CMD_FUNC(clearlist) {
 		// In case of tainted masks, send a CLEARLIST command for it to all other local servers ;]
 		// We can broadcast any mask for it as long as it doesn't match *!*@* really
 		if(dountaint)
-			sendto_server(client, 0, 0, NULL, ":%s CLEARLIST %s %c qwertyuiopasdfghjklzxcvbnm", client->name, channel->chname, flag);
+			sendto_server(client, 0, 0, NULL, ":%s CLEARLIST %s %c qwertyuiopasdfghjklzxcvbnm", client->name, channel->name, flag);
 	}
 }

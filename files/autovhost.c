@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/autovhost";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/autovhost\";";
@@ -46,10 +46,10 @@ int vhostCount = 0;
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/autovhost", // Module name
-	"2.0.1", // Version
+	"2.1.0", // Version
 	"Apply vhosts at connect time based on users' raw nick formats or IPs", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Configuration testing-related hewks go in testing phase obv
@@ -129,42 +129,42 @@ int autovhost_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our block, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname) {
-			config_error("%s:%i: blank %s item", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!cep->name) {
+			config_error("%s:%i: blank %s item", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
-		if(!cep->ce_vardata) {
-			config_error("%s:%i: blank %s value", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!cep->value) {
+			config_error("%s:%i: blank %s value", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
-		if(strlen(cep->ce_vardata) <= 5) {
-			config_error("%s:%i: vhost should be at least 5 characters (%s)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, cep->ce_vardata); // Rep0t error
+		if(strlen(cep->value) <= 5) {
+			config_error("%s:%i: vhost should be at least 5 characters (%s)", cep->file->filename, cep->line_number, cep->value); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
-		if(strchr(cep->ce_vardata, '@')) {
-			config_error("%s:%i: should only use the hostname part for vhosts (%s)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, cep->ce_vardata); // Rep0t error
+		if(strchr(cep->value, '@')) {
+			config_error("%s:%i: should only use the hostname part for vhosts (%s)", cep->file->filename, cep->line_number, cep->value); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
-		if(strchr(cep->ce_vardata, '!')) {
-			config_error("%s:%i: vhosts can't contain a nick or ident part (%s)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, cep->ce_vardata); // Rep0t error
+		if(strchr(cep->value, '!')) {
+			config_error("%s:%i: vhosts can't contain a nick or ident part (%s)", cep->file->filename, cep->line_number, cep->value); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
@@ -194,22 +194,22 @@ int autovhost_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't autovhost, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 		// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname || !cep->ce_vardata)
+		if(!cep->name || !cep->value)
 			continue; // Next iteration imo tbh
 
 		// Lengths to alloc8 the struct vars with in a bit
-		size_t masklen = sizeof(char) * (strlen(cep->ce_varname) + 1);
-		size_t vhostlen = sizeof(char) * (strlen(cep->ce_vardata) + 1);
+		size_t masklen = sizeof(char) * (strlen(cep->name) + 1);
+		size_t vhostlen = sizeof(char) * (strlen(cep->value) + 1);
 
 		// Allocate mem0ry for the current entry
 		*vEntry = safe_alloc(sizeof(vhostEntry));
@@ -219,8 +219,8 @@ int autovhost_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		(*vEntry)->vhost = safe_alloc(vhostlen);
 
 		// Copy that shit fam
-		strncpy((*vEntry)->mask, cep->ce_varname, masklen);
-		strncpy((*vEntry)->vhost, cep->ce_vardata, vhostlen);
+		strncpy((*vEntry)->mask, cep->name, masklen);
+		strncpy((*vEntry)->vhost, cep->value, vhostlen);
 
 		// Premium linked list fam
 		if(last)
@@ -247,8 +247,11 @@ int autovhost_connect(Client *client) {
 			doident = (strstr(newhost, "$ident") ? 1 : 0);
 			if(strstr(newhost, "$nick")) {
 				newhost_nick = replaceem(newhost, "$nick", client->name);
-				if(!doident && !valid_host(newhost_nick)) { // Can't really do this earlier because of $nick etc ;];]
-					sendto_snomask_global(SNO_EYES, "[autovhost] Invalid result vhost: %s => %s", vEntry->vhost, newhost_nick);
+				if(!doident && !valid_host(newhost_nick, 0)) { // Can't really do this earlier because of $nick etc ;];]
+					unreal_log(ULOG_ERROR, "autovhost", "AUTOVHOST_INVALID", client, "Invalid result vhost: $mask => $result",
+						log_data_string("mask", vEntry->vhost),
+						log_data_string("result", newhost_nick)
+					);
 					safe_free(newhost_nick);
 					break;
 				}
@@ -258,8 +261,12 @@ int autovhost_connect(Client *client) {
 
 			if(doident) {
 				newhost_ident = replaceem(newhost, "$ident", ((client->user && client->user->username) ? client->user->username : "unknown"));
-				if(!valid_host(newhost_ident)) { // Can't really do this earlier because of $ident etc ;];]
-					sendto_snomask_global(SNO_EYES, "[autovhost] Invalid result vhost: %s => %s", vEntry->vhost, newhost_ident);
+				if(!valid_host(newhost_ident, 0)) { // Can't really do this earlier because of $ident etc ;];]
+					unreal_log(ULOG_ERROR, "autovhost", "AUTOVHOST_INVALID", client, "Invalid result vhost: $mask => $result",
+						log_data_string("mask", vEntry->vhost),
+						log_data_string("result", newhost_ident)
+					);
+					safe_free(newhost_nick);
 					safe_free(newhost_ident);
 					break;
 				}

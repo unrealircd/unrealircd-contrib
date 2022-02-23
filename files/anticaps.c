@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/anticaps";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/anticaps\";";
@@ -52,10 +52,10 @@ int lcIt = 0; // Lowercase 'em instead
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/anticaps", // Module name
-	"2.0.1", // Version
+	"2.1.0", // Version
 	"Block/lowercase messages that contain a configurable amount of capital letters", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Configuration testing-related hewks go in testing phase obv
@@ -78,8 +78,8 @@ MOD_INIT() {
 // Actually load the module here (also command overrides as they may not exist in MOD_INIT yet)
 MOD_LOAD() {
 	// Lower priority overrides so we can go *after* any potential set::restrict-command directives
-	CheckAPIError("CommandOverrideAdd(PRIVMSG)", CommandOverrideAdd(modinfo->handle, OVR_PRIVMSG, anticaps_override));
-	CheckAPIError("CommandOverrideAdd(NOTICE)", CommandOverrideAdd(modinfo->handle, OVR_NOTICE, anticaps_override));
+	CheckAPIError("CommandOverrideAdd(PRIVMSG)", CommandOverrideAdd(modinfo->handle, OVR_PRIVMSG, 10, anticaps_override));
+	CheckAPIError("CommandOverrideAdd(NOTICE)", CommandOverrideAdd(modinfo->handle, OVR_NOTICE, 10, anticaps_override));
 	return MOD_SUCCESS; // We good
 }
 
@@ -98,35 +98,35 @@ int anticaps_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our block, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname || !cep->ce_vardata) {
-			config_error("%s:%i: blank %s item", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!cep->name || !cep->value) {
+			config_error("%s:%i: blank %s item", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
-		if(!strcmp(cep->ce_varname, "capslimit")) {
-			limit = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "capslimit")) {
+			limit = atoi(cep->value);
 			if(limit <= 0 || limit > 100) {
-				config_error("%s:%i: %s::capslimit must be an integer from 1 thru 99 (represents a percentage)", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF);
+				config_error("%s:%i: %s::capslimit must be an integer from 1 thru 99 (represents a percentage)", cep->file->filename, cep->line_number, MYCONF);
 				errors++;
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "minlength")) {
-			for(i = 0; cep->ce_vardata[i]; i++) {
-				if(!isdigit(cep->ce_vardata[i])) {
-					config_error("%s:%i: %s::minlength must be an integer of 0 or larger m8", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF);
+		if(!strcmp(cep->name, "minlength")) {
+			for(i = 0; cep->value[i]; i++) {
+				if(!isdigit(cep->value[i])) {
+					config_error("%s:%i: %s::minlength must be an integer of 0 or larger m8", cep->file->filename, cep->line_number, MYCONF);
 					errors++; // Increment err0r count fam
 					break;
 				}
@@ -134,9 +134,9 @@ int anticaps_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "lowercase_it")) {
-			if(!cep->ce_vardata || (strcmp(cep->ce_vardata, "0") && strcmp(cep->ce_vardata, "1"))) {
-				config_error("%s:%i: %s::lowercase_it must be either 0 or 1 fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF);
+		if(!strcmp(cep->name, "lowercase_it")) {
+			if(!cep->value || (strcmp(cep->value, "0") && strcmp(cep->value, "1"))) {
+				config_error("%s:%i: %s::lowercase_it must be either 0 or 1 fam", cep->file->filename, cep->line_number, MYCONF);
 				errors++; // Increment err0r count fam
 			}
 			continue;
@@ -157,30 +157,30 @@ int anticaps_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't anticaps, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname || !cep->ce_vardata)
+		if(!cep->name || !cep->value)
 			continue; // Next iteration imo tbh
 
-		if(!strcmp(cep->ce_varname, "capslimit")) {
-			capsLimit = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "capslimit")) {
+			capsLimit = atoi(cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "minlength")) {
-			minLength = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "minlength")) {
+			minLength = atoi(cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "lowercase_it")) {
-			lcIt = atoi(cep->ce_vardata);
+		if(!strcmp(cep->name, "lowercase_it")) {
+			lcIt = atoi(cep->value);
 			continue;
 		}
 	}
@@ -211,7 +211,7 @@ CMD_OVERRIDE_FUNC(anticaps_override) {
 	}
 
 	if(*parv[1] != '#') {
-		acptr = find_person(parv[1], NULL);
+		acptr = find_user(parv[1], NULL);
 		if(acptr && IsULine(acptr)) {
 			CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
 			return;

@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/gecos_replace";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/gecos_replace\";";
@@ -51,10 +51,10 @@ int gecosCount = 0; // Counter yo
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/gecos_replace", // Module name
-	"1.0", // Version
+	"1.1.0", // Version
 	"Enables replacing text in the gecos field on-connect", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Configuration testing-related hewks go in testing phase obv
@@ -137,7 +137,9 @@ int gecos_replace_hook_prelocalconnect(Client *client) {
 		return HOOK_CONTINUE;
 
 	if(!client || !client->info) {
-		sendto_realops_and_log("[BUG?] [%s] %s == NULL", MOD_HEADER.name, (client ? "Gecos" : "Client"));
+		unreal_log(ULOG_ERROR, "gecos_replace", "GECOS_REPLACE_BUG", client, "[BUG?] $entity == NULL",
+			log_data_string("entity", (client ? "Gecos" : "Client"))
+		);
 		return HOOK_CONTINUE;
 	}
 
@@ -156,12 +158,18 @@ int gecos_replace_hook_prelocalconnect(Client *client) {
 			if(newlen == 0) { // In case of a now-empty gecos, just set it to the current nick to avoid any issues with something expecting a non-NULL value ;]
 				// REALLEN normally is higher than NICKLEN, but you never know what people might do :DD
 				if(strlen(client->name) > REALLEN)
-					sendto_realops_and_log("[%s] Resulting gecos for '%s' is too long ('%s' exceeds %d characters), it will be truncated", MOD_HEADER.name, client->name, newgecos, REALLEN);
+					unreal_log(ULOG_ERROR, "gecos_replace", "GECOS_REPLACE_TRUNCATED", client, "Resulting gecos for $client.details is too long ('$result' exceeds $maxlength characters), it will be truncated",
+						log_data_string("result", newgecos),
+						log_data_integer("maxlength", REALLEN)
+					);
 				strlcpy(client->info, client->name, sizeof(client->info));
 			}
 			else {
 				if(newlen > REALLEN)
-					sendto_realops_and_log("[%s] Resulting gecos for '%s' is too long ('%s' exceeds %d characters), it will be truncated", MOD_HEADER.name, client->info, newgecos, REALLEN);
+					unreal_log(ULOG_ERROR, "gecos_replace", "GECOS_REPLACE_TRUNCATED", client, "Resulting gecos for $client.details is too long ('$result' exceeds $maxlength characters), it will be truncated",
+						log_data_string("result", newgecos),
+						log_data_integer("maxlength", REALLEN)
+					);
 				strlcpy(client->info, newgecos, sizeof(client->info));
 				safe_free(newgecos);
 			}
@@ -181,48 +189,48 @@ int gecos_replace_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *err
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our block, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
 	got_match = got_replace = 0;
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
 		// This should already be checked by Unreal's core functions but there's no harm in having it here too =]
-		if(!cep->ce_varname) {
-			config_error("%s:%i: blank %s item", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!cep->name) {
+			config_error("%s:%i: blank %s item", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
-		if(!cep->ce_vardata) {
-			config_error("%s:%i: blank %s value", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!cep->value) {
+			config_error("%s:%i: blank %s value", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 			errors++;
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "match")) {
+		if(!strcmp(cep->name, "match")) {
 			if(got_match) {
-				config_error("%s:%i: duplicate %s::%s directive", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+				config_error("%s:%i: duplicate %s::%s directive", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++;
 				continue;
 			}
 
 			got_match = 1;
-			if(!strlen(cep->ce_vardata)) {
-				config_error("%s:%i: %s::%s must be non-empty fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(!strlen(cep->value)) {
+				config_error("%s:%i: %s::%s must be non-empty fam", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++;
 			}
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "replace")) {
+		if(!strcmp(cep->name, "replace")) {
 			if(got_replace) {
-				config_error("%s:%i: duplicate %s::%s directive", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+				config_error("%s:%i: duplicate %s::%s directive", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++;
 				continue;
 			}
@@ -232,15 +240,15 @@ int gecos_replace_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *err
 		}
 
 		// Anything else is unknown to us =]
-		config_warn("%s:%i: unknown item %s::%s", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname); // So display just a warning
+		config_warn("%s:%i: unknown item %s::%s", cep->file->filename, cep->line_number, MYCONF, cep->name); // So display just a warning
 	}
 
 	if(!got_match) {
-		config_error("%s:%i: missing %s::match directive", ce->ce_fileptr->cf_filename, ce->ce_varlinenum, MYCONF);
+		config_error("%s:%i: missing %s::match directive", ce->file->filename, ce->line_number, MYCONF);
 		errors++;
 	}
 	if(!got_replace) {
-		config_error("%s:%i: missing %s::replace directive", ce->ce_fileptr->cf_filename, ce->ce_varlinenum, MYCONF);
+		config_error("%s:%i: missing %s::replace directive", ce->file->filename, ce->line_number, MYCONF);
 		errors++;
 	}
 
@@ -268,27 +276,27 @@ int gecos_replace_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't gecos_replace, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
 	gecosEntry = safe_alloc(sizeof(Gecos));
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname || !cep->ce_vardata)
+		if(!cep->name || !cep->value)
 			continue; // Next iteration imo tbh
 
-		if(!strcmp(cep->ce_varname, "match")) {
-			safe_strdup(gecosEntry->match, cep->ce_vardata);
+		if(!strcmp(cep->name, "match")) {
+			safe_strdup(gecosEntry->match, cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "replace")) {
-			safe_strdup(gecosEntry->replace, cep->ce_vardata);
+		if(!strcmp(cep->name, "replace")) {
+			safe_strdup(gecosEntry->replace, cep->value);
 			continue;
 		}
 	}

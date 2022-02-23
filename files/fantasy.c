@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/fantasy";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/fantasy\";";
@@ -22,9 +22,6 @@ module {
 
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
-
-// Since v5.0.5 some hooks now include a SendType
-#define BACKPORT_HOOK_SENDTYPE (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 5)
 
 // Config block
 #define MYCONF "fantasy"
@@ -51,12 +48,7 @@ int fantasy_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int fantasy_configposttest(int *errs);
 int fantasy_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
 int fantasy_rehash(void);
-
-#if BACKPORT_HOOK_SENDTYPE
-	int fantasy_chanmsg(Client *client, Channel *channel, int sendflags, int prefix, char *targetstr, MessageTag *recv_mtags, char *text, int notice);
-#else
-	int fantasy_chanmsg(Client *client, Channel *channel, int sendflags, int prefix, char *targetstr, MessageTag *recv_mtags, char *text, SendType sendtype);
-#endif
+int fantasy_chanmsg(Client *client, Channel *channel, int sendflags, const char *prefix, const char *targetstr, MessageTag *recv_mtags, const char *text, SendType sendtype);
 
 fantasyCmd *fantasyList = NULL; // Store fantasy aliases lol
 int fantasyCount = 0; // Keep trakk of count lol
@@ -66,10 +58,10 @@ char svartypes[] = { '-', 'i', 'h', '*', 0 };
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/fantasy", // Module name
-	"2.0.3", // Version
+	"2.1.0", // Version
 	"Implements custom fantasy channel !cmds", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Configuration testing-related hewks go in testing phase obv
@@ -182,13 +174,16 @@ char *recurseArg(Client *client, Channel *channel, int index, char *var, int par
 			// Doing this check at the beginning because the previous loop might have caused it to be exactly 512 bytes long, this way we can properly detect when it would be truncated =]
 			if(strlen(arglist) + 1 == sizeof(arglist)) {
 				// The arglist here will be truncated by Unreal anyways, but it might give people just enough information to fix/work around it
-				sendto_realops("[fantasy] The alias '%s' resolved to a command that was too long (> 512 bytes/characters): %s", parv[0], arglist);
+				unreal_log(ULOG_ERROR, "fantasy", "FANTASY_OUT_OF_SPACE", client, "The alias '$alias' resolved to a command that was too long (> 512 bytes/characters): $cmd",
+					log_data_string("alias", parv[0]),
+					log_data_string("cmd", arglist)
+				);
 				break;
 			}
 
 			use_default = 1;
 
-			if((acptr = find_person(parv[i], NULL))) {
+			if((acptr = find_user(parv[i], NULL))) {
 				if(hostbit) {
 					p = GetHost(acptr);
 					use_default = 0;
@@ -228,7 +223,7 @@ char *recurseArg(Client *client, Channel *channel, int index, char *var, int par
 		if(index < parc && parv[index]) {
 			use_default = 1;
 
-			if((acptr = find_person(parv[index], NULL))) {
+			if((acptr = find_user(parv[index], NULL))) {
 				if(hostbit) {
 					ret = GetHost(acptr);
 					use_default = 0;
@@ -268,7 +263,7 @@ char *recurseArg(Client *client, Channel *channel, int index, char *var, int par
 
 	// If no ret value found, emit an in-channel warning for the user only
 	if(!ret)
-		sendto_one(client, NULL, ":%s NOTICE %s :Missing argument #%d for %c%s", me.name, channel->chname, index, cmdChar, parv[0]);
+		sendto_one(client, NULL, ":%s NOTICE %s :Missing argument #%d for %c%s", me.name, channel->name, index, cmdChar, parv[0]);
 
 	return ret;
 }
@@ -284,7 +279,7 @@ int fixSpecialVars(char *cmdv[], int i, Client *client, Channel *channel, int pa
 
 	// Channel var y0
 	if(match_simple("*$chan*", cmdv[i])) {
-		multitmp = replaceem(cmdv[i], "$chan", channel->chname);
+		multitmp = replaceem(cmdv[i], "$chan", channel->name);
 		safe_strdup(cmdv[i], multitmp); // Dup it agen
 		safe_free(multitmp);
 	}
@@ -328,26 +323,26 @@ int fantasy_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our block, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		found = 0;
 		// Do we even have a valid pair l0l?
-		if(!cep->ce_varname || !cep->ce_vardata) {
-			config_error("%s:%i: blank %s item", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!cep->name || !cep->value) {
+			config_error("%s:%i: blank %s item", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
-		if(!strcmp(cep->ce_varname, "cmdchar")) {
-			if(strlen(cep->ce_vardata) != 1 || cep->ce_vardata[0] == '/') {
-				config_error("%s:%i: %s::%s must be exactly one character in length and cannot be '/'", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname); // Rep0t error
+		if(!strcmp(cep->name, "cmdchar")) {
+			if(strlen(cep->value) != 1 || cep->value[0] == '/') {
+				config_error("%s:%i: %s::%s must be exactly one character in length and cannot be '/'", cep->file->filename, cep->line_number, MYCONF, cep->name); // Rep0t error
 				errors++; // Increment err0r count fam
 				continue;
 			}
@@ -356,12 +351,12 @@ int fantasy_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 
 		for(i = 1; i <= 9; i++) {
 			snprintf(svarmask, sizeof(svarmask), "*$%d-*", i);
-			if(match_simple(svarmask, cep->ce_vardata))
+			if(match_simple(svarmask, cep->value))
 				found++;
 		}
 
 		if(found > 1) {
-			config_error("%s:%i: you can't use multiple greedy variables (like $1-) for %s::%s", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname); // Rep0t error
+			config_error("%s:%i: you can't use multiple greedy variables (like $1-) for %s::%s", cep->file->filename, cep->line_number, MYCONF, cep->name); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
@@ -393,27 +388,27 @@ int fantasy_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't fantasy, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 		// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname || !cep->ce_vardata)
+		if(!cep->name || !cep->value)
 			continue; // Next iteration imo tbh
 
-		if(!strcmp(cep->ce_varname, "cmdchar")) {
-			cmdChar = cep->ce_vardata[0];
+		if(!strcmp(cep->name, "cmdchar")) {
+			cmdChar = cep->value[0];
 			continue;
 		}
 
 		// Lengths to alloc8 the struct vars with in a bit
-		size_t aliaslen = sizeof(char) * (strlen(cep->ce_varname) + 1);
-		size_t cmdlen = sizeof(char) * (strlen(cep->ce_vardata) + 1);
+		size_t aliaslen = sizeof(char) * (strlen(cep->name) + 1);
+		size_t cmdlen = sizeof(char) * (strlen(cep->value) + 1);
 
 		// Allocate mem0ry for the current entry
 		*fCmd = safe_alloc(sizeof(fantasyCmd));
@@ -423,8 +418,8 @@ int fantasy_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		(*fCmd)->cmdstr = safe_alloc(cmdlen);
 
 		// Copy that shit fam
-		strncpy((*fCmd)->alias, cep->ce_varname, aliaslen);
-		strncpy((*fCmd)->cmdstr, cep->ce_vardata, cmdlen);
+		strncpy((*fCmd)->alias, cep->name, aliaslen);
+		strncpy((*fCmd)->cmdstr, cep->value, cmdlen);
 
 		// Premium linked list fam
 		if(last)
@@ -443,18 +438,12 @@ int fantasy_rehash(void) {
 	return HOOK_CONTINUE;
 }
 
-#if BACKPORT_HOOK_SENDTYPE
-	int fantasy_chanmsg(Client *client, Channel *channel, int sendflags, int prefix, char *targetstr, MessageTag *recv_mtags, char *text, int notice) {
-		if(notice)
-			return HOOK_CONTINUE; // Just process the next hewk lol
-#else
-	int fantasy_chanmsg(Client *client, Channel *channel, int sendflags, int prefix, char *targetstr, MessageTag *recv_mtags, char *text, SendType sendtype) {
-		if(sendtype != SEND_TYPE_PRIVMSG)
-			return HOOK_CONTINUE;
-#endif
+int fantasy_chanmsg(Client *client, Channel *channel, int sendflags, const char *prefix, const char *targetstr, MessageTag *recv_mtags, const char *text, SendType sendtype) {
+	if(sendtype != SEND_TYPE_PRIVMSG)
+		return HOOK_CONTINUE;
 
 	// Checkem privs lol
-	if(!client || !MyUser(client) || (!is_chanowner(client, channel) && !is_chanadmin(client, channel) && !IsOper(client)))
+	if(!client || !MyUser(client) || (!check_channel_access(client, channel, "aq") && !IsOper(client)))
 		return HOOK_CONTINUE;
 
 	// Jus checkin for empty/non-fantasy messages, also ignore "!!fjert" etc
@@ -481,7 +470,12 @@ int fantasy_rehash(void) {
 	char *cmd; // To strip the leading ! w/o causing mem issues xd
 	size_t cmdlen;
 
-	// Gonna split ur shit into werds
+	// This is necessary because depending on the used command, Unreal might replace cmdv[x] with a non-strdup'd value (e.g. a static char[]) which causes a crash when trying to free that shit xd
+	// So we need a separate "cmdv" variable for allowing that (cmdv_const), and keep track of strdup'd values for freeing later (cmdv)
+	// We'll simply make cmdv_const point to all the values in cmdv so we still have all the original strdup'd pointers ;]
+	const char *cmdv_const[MAXPARA + 1];
+
+	// Gonna split ur !shit into werds
 	parc = 0;
 	ttemp = strdup(text);
 	p = strtok(ttemp, " \t"); // Split on whitespace 0bv
@@ -554,7 +548,9 @@ int fantasy_rehash(void) {
 
 			// Just a check lol, shouldn't happen cuz muh configtest() etc
 			if(!cmdv[0]) {
-				sendto_realops("[fantasy] The alias '%s' is configured incorrectly: seems to be entirely empty", fCmd->alias);
+				unreal_log(ULOG_ERROR, "fantasy", "FANTASY_INVALID", client, "The alias '$alias' is configured incorrectly: seems to be entirely empty",
+					log_data_string("alias", fCmd->alias)
+				);
 				continue;
 			}
 
@@ -566,22 +562,25 @@ int fantasy_rehash(void) {
 			if((gotmode = (!strcmp(cmdv[0], "MODE")))) {
 				// Check sanity of dem arguments yo
 				if(!cmdv[1] || !cmdv[2]) {
-					sendto_realops("[fantasy] The alias '%s' is configured incorrectly: missing arguments (channel and mode flag(s))", fCmd->alias);
-					// Gotta free em
+					unreal_log(ULOG_ERROR, "fantasy", "FANTASY_INVALID", client, "The alias '$alias' is configured incorrectly: missing arguments (channel and mode flag(s))",
+						log_data_string("alias", fCmd->alias)
+					);
 					free_args(cmdv, cmdc);
 					continue;
 				}
 
 				if(cmdv[2][0] != '+' && cmdv[2][0] != '-') {
-					sendto_realops("[fantasy] The alias '%s' is configured incorrectly: invalid mode direction, must be either + or -", fCmd->alias);
-					// Gotta free em
+					unreal_log(ULOG_ERROR, "fantasy", "FANTASY_INVALID", client, "The alias '$alias' is configured incorrectly: invalid mode direction, must be either + or -",
+						log_data_string("alias", fCmd->alias)
+					);
 					free_args(cmdv, cmdc);
 					continue;
 				}
 
 				if(!isalpha(cmdv[2][1])) {
-					sendto_realops("[fantasy] The alias '%s' is configured incorrectly: invalid mode flag, must be an alphabetic character", fCmd->alias);
-					// Gotta free em
+					unreal_log(ULOG_ERROR, "fantasy", "FANTASY_INVALID", client, "The alias '$alias' is configured incorrectly: invalid mode flag, must be an alphabetic character",
+						log_data_string("alias", fCmd->alias)
+					);
 					free_args(cmdv, cmdc);
 					continue;
 				}
@@ -603,6 +602,10 @@ int fantasy_rehash(void) {
 			for(i = 1; !stoppem && i < cmdc && !BadPtr(cmdv[i]); i++)
 				stoppem = fixSpecialVars(cmdv, i, client, channel, parc, parv, multidelim);
 
+			// Now make the cmdv "copy"
+			for(i = cmdc; i >= 0; i--)
+				cmdv_const[i] = cmdv[i];
+
 			// If this is a KICK and multikick is allowed (see a bit above), fix the targets
 			// The comma is a special temporary delimiter that facilit88 this bs m8
 			if(!stoppem && gotkick && multikick && cmdc >= 3 && cmdv[2] && strchr(cmdv[2], ',')) {
@@ -610,8 +613,9 @@ int fantasy_rehash(void) {
 				p3 = strtok(multitmp, ","); // Now tokenise on the premium comma
 				while(p3 != NULL) {
 					safe_strdup(cmdv[2], p3); // Dup 'em lol
+					cmdv_const[2] = cmdv[2]; // Update the "copy" with the new value too imo tbh famlamlamlma
 					p3 = strtok(NULL, ","); // Next target
-					do_cmd(client, NULL, cmdv[0], cmdc, cmdv); // It's required to send one do_cmd() for every target
+					do_cmd(client, NULL, cmdv_const[0], cmdc, cmdv_const); // It's required to send one do_cmd() for every target
 				}
 				passem = 1; // Skip the do_cmd() below ;]
 				safe_free(multitmp);
@@ -619,8 +623,18 @@ int fantasy_rehash(void) {
 
 			// do_cmd() sends the actual command on behalf of the user, so it takes care of permissions by itself ;]
 			if(!stoppem && !passem) {
-				do_cmd(client, NULL, cmdv[0], cmdc, cmdv);
 				passem = 1;
+				do_cmd(client, NULL, cmdv_const[0], cmdc, cmdv_const);
+
+				// Also echo messages back to the user =]
+				if(cmdc > 2 && (!strcmp(cmdv_const[0], "PRIVMSG") || !strcmp(cmdv_const[0], "NOTICE"))) {
+					// When sending to channels we can show the message in-channel, but for private messages such as to ChanServ we can't do something similar
+					// Either it appears as being sent *from* ChanServ OR *from* and *to* yourself, so I chose the latter and it'll show the original target in the message
+					if(cmdv_const[1][0] == '#')
+						sendto_one(client, NULL, ":%s %s %s :%s", client->name, cmdv_const[0], cmdv_const[1], cmdv_const[2]);
+					else
+						sendto_one(client, NULL, ":%s %s %s :[to: %s] %s", client->name, cmdv_const[0], cmdv_const[1], cmdv_const[1], cmdv_const[2]);
+				}
 			}
 
 			// Free our shit lol

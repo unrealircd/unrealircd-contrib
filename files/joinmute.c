@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/joinmute";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/joinmute\";";
@@ -23,14 +23,7 @@ module {
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
 
-// Since v5.0.5 some hooks now include a SendType
-#define BACKPORT_HOOK_SENDTYPE (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 5)
-
-// Prior to v5.2.0 we didn't have a channel argument for conv_param :>
-#undef BACKPORT_CONVPARAM_NOCHANNEL
-#if (UNREAL_VERSION_TIME < 202120)
-	#define BACKPORT_CONVPARAM_NOCHANNEL
-#endif
+#define CHMODE_FLAG 'J'
 
 #define CheckAPIError(apistr, apiobj) \
 	do { \
@@ -58,45 +51,35 @@ void add_user_to_memory(Client *client, Channel *channel);
 void del_user_from_memory(UsersM *u);
 void clear_matching_entries(Client *client);
 UsersM *FindUserInMemory(Client *client, Channel *channel);
-int joinmute_hook_join(Client *client, Channel *channel, MessageTag *mtags, char *parv[]);
-int joinmute_hook_part(Client *client, Channel *channel, MessageTag *mtags, char *comment);
-int joinmute_hook_quit(Client *client, MessageTag *recv_mtags, char *comment);
-int joinmute_hook_kick(Client *client, Client *victim, Channel *channel, MessageTag *mtags, char *comment);
-int modeJ_is_ok(Client *client, Channel *channel, char mode, char *para, int checkt, int what);
-void *modeJ_put_param(void *lst, char *para);
-char *modeJ_get_param(void *lst);
+int joinmute_hook_join(Client *client, Channel *channel, MessageTag *mtags);
+int joinmute_hook_part(Client *client, Channel *channel, MessageTag *mtags, const char *comment);
+int joinmute_hook_quit(Client *client, MessageTag *recv_mtags, const char *comment);
+int joinmute_hook_kick(Client *client, Client *victim, Channel *channel, MessageTag *mtags, const char *comment);
+int modeJ_is_ok(Client *client, Channel *channel, char mode, const char *para, int checkt, int what);
+void *modeJ_put_param(void *lst, const char *para);
+const char *modeJ_conv_param(const char *param, Client *client, Channel *channel);
+const char *modeJ_get_param(void *lst);
 void modeJ_free_param(void *lst);
 void *modeJ_dup_struct(void *src);
 int modeJ_sjoin_check(Channel *channel, void *ourx, void *theirx);
-
-#if BACKPORT_HOOK_SENDTYPE
-	int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice);
-#else
-	int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, SendType sendtype);
-#endif
-
-#ifdef BACKPORT_CONVPARAM_NOCHANNEL
-	char *modeJ_conv_param(char *param, Client *client);
-#else
-	char *modeJ_conv_param(char *param, Client *client, Channel *channel);
-#endif
+int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype);
 
 UsersM *muted_users = NULL; // List of data
 Cmode_t extcmode_joinmute = 0L; // To store the bit flag latur
 
 ModuleHeader MOD_HEADER = {
 	"third/joinmute",
-	"2.1",
+	"2.2.0", // Version
 	"Adds +J chmode: Mute newly joined people for +J X seconds",
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 MOD_INIT() {
 	CmodeInfo req;
 	memset(&req, 0, sizeof(req));
 	req.paracount = 1;
-	req.flag = 'J';
+	req.letter = CHMODE_FLAG;
 	req.is_ok = modeJ_is_ok;
 	req.put_param = modeJ_put_param;
 	req.get_param = modeJ_get_param;
@@ -125,17 +108,17 @@ MOD_UNLOAD() {
 	return MOD_SUCCESS;
 }
 
-int modeJ_is_ok(Client *client, Channel *channel, char mode, char *para, int checkt, int what) {
+int modeJ_is_ok(Client *client, Channel *channel, char mode, const char *para, int checkt, int what) {
 	int seconds = 0;
 	if(what == MODE_ADD)
 		seconds = atoi(para);
 
 	if((checkt == EXCHK_ACCESS) || (checkt == EXCHK_ACCESS_ERR)) {
-		if(IsUser(client) && is_chan_op(client, channel))
+		if(IsUser(client) && check_channel_access(client, channel, "oaq"))
 			return EX_ALLOW;
 
 		if(checkt == EXCHK_ACCESS_ERR) /* can only be due to being halfop */
-			sendnumeric(client, ERR_NOTFORHALFOPS, 'J');
+			sendnumeric(client, ERR_NOTFORHALFOPS, CHMODE_FLAG);
 
 		return EX_DENY;
 	}
@@ -149,15 +132,15 @@ int modeJ_is_ok(Client *client, Channel *channel, char mode, char *para, int che
 	return 0;
 }
 
-void *modeJ_put_param(void *r_in, char *param) {
-	JoinMute *r = (JoinMute *)r_in;
+void *modeJ_put_param(void *lst, const char *param) {
+	JoinMute *r = (JoinMute *)lst;
 	int seconds = atoi(param);
 	// Gottem entry already?
 	if(!r) {
 		/* Need to create one */
 		r = (JoinMute *)safe_alloc(sizeof(JoinMute));
 		memset(r, 0, sizeof(JoinMute));
-		r->flag = 'J';
+		r->flag = CHMODE_FLAG;
 	}
 	if(seconds < 0 || seconds > 65536)
 		seconds = 0;
@@ -165,8 +148,8 @@ void *modeJ_put_param(void *r_in, char *param) {
 	return (void *)r;
 }
 
-char *modeJ_get_param(void *r_in) {
-	JoinMute *r = (JoinMute *)r_in;
+const char *modeJ_get_param(void *lst) {
+	JoinMute *r = (JoinMute *)lst;
 	static char retbuf[16];
 	if(!r)
 		return NULL;
@@ -175,12 +158,7 @@ char *modeJ_get_param(void *r_in) {
 	return retbuf;
 }
 
-#ifdef BACKPORT_CONVPARAM_NOCHANNEL
-	char *modeJ_conv_param(char *param, Client *client)
-#else
-	char *modeJ_conv_param(char *param, Client *client, Channel *channel)
-#endif
-{
+const char *modeJ_conv_param(const char *param, Client *client, Channel *channel) {
 	static char retbuf[32];
 	int num = atoi(param);
 
@@ -266,7 +244,7 @@ UsersM *FindUserInMemory(Client *client, Channel *channel) {
 	UsersM *uz, *next;
 	for(uz = muted_users; uz; uz = next) {
 		next = (UsersM *)uz->next;
-		if(!find_person(uz->source->name, NULL)) {
+		if(!find_user(uz->source->name, NULL)) {
 			del_user_from_memory(uz);
 			continue;
 		}
@@ -274,7 +252,7 @@ UsersM *FindUserInMemory(Client *client, Channel *channel) {
 			del_user_from_memory(uz);
 			continue;
 		}
-		if(!(uz->channel->mode.extmode & extcmode_joinmute)) {
+		if(!has_channel_mode(uz->channel, CHMODE_FLAG)) {
 			del_user_from_memory(uz);
 			continue;
 		}
@@ -284,28 +262,28 @@ UsersM *FindUserInMemory(Client *client, Channel *channel) {
 	return NULL;
 }
 
-#if BACKPORT_HOOK_SENDTYPE
-	int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, int notice) {
-#else
-	int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, char **text, char **errmsg, SendType sendtype) {
-		if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
-			return HOOK_CONTINUE;
-#endif
+int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype) {
+	if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
+		return HOOK_CONTINUE;
+	if(!text || !*text)
+		return HOOK_CONTINUE;
 
-	char *para;
+	const char *para;
 	int seconds;
 	UsersM *u;
 	char errbuf[256];
 
 	if(!MyConnect(client) || !IsUser(client))
 		return HOOK_CONTINUE;
+
+	if(!has_channel_mode(channel, CHMODE_FLAG))
+		return HOOK_CONTINUE;
+
 	u = FindUserInMemory(client, channel); /* Let's find entry in muted users list :) */
-	para = cm_getparameter(channel, 'J');
+	para = cm_getparameter(channel, CHMODE_FLAG);
 
 	/* ops/hops/vops/opers are allowed to send it... */
-	if(!(channel->mode.extmode & extcmode_joinmute))
-		return HOOK_CONTINUE;
-	if(is_chan_op(client, channel) || is_half_op(client, channel) || has_voice(client, channel) || IsOper(client) || IsULine(client))
+	if(check_channel_access(client, channel, "vho") || IsOper(client) || IsULine(client))
 		return HOOK_CONTINUE;
 	if(!u || !para)
 		return HOOK_CONTINUE; /* Not found - let it be sent! -- Dvlpr */
@@ -319,19 +297,19 @@ UsersM *FindUserInMemory(Client *client, Channel *channel) {
 		del_user_from_memory(u);
 	else {
 		ircsnprintf(errbuf, sizeof(errbuf), "You must wait %d seconds after joining to speak", seconds);
-		sendnumeric(client, ERR_CANNOTSENDTOCHAN, channel->chname, errbuf, channel->chname);
+		sendnumeric(client, ERR_CANNOTSENDTOCHAN, channel->name, errbuf, channel->name);
 		*text = NULL;
 		// Can't return HOOK_DENY here cuz Unreal will abort() in that case :D
 	}
 	return HOOK_CONTINUE;
 }
 
-int joinmute_hook_join(Client *client, Channel *channel, MessageTag *mtags, char *parv[]) {
+int joinmute_hook_join(Client *client, Channel *channel, MessageTag *mtags) {
 	add_user_to_memory(client, channel);
 	return HOOK_CONTINUE;
 }
 
-int joinmute_hook_part(Client *client, Channel *channel, MessageTag *mtags, char *comment) {
+int joinmute_hook_part(Client *client, Channel *channel, MessageTag *mtags, const char *comment) {
 	UsersM *u = FindUserInMemory(client, channel);
 	if(!u)
 		return HOOK_CONTINUE;
@@ -339,12 +317,12 @@ int joinmute_hook_part(Client *client, Channel *channel, MessageTag *mtags, char
 	return HOOK_CONTINUE;
 }
 
-int joinmute_hook_quit(Client *client, MessageTag *recv_mtags, char *comment) {
+int joinmute_hook_quit(Client *client, MessageTag *recv_mtags, const char *comment) {
 	clear_matching_entries(client);
 	return HOOK_CONTINUE;
 }
 
-int joinmute_hook_kick(Client *client, Client *victim, Channel *channel, MessageTag *mtags, char *comment) {
+int joinmute_hook_kick(Client *client, Client *victim, Channel *channel, MessageTag *mtags, const char *comment) {
 	UsersM *u = FindUserInMemory(victim, channel);
 	if(!u)
 		return HOOK_CONTINUE;

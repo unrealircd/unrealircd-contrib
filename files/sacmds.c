@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/sacmds";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/sacmds\";";
@@ -22,14 +22,6 @@ module {
 
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
-
-// Prior to v5.2.0 we didn't have message tags for nickchange events :>
-#undef BACKPORT_NICKCHANGE_NO_MTAGS
-#if (UNREAL_VERSION_TIME < 202115)
-	#define BACKPORT_NICKCHANGE_NO_MTAGS
-#endif
-
-#define SNOMASK_SACMD 'A'
 
 #define MSG_SANICK "SANICK"
 #define MSG_SAUMODE "SAUMODE"
@@ -50,11 +42,7 @@ CMD_FUNC(cmd_sanick);
 CMD_FUNC(cmd_saumode);
 
 // Quality fowod declarations
-int HasSAPriv(Client *client);
 static void dumpit(Client *client, char **p);
-int sacmds_check_snomask(Client *client, int what);
-
-long SNO_SACMD = 0L;
 
 // Help strings in case someone does just /SA<CMD>
 /* Special characters:
@@ -94,14 +82,13 @@ static char *saumodehelp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/sacmds", // Module name
-	"2.1.1", // Version
+	"2.2.0", // Version
 	"Implements SA* commands for privileged opers", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 MOD_INIT() {
-	CheckAPIError("SnomaskAdd(SNO_SACMD)", SnomaskAdd(modinfo->handle, SNOMASK_SACMD, sacmds_check_snomask, &SNO_SACMD));
 	CheckAPIError("CommandAdd(SANICK)", CommandAdd(modinfo->handle, MSG_SANICK, cmd_sanick, 2, CMD_USER));
 	CheckAPIError("CommandAdd(SAUMODE)", CommandAdd(modinfo->handle, MSG_SAUMODE, cmd_saumode, 2, CMD_USER));
 
@@ -118,12 +105,6 @@ MOD_UNLOAD() {
 	return MOD_SUCCESS;
 }
 
-int HasSAPriv(Client *client) {
-	if(!IsUser(client) || IsULine(client) || ValidatePermissionsForPath("sanick", client, NULL, NULL, NULL) || ValidatePermissionsForPath("saumode", client, NULL, NULL, NULL))
-		return 1;
-	return 0;
-}
-
 // Dump a NULL-terminated array of strings to the user (taken from DarkFire IRCd)
 static void dumpit(Client *client, char **p) {
 	if(IsServer(client)) // Bail out early and silently if it's a server =]
@@ -132,23 +113,17 @@ static void dumpit(Client *client, char **p) {
 	// Using sendto_one() instead of sendnumericfmt() because the latter strips indentation and stuff ;]
 	for(; *p != NULL; p++)
 		sendto_one(client, NULL, ":%s %03d %s :%s", me.name, RPL_TEXT, client->name, *p);
-
-	// Let user take 8 seconds to read it
-	client->local->since += 8;
-}
-
-int sacmds_check_snomask(Client *client, int what) {
-	// No need to check remote clients
-	return ((!MyUser(client) || HasSAPriv(client)) ? UMODE_ALLOW : UMODE_DENY);
 }
 
 CMD_FUNC(cmd_sanick) {
 	// Gets args: Client *client, MessageTag *recv_mtags, int parc, char *parv[]
-	char *oldnick, *newnick;
+	char oldnick[NICKLEN + 1], newnick[NICKLEN + 1];
 	Client *acptr; // "Orig" check
 	Client *ocptr; // "New" check
 	long tiem; // Nickchange timestamp etc
 	MessageTag *mtags;
+	char descbuf[BUFSIZE];
+	unsigned char removemoder;
 
 	// Prevent non-privileged opers from using this command
 	if(!ValidatePermissionsForPath("sanick", client, NULL, NULL, NULL) && !IsULine(client)) {
@@ -166,13 +141,13 @@ CMD_FUNC(cmd_sanick) {
 		return;
 	}
 
-	oldnick = parv[1];
-	newnick = parv[2];
+	strlcpy(oldnick, parv[1], sizeof(oldnick));
+	strlcpy(newnick, parv[2], sizeof(newnick));
 
 	if(!strcasecmp(oldnick, newnick)) // If orig and new are the same, gtfo =]
 		return;
 
-	if(!(acptr = find_person(oldnick, NULL))) { // Ensure that the target nick is actually in use
+	if(!(acptr = find_user(oldnick, NULL))) { // Ensure that the target nick is actually in use
 		sendnumeric(client, ERR_NOSUCHNICK, oldnick); // Send error lol
 		return;
 	}
@@ -204,46 +179,47 @@ CMD_FUNC(cmd_sanick) {
 	}
 
 	// Enact the nick change
-	tiem = TStime(); // Get timestamp
-	acptr->umodes &= ~UMODE_REGNICK; // Remove +r umode (registered nick)
-	acptr->lastnick = tiem; // Set the timestamp of the last nick change for the target user to the current time.
-
-	mtags = NULL;
-	new_message(acptr, NULL, &mtags);
-	sendto_local_common_channels(acptr, NULL, 0, mtags, ":%s NICK :%s", acptr->name, newnick); // Send to other local users in common channels
-	sendto_server(NULL, 0, 0, mtags, ":%s NICK %s :%ld", acptr->id, newnick, acptr->lastnick); // And the rest of el netw0rkerin0 ;]
-	free_message_tags(mtags);
-	mtags = NULL;
-
-	add_history(acptr, 1); // Add nick history for whowas etc
-	(void)del_from_client_hash_table(acptr->name, acptr); // Remove old name from lclient_list
-	hash_check_watch(acptr, RPL_LOGOFF);
-
-	if(client->user) {
-		// Just in case a server calls this shit, send notice to all 0pers ;]
-		sendto_snomask_global(SNO_SACMD, "*** %s (%s@%s) used %s to change %s to %s", client->name, client->user->username, client->user->realhost, MSG_SANICK, acptr->name, newnick);
+	removemoder = ((acptr->umodes & UMODE_REGNICK) ? 1 : 0);
+	if(client->user) { // Just in case a server calls this shit
+		unreal_log(ULOG_INFO, "sacmds", "SACMDS_NICK_USAGE", client, "$client.details used $cmd to change $target to $new",
+			log_data_string("cmd", MSG_SANICK),
+			log_data_string("target", acptr->name),
+			log_data_string("new", newnick)
+		);
 	}
 
-	// Run hooks lol
-	#ifdef BACKPORT_NICKCHANGE_NO_MTAGS
-		RunHook2(HOOKTYPE_LOCAL_NICKCHANGE, acptr, newnick);
-	#else
-		new_message(acptr, NULL, &mtags);
-		RunHook3(HOOKTYPE_LOCAL_NICKCHANGE, acptr, mtags, newnick);
-		free_message_tags(mtags);
-	#endif
+	mtags = NULL;
+	tiem = TStime(); // Get timestamp
+	new_message(acptr, recv_mtags, &mtags);
+	RunHook(HOOKTYPE_LOCAL_NICKCHANGE, acptr, mtags, newnick);
+	acptr->lastnick = tiem; // Set the timestamp of the last nick change for the target user to the current time.
+	add_history(acptr, 1); // Add nick history for whowas etc
+	sendto_server(acptr, 0, 0, mtags, ":%s NICK %s %lld", acptr->id, newnick, (long long)acptr->lastnick); // Send to the rest of el netw0rkerin0 ;]
+	sendto_local_common_channels(acptr, acptr, 0, mtags, ":%s NICK :%s", acptr->name, newnick); // And to local users in common channels
+	sendto_one(acptr, mtags, ":%s NICK :%s", acptr->name, newnick); // And the user itself
+	free_message_tags(mtags);
 
+	if(removemoder)
+		acptr->umodes &= ~UMODE_REGNICK; // Remove +r umode (registered nick)
+
+	del_from_client_hash_table(acptr->name, acptr); // Remove old name from lclient_list
 	strlcpy(acptr->name, newnick, sizeof(acptr->name)); // Actually change the nick the pointer is using here
 	add_to_client_hash_table(newnick, acptr); // Re-add to lclient_list
-	hash_check_watch(acptr, RPL_LOGON);
+
+	snprintf(descbuf, sizeof(descbuf), "Client: %s", newnick);
+	fd_desc(acptr->local->fd, descbuf);
+	if(removemoder)
+		sendto_one(acptr, NULL, ":%s MODE %s :-r", me.name, acptr->name);
+
+	RunHook(HOOKTYPE_POST_LOCAL_NICKCHANGE, acptr, recv_mtags, oldnick);
 }
 
 CMD_FUNC(cmd_saumode) {
+	Umode *um;
+	const char *m; // For checkin em mode string
 	Client *acptr; // Target nick
-	char *m; // For checkin em mode string
 	int what; // Direction flag
 	long lastflags; // Current umodes
-	int i; // iter8or lol
 	char mbuf[128]; // For storing the required mode string to pass along to the MODE command
 
 	// Prevent non-privileged opers from using this command
@@ -262,7 +238,7 @@ CMD_FUNC(cmd_saumode) {
 		return;
 	}
 
-	if(!(acptr = find_person(parv[1], NULL))) { // Ensure that the target nick is actually in use
+	if(!(acptr = find_user(parv[1], NULL))) { // Ensure that the target nick is actually in use
 		sendnumeric(client, ERR_NOSUCHNICK, parv[1]); // Send error lol
 		return;
 	}
@@ -281,11 +257,7 @@ CMD_FUNC(cmd_saumode) {
 	userhost_save_current(acptr);
 
 	what = MODE_ADD;
-	lastflags = 0L;
-	for(i = 0; i <= Usermode_highest; i++) {
-		if(Usermode_Table[i].flag && (acptr->umodes & Usermode_Table[i].mode))
-			lastflags |= Usermode_Table[i].mode;
-	}
+	lastflags = acptr->umodes;
 
 	// Ayy thx Syzop ;];]
 	for(m = parv[2]; *m; m++) {
@@ -369,14 +341,12 @@ CMD_FUNC(cmd_saumode) {
 				break;
 			default:
 				setmodex: // Actually gonna change the mode here =]
-				for(i = 0; i <= Usermode_highest; i++) {
-					if(!Usermode_Table[i].flag)
-						continue;
-					if(*m == Usermode_Table[i].flag) {
+				for(um = usermodes; um; um = um->next) {
+					if(um->letter == *m) {
 						if(what == MODE_ADD)
-							acptr->umodes |= Usermode_Table[i].mode;
+							acptr->umodes |= um->mode;
 						else
-							acptr->umodes &= ~Usermode_Table[i].mode;
+							acptr->umodes &= ~um->mode;
 						break;
 					}
 				}
@@ -385,14 +355,17 @@ CMD_FUNC(cmd_saumode) {
 	}
 
 	if(lastflags != acptr->umodes) { // If the flags end up different ;]
-		RunHook3(HOOKTYPE_UMODE_CHANGE, client, lastflags, acptr->umodes); // Let's runnem hewks lel
+		RunHook(HOOKTYPE_UMODE_CHANGE, acptr, lastflags, acptr->umodes); // Let's runnem hewks lel
 		build_umode_string(acptr, lastflags, ALL_UMODES, mbuf); // Figure out the resulting mode string ;]
 		if(MyUser(acptr) && *mbuf)
 			sendto_one(acptr, NULL, ":%s MODE %s :%s", client->name, acptr->name, mbuf);
 
 		if(client->user) {
-			// Just in case a server calls this shit, send notice to all 0pers ;]
-			sendto_snomask_global(SNO_SACMD, "*** %s (%s@%s) used %s %s to change %s's umodes", client->name, client->user->username, client->user->realhost, MSG_SAUMODE, mbuf, acptr->name);
+			unreal_log(ULOG_INFO, "sacmds", "SACMDS_UMODE_USAGE", client, "$client.details used $cmd $args to change $target's umodes",
+				log_data_string("cmd", MSG_SAUMODE),
+				log_data_string("args", mbuf),
+				log_data_string("target", acptr->name)
+			);
 		}
 	}
 

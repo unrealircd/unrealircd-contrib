@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/noghosts";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/noghosts\";";
@@ -37,7 +37,7 @@ struct t_chanstrukk {
 int noghosts_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int noghosts_configposttest(int *errs);
 int noghosts_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
-unsigned short int is_chan_monitored(char *chname);
+unsigned short int is_chan_monitored(char *name);
 int noghosts_hook_change_umode(Client *client, long oldflags, long newflags);
 
 // Muh config shit y0
@@ -54,10 +54,10 @@ struct {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/noghosts", // Module name
-	"2.0", // Version
+	"2.1.0", // Version
 	"Keep channels clear of \"ghosts\" of opers", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Configuration testing-related hewks go in testing phase obv
@@ -110,30 +110,31 @@ int noghosts_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our block, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname) {
-			config_error("%s:%i: blank %s item", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!cep->name) {
+			config_error("%s:%i: blank %s item", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
-		if(!strcmp(cep->ce_varname, "flags")) {
-			if(!cep->ce_vardata || !strlen(cep->ce_vardata)) {
-				config_error("%s:%i: %s::%s must be non-empty fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+		if(!strcmp(cep->name, "flags")) {
+			if(!cep->value || !strlen(cep->value)) {
+				config_error("%s:%i: %s::%s must be non-empty fam", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 				continue;
 			}
-			if(strcmp(cep->ce_vardata, "O")) {
-				config_error("%s:%i: %s::%s must be one of: O", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+			if(strcmp(cep->value, "O")) {
+				//config_error("%s:%i: %s::%s must be one of: O", cep->file->filename, cep->line_number, MYCONF, cep->name);
+				config_error("%s:%i: %s::%s must be: O", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 				continue;
 			}
@@ -141,9 +142,9 @@ int noghosts_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "message")) {
-			if(!cep->ce_vardata || !strlen(cep->ce_vardata)) {
-				config_error("%s:%i: %s::%s must be non-empty fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+		if(!strcmp(cep->name, "message")) {
+			if(!cep->value || !strlen(cep->value)) {
+				config_error("%s:%i: %s::%s must be non-empty fam", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++; // Increment err0r count fam
 				continue;
 			}
@@ -152,21 +153,21 @@ int noghosts_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 		}
 
 		// Here comes a nested block =]
-		if(!strcmp(cep->ce_varname, "channels")) {
+		if(!strcmp(cep->name, "channels")) {
 			// Loop 'em again
-			for(cep2 = cep->ce_entries; cep2; cep2 = cep2->ce_next) {
-				if(!cep2->ce_varname || !strlen(cep2->ce_varname)) {
-					config_error("%s:%i: blank %s::%s item", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, MYCONF, cep->ce_varname); // Rep0t error
+			for(cep2 = cep->items; cep2; cep2 = cep2->next) {
+				if(!cep2->name || !strlen(cep2->name)) {
+					config_error("%s:%i: blank %s::%s item", cep2->file->filename, cep2->line_number, MYCONF, cep->name); // Rep0t error
 					errors++; // Increment err0r count fam
 					continue; // Next iteration imo tbh
 				}
-				if(cep2->ce_varname[0] != '#') {
-					config_error("%s:%i: invalid channel name '%s': must start with #", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, cep2->ce_varname); // Rep0t error
+				if(cep2->name[0] != '#') {
+					config_error("%s:%i: invalid channel name '%s': must start with #", cep2->file->filename, cep2->line_number, cep2->name); // Rep0t error
 					errors++; // Increment err0r count fam
 					continue; // Next iteration imo tbh
 				}
-				if(strlen(cep2->ce_varname) > CHANNELLEN) {
-					config_error("%s:%i: invalid channel name '%s': must not exceed %d characters in length", cep2->ce_fileptr->cf_filename, cep2->ce_varlinenum, cep2->ce_varname, CHANNELLEN);
+				if(strlen(cep2->name) > CHANNELLEN) {
+					config_error("%s:%i: invalid channel name '%s': must not exceed %d characters in length", cep2->file->filename, cep2->line_number, cep2->name, CHANNELLEN);
 					errors++; // Increment err0r count fam
 					continue; // Next iteration imo tbh
 				}
@@ -176,7 +177,7 @@ int noghosts_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 		}
 
 		// Anything else is unknown to us =]
-		config_warn("%s:%i: unknown item %s::%s", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname); // So display just a warning
+		config_warn("%s:%i: unknown item %s::%s", cep->file->filename, cep->line_number, MYCONF, cep->name); // So display just a warning
 	}
 
 	*errs = errors;
@@ -208,38 +209,38 @@ int noghosts_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't noghosts, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname)
+		if(!cep->name)
 			continue; // Next iteration imo tbh
 
-		if(!strcmp(cep->ce_varname, "flags")) {
-			safe_strdup(muhcfg.flags, cep->ce_vardata);
+		if(!strcmp(cep->name, "flags")) {
+			safe_strdup(muhcfg.flags, cep->value);
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "message")) {
-			safe_strdup(muhcfg.message, cep->ce_vardata);
+		if(!strcmp(cep->name, "message")) {
+			safe_strdup(muhcfg.message, cep->value);
 			continue;
 		}
 
 		// Nesting
-		if(!strcmp(cep->ce_varname, "channels")) {
+		if(!strcmp(cep->name, "channels")) {
 			// Loop 'em
-			for(cep2 = cep->ce_entries; cep2; cep2 = cep2->ce_next) {
-				if(!cep2->ce_varname)
+			for(cep2 = cep->items; cep2; cep2 = cep2->next) {
+				if(!cep2->name)
 					continue; // Next iteration imo tbh
 
 				// Gotta get em length yo
-				size_t namelen = sizeof(char) * (strlen(cep2->ce_varname) + 1);
+				size_t namelen = sizeof(char) * (strlen(cep2->name) + 1);
 
 				// Allocate mem0ry for the current entry
 				*chan = safe_alloc(sizeof(muhchan));
@@ -248,7 +249,7 @@ int noghosts_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 				(*chan)->name = safe_alloc(namelen);
 
 				// Copy that shit fam
-				strncpy((*chan)->name, cep2->ce_varname, namelen);
+				strncpy((*chan)->name, cep2->name, namelen);
 
 				// Premium linked list fam
 				if(last)
@@ -264,14 +265,14 @@ int noghosts_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 	return 1; // We good
 }
 
-unsigned short int is_chan_monitored(char *chname) {
+unsigned short int is_chan_monitored(char *name) {
 	muhchan *chan;
 	if(!muhcfg.chancount) // No channels specified = default to all ;]
 		return 1;
 
 	// Checkem configured channels nao
 	for(chan = muhcfg.channels; chan; chan = chan->next) {
-		if(!strcasecmp(chan->name, chname))
+		if(!strcasecmp(chan->name, name))
 			return 1;
 	}
 	return 0;
@@ -280,7 +281,7 @@ unsigned short int is_chan_monitored(char *chname) {
 // Actual hewk functions m8
 int noghosts_hook_change_umode(Client *client, long oldflags, long newflags) {
 	Membership *lp, *next;
-	char *parv[4];
+	const char *parv[4];
 
 	// Don't bother with remote clients or if flags r set but don't contain O ;];]
 	if(!MyUser(client) || (muhcfg.flags && !strchr(muhcfg.flags, 'O')))
@@ -291,10 +292,10 @@ int noghosts_hook_change_umode(Client *client, long oldflags, long newflags) {
 		for(lp = client->user->channel; lp; lp = next) {
 			next = lp->next; // Cuz inb4rip linked list after a PART
 			// Check for chancount here to save one function call/iteration =]]]
-			if(has_channel_mode(lp->channel, 'O') && (!muhcfg.chancount || is_chan_monitored(lp->channel->chname))) {
+			if(has_channel_mode(lp->channel, 'O') && is_chan_monitored(lp->channel->name)) {
 				// Rebuild all parv cuz we prolly should =]
 				parv[0] = NULL; // PART
-				parv[1] = lp->channel->chname;
+				parv[1] = lp->channel->name;
 				parv[2] = muhcfg.message;
 				parv[3] = NULL; // EOL
 				do_cmd(client, NULL, "PART", 3, parv);

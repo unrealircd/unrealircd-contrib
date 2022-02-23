@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/signore";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/signore\";";
@@ -22,9 +22,6 @@ module {
 
 // One include for all cross-platform compatibility thangs
 #include "unrealircd.h"
-
-// Since v5.0.5 some hooks now include a SendType
-#define BACKPORT_HOOK_SENDTYPE (UNREAL_VERSION_GENERATION == 5 && UNREAL_VERSION_MAJOR == 0 && UNREAL_VERSION_MINOR < 5)
 
 // Command strings
 #define MSG_SIGNORE "SIGNORE"
@@ -65,12 +62,7 @@ ILine *get_ilines(void);
 ILine *find_iline(char *mask, char *other);
 ILine *match_iline(Client *client, Client *acptr);
 int signore_hook_serversync(Client *client);
-
-#if BACKPORT_HOOK_SENDTYPE
-	int signore_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice);
-#else
-	int signore_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype);
-#endif
+int signore_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype);
 
 // Muh globals
 ModDataInfo *signoreMDI; // To store the I-Lines with &me lol (hack so we don't have to use a .db file or some shit)
@@ -108,10 +100,10 @@ static char *muhhalp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/signore", // Module name
-	"2.0.2", // Version
+	"2.1.0", // Version
 	"Implements an I-Line for adding server-side ignores", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Initialisation routine (register hooks, commands and modes or create structs etc)
@@ -172,9 +164,6 @@ static void dumpit(Client *client, char **p) {
 	// Using sendto_one() instead of sendnumericfmt() because the latter strips indentation and stuff ;]
 	for(; *p != NULL; p++)
 		sendto_one(client, NULL, ":%s %03d %s :%s", me.name, RPL_TEXT, client->name, *p);
-
-	// Let user take 8 seconds to read it
-	client->local->since += 8;
 }
 
 EVENT(signore_event) {
@@ -213,8 +202,14 @@ void check_ilines(void) {
 			*gmt = '\0';
 			short_date(last->set, gmt);
 
-			// Send expiration notice to all _local_ opers lol (every server checks expirations itself newaysz y0)
-			sendto_snomask(SNO_TKL, "*** Expiring I-Line by %s (set at %s GMT) for %s and %s [reason: %s]", last->setby, gmt, last->mask, last->other, last->raisin);
+			// Send expiration notice to all opers lol (every server checks expirations itself newaysz y0)
+			unreal_log(ULOG_INFO, "signore", "SIGNORE_EXPIRE", NULL, "Expiring I-Line by $setby (set at $gmt GMT) for $mask and $mask2 [reason: $raisin]",
+				log_data_string("setby", last->setby),
+				log_data_string("gmt", gmt),
+				log_data_string("mask", last->mask),
+				log_data_string("mask2", last->other),
+				log_data_string("raisin", last->raisin)
+			);
 
 			safe_free(last->mask); // Gotta
 			safe_free(last->other); // Gotta
@@ -338,7 +333,7 @@ ILine *match_iline(Client *client, Client *acptr) {
 	mptr = make_user_host(acptr->user->username, acptr->user->realhost); // Also other user's
 	ircsnprintf(other, sizeof(other), "%s", mptr);
 
-	if(!mask || !other || !*mask || !*other) // r u insaiyan lol?
+	if(!strlen(mask) || !strlen(other)) // r u insaiyan lol?
 		return NULL;
 
 	return find_iline(mask, other); // Returns NULL if n0, gg ez
@@ -360,15 +355,12 @@ int signore_hook_serversync(Client *client) {
 }
 
 // Pre message hewk lol
-#if BACKPORT_HOOK_SENDTYPE
-	int signore_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, int notice) {
-#else
-	int signore_hook_cansend_user(Client *client, Client *to, char **text, char **errmsg, SendType sendtype) {
-		if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
-			return HOOK_CONTINUE;
-#endif
-
+int signore_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype) {
 	static char errbuf[256];
+	if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
+		return HOOK_CONTINUE;
+	if(!text || !*text) // If there's no text then the message is already blocked :>
+		return HOOK_CONTINUE;
 
 	// Let's exclude some shit lol
 	if(!MyUser(client) || !IsUser(to) || IsOper(client) || IsOper(to) || IsULine(client) || IsULine(to))
@@ -387,13 +379,16 @@ int signore_hook_serversync(Client *client) {
 CMD_FUNC(signore) {
 	// Gets args: Client *client, MessageTag *recv_mtags, int parc, char *parv[]
 	ILine *ILineList, *newsig, *sigEntry; // Quality struct pointers
-	char *mptr, *optr, mask[USERLEN + HOSTLEN + 2], other[USERLEN + HOSTLEN + 2], *exptmp, *setby; // Muh args
+	char tmp[USERLEN + HOSTLEN + 2], mask[USERLEN + HOSTLEN + 2], other[USERLEN + HOSTLEN + 2];
+	char *mptr;
+	const char *optr, *exptmp, *setby;
 	char raisin[BUFSIZE]; // Reasons may or may not be pretty long
 	char gmt[128], gmt2[128]; // For a pretty timestamp instead of UNIX time lol
 	char cur, prev, prev2; // For checking time strings
 	long setat, expire; // After how many seconds the I-Line should expire
 	int i, adoffset, rindex, del; // Iterat0rs, indices and "booleans" =]
 	Client *acptr; // To check if the mask is a nick instead =]
+	const char *what, *log_event;
 
 	// Gotta be at least a server, U-Line or oper with correct privs lol
 	if((!IsServer(client) && !IsULine(client) && !IsOper(client)) || !ValidatePermissionsForPath("signore", client, NULL, NULL, NULL)) {
@@ -437,20 +432,24 @@ CMD_FUNC(signore) {
 	adoffset = 0;
 	del = 0;
 	if(IsUser(client)) { // Regular clients always use a shorter form =]
-		mptr = parv[1]; // First arg is the mask hur
-		optr = parv[2]; // Next is other mask y0
+		// First arg is the mask hur
+		strlcpy(tmp, parv[1], sizeof(tmp));
+		mptr = tmp;
+
 		if(strchr("+-", *mptr)) { // Check if it starts with either + or - fam
 			del = (*mptr == '-' ? 1 : 0); // We deleting shyte?
 			mptr++; // Skip past the sign lol
 		}
 		adoffset++; // Need to shift by one rn
 
+		optr = parv[2]; // Next is other mask y0
+
 		// Attempt to resolve online nicks to their respective masqs =]
-		if((acptr = find_person(mptr, NULL)))
+		if((acptr = find_user(mptr, NULL)))
 			mptr = make_user_host(acptr->user->username, acptr->user->realhost); // Get user@host with the real hostnaem
 		ircsnprintf(mask, sizeof(mask), "%s", mptr);
 
-		if((acptr = find_person(optr, NULL)))
+		if((acptr = find_user(optr, NULL)))
 			optr = make_user_host(acptr->user->username, acptr->user->realhost); // Get user@host with the real hostnaem
 		ircsnprintf(other, sizeof(other), "%s", optr);
 	}
@@ -574,25 +573,59 @@ CMD_FUNC(signore) {
 	// Propagate the I-Line to other local servers fam (excluding the direction it came from ;])
 	sendto_server(client, 0, 0, NULL, ":%s %s %s %s %s %ld %ld %s :%s", me.id, MSG_SIGNORE, (del ? "DEL" : "ADD"), mask, other, sigEntry->set, sigEntry->expire, setby, sigEntry->raisin); // Muh raw command
 
-	// Also send snomask notices to all local opers =]
+	// Also send notices to opers =]
 	// Make pretty set timestamp first tho
 	*gmt2 = '\0';
 	short_date(sigEntry->set, gmt2);
 
+	log_event = (del ? "SIGNORE_DEL" : "SIGNORE_ADD");
+	what = (del ? "deleted" : "added");
 	if(sigEntry->expire == 0) { // Permanent lol
-		if(IsServer(client)) // Show "set at" during sync phase ;]
-			sendto_snomask(SNO_TKL, "*** Permanent I-Line %sed by %s (set at %s GMT) for %s and %s [reason: %s]", (del ? "delet" : "add"), setby, gmt2, mask, other, sigEntry->raisin);
-		else
-			sendto_snomask(SNO_TKL, "*** Permanent I-Line %sed by %s for %s and %s [reason: %s]", (del ? "delet" : "add"), setby, mask, other, sigEntry->raisin);
+		if(IsServer(client)) { // Show "set at" during sync phase ;]
+			unreal_log(ULOG_INFO, "signore", log_event, client, "Permanent I-Line $what by $setby (set at $gmt GMT) for $mask and $mask2 [reason: $raisin]",
+				log_data_string("what", what),
+				log_data_string("setby", setby),
+				log_data_string("gmt", gmt2),
+				log_data_string("mask", mask),
+				log_data_string("mask2", other),
+				log_data_string("raisin", sigEntry->raisin)
+			);
+		}
+		else {
+			unreal_log(ULOG_INFO, "signore", log_event, client, "Permanent I-Line $what by $setby for $mask and $mask2 [reason: $raisin]",
+				log_data_string("what", what),
+				log_data_string("setby", setby),
+				log_data_string("mask", mask),
+				log_data_string("mask2", other),
+				log_data_string("raisin", sigEntry->raisin)
+			);
+		}
 	}
 	else {
 		// Make pretty expiration timestamp if not a permanent I-Line
 		*gmt = '\0';
 		short_date(sigEntry->set + sigEntry->expire, gmt);
-		if(IsServer(client)) // Show "set at" during sync phase ;]
-			sendto_snomask(SNO_TKL, "*** I-Line %sed by %s (set at %s GMT) for %s and %s, expiring at %s GMT [reason: %s]", (del ? "delet" : "add"), setby, gmt2, mask, other, gmt, sigEntry->raisin);
-		else
-			sendto_snomask(SNO_TKL, "*** I-Line %sed by %s for %s and %s, expiring at %s GMT [reason: %s]", (del ? "delet" : "add"), setby, mask, other, gmt, sigEntry->raisin);
+		if(IsServer(client)) { // Show "set at" during sync phase ;]
+			unreal_log(ULOG_INFO, "signore", log_event, client, "I-Line $what by $setby (set at $gmt GMT) for $mask and $mask2, expiring at $gmt_expire GMT [reason: $raisin]",
+				log_data_string("what", what),
+				log_data_string("setby", setby),
+				log_data_string("gmt", gmt2),
+				log_data_string("mask", mask),
+				log_data_string("mask2", other),
+				log_data_string("gmt_expire", gmt),
+				log_data_string("raisin", sigEntry->raisin)
+			);
+		}
+		else {
+			unreal_log(ULOG_INFO, "signore", log_event, client, "I-Line $what by $setby for $mask and $mask2, expiring at $gmt_expire GMT [reason: $raisin]",
+				log_data_string("what", what),
+				log_data_string("setby", setby),
+				log_data_string("mask", mask),
+				log_data_string("mask2", other),
+				log_data_string("gmt_expire", gmt),
+				log_data_string("raisin", sigEntry->raisin)
+			);
+		}
 	}
 
 	// Delete em famamlamlamlmal

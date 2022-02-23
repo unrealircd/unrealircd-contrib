@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/rtkl";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/rtkl\";";
@@ -41,7 +41,7 @@ CMD_FUNC(cmd_rzline);
 
 // Quality fowod declarations
 static void dumpit(Client *client, char **p);
-void rtkl_main(Client *client, int parc, char *parv[], char *cmd, char *operperm);
+void rtkl_main(Client *client, int parc, const char *parv[], char *cmd, char *operperm);
 int hook_tkl_add(Client *client, TKL *tkl);
 int hook_tkl_del(Client *client, TKL *tkl);
 int hook_tkl_main(Client *client, TKL *tkl, char flag);
@@ -79,10 +79,10 @@ static char *rtklhelp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/rtkl", // Module name
-	"2.0", // Version
+	"2.1.0", // Version
 	"Allows privileged opers to remove remote servers' local K/Z-Lines", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Initialisation routine (register hooks, commands and modes or create structs etc)
@@ -116,9 +116,6 @@ static void dumpit(Client *client, char **p) {
 	// Using sendto_one() instead of sendnumericfmt() because the latter strips indentation and stuff ;]
 	for(; *p != NULL; p++)
 		sendto_one(client, NULL, ":%s %03d %s :%s", me.name, RPL_TEXT, client->name, *p);
-
-	// Let user take 8 seconds to read it
-	client->local->since += 8;
 }
 
 CMD_FUNC(cmd_rkline) {
@@ -130,7 +127,7 @@ CMD_FUNC(cmd_rzline) {
 	rtkl_main(client, parc, parv, MSG_RZLINE, "server-ban:zline:local:remove");
 }
 
-void rtkl_main(Client *client, int parc, char *parv[], char *cmd, char *operperm) {
+void rtkl_main(Client *client, int parc, const char *parv[], char *cmd, char *operperm) {
 	int i; // Iterator to shift parv in a bit ;]
 	Client *srv; // Server pointer kek
 	char buf[BUFSIZE];
@@ -180,7 +177,11 @@ void rtkl_main(Client *client, int parc, char *parv[], char *cmd, char *operperm
 		len += strlen(parv[i]);
 	}
 
-	sendto_snomask_global(SNO_TKL, "*** [rtkl] %s (%s@%s) used %s for server %s [args = %s]", client->name, client->user->username, client->user->realhost, cmd, parv[1], buf);
+	unreal_log(ULOG_INFO, "rtkl", "RTKL_USAGE", client, "$client.details used $cmd for server $target [args = $args]",
+		log_data_string("cmd", cmd),
+		log_data_string("target", parv[1]),
+		log_data_string("args", buf)
+	);
 
 	cmd++; // Skip the R in RKLINE etc =]
 	sendto_one(srv, NULL, ":%s %s %s", client->name, cmd, buf);
@@ -211,7 +212,7 @@ int hook_tkl_main(Client *client, TKL *tkl, char flag) {
 	tkltype = tkl_typetochar(tkl->type);
 	strncpy(setby, tkl->set_by, sizeof(setby));
 	nick = strtok(setby, "!");
-	if(!nick || !(setter = find_person(nick, NULL)) || MyUser(setter) || !strchr("kz", tkltype))
+	if(!nick || !(setter = find_user(nick, NULL)) || MyUser(setter) || !strchr("kz", tkltype))
 		return HOOK_CONTINUE; // kbye
 
 	// Let's build that fucking message

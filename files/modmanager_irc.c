@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/modmanager_irc";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/modmanager_irc\";";
@@ -112,10 +112,10 @@ static char *modmanager_irc_help[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/modmanager_irc", // Module name
-	"1.0", // Version
+	"1.1.0", // Version
 	"Control Unreal's module manager through IRC", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Configuration testing-related hewks go in testing phase obv
@@ -177,51 +177,51 @@ int modmanager_irc_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *er
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our block, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
 		// This should already be checked by Unreal's core functions but there's no harm in having it here too =]
-		if(!cep->ce_varname) {
-			config_error("%s:%i: blank %s item", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!cep->name) {
+			config_error("%s:%i: blank %s item", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 			errors++; // Increment err0r count fam
 			continue; // Next iteration imo tbh
 		}
 
-		if(!cep->ce_vardata) {
-			config_error("%s:%i: blank %s value", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF); // Rep0t error
+		if(!cep->value) {
+			config_error("%s:%i: blank %s value", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 			errors++;
 			continue;
 		}
 
-		if(!strcmp(cep->ce_varname, "default-exlibs")) {
+		if(!strcmp(cep->name, "default-exlibs")) {
 			if(muhcfg.got_default_exlibs) {
-				config_error("%s:%i: duplicate %s::%s directive", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+				config_error("%s:%i: duplicate %s::%s directive", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++;
 				continue;
 			}
 
 			muhcfg.got_default_exlibs = 1;
-			len = strlen(cep->ce_vardata);
+			len = strlen(cep->value);
 			if(!len) {
-				config_error("%s:%i: %s::%s must be non-empty fam", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname);
+				config_error("%s:%i: %s::%s must be non-empty fam", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++;
 			}
 			else if(len > EXLIBS_MAXLEN) {
-				config_error("%s:%i: the length of %s::%s must be equal to or less than %d characters", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname, EXLIBS_MAXLEN);
+				config_error("%s:%i: the length of %s::%s must be equal to or less than %d characters", cep->file->filename, cep->line_number, MYCONF, cep->name, EXLIBS_MAXLEN);
 				errors++;
 			}
 			continue;
 		}
 
 		// Anything else is unknown to us =]
-		config_warn("%s:%i: unknown item %s::%s", cep->ce_fileptr->cf_filename, cep->ce_varlinenum, MYCONF, cep->ce_varname); // So display just a warning
+		config_warn("%s:%i: unknown item %s::%s", cep->file->filename, cep->line_number, MYCONF, cep->name); // So display just a warning
 	}
 
 	*errs = errors;
@@ -237,21 +237,21 @@ int modmanager_irc_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't modmanager_irc, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
 	// Loop dat shyte fam
-	for(cep = ce->ce_entries; cep; cep = cep->ce_next) {
+	for(cep = ce->items; cep; cep = cep->next) {
 		// Do we even have a valid name l0l?
-		if(!cep->ce_varname)
+		if(!cep->name)
 			continue; // Next iteration imo tbh
 
-		if(!strcmp(cep->ce_varname, "default-exlibs")) {
-			safe_strdup(muhcfg.default_exlibs, cep->ce_vardata);
+		if(!strcmp(cep->name, "default-exlibs")) {
+			safe_strdup(muhcfg.default_exlibs, cep->value);
 			continue;
 		}
 	}
@@ -267,9 +267,6 @@ static void dumpit(Client *client, char **p) {
 	// Using sendto_one() instead of sendnumericfmt() because the latter strips indentation and stuff ;]
 	for(; *p != NULL; p++)
 		sendto_one(client, NULL, ":%s %03d %s :%s", me.name, RPL_TEXT, client->name, *p);
-
-	// Let user take 8 seconds to read it
-	client->local->since += 8;
 }
 
 void reset_exlibs(char *currentlibs) {
@@ -317,10 +314,10 @@ CMD_FUNC(modmanager_irc) {
 	** This function returns void, so simply return to stop processing
 	*/
 	Client *srv; // Pointer to server we need to forward to
-	char *target; // Local/global/server name
-	char *cmd; // Install/uninstall/upgrade
-	char *modname; // Actual module name, or '*'
-	char *p; // For checkin em valid characters y0
+	const char *target; // Local/global/server name
+	const char *cmd; // Install/uninstall/upgrade
+	const char *modname; // Actual module name, or '*'
+	const char *p; // For checkin em valid characters y0
 	char exlibs[EXLIBS_MAXLEN + 1]; // Gotta parse all remaining parv[] arg00ments into one char array (can't store a whole lot cuz we need to be able to communicate it fully to other serburs ;])
 	char shellcmd[BUFSIZE + 1]; // Should fit exlibs entirely, as well as the rest of the command ;]
 	char *currentlibs; // In case Unreal's environment already has EXLIBS set somehow, return it to its original value afterwards
@@ -438,12 +435,23 @@ CMD_FUNC(modmanager_irc) {
 
 	// Send notice about command usage imo tbh famalam
 	if(MyUser(client)) {
-		if(len_exlibs)
-			sendto_snomask_global(SNO_EYES, "[modmanager_irc] %s (%s@%s) used the %s command [args: %s %s %s %s]",
-				client->name, client->user->username, client->user->realhost, MSG_MODMGR, target, cmd, (modname ? modname : "*"), exlibs);
-		else
-			sendto_snomask_global(SNO_EYES, "[modmanager_irc] %s (%s@%s) used the %s command [args: %s %s %s]",
-				client->name, client->user->username, client->user->realhost, MSG_MODMGR, target, cmd, (modname ? modname : "*"));
+		if(len_exlibs) {
+			unreal_log(ULOG_INFO, "modmanager_irc", "MODMANAGER_IRC_USAGE", client, "$client.details used the $cmd command [args: $target $subcmd $modname $exlibs]",
+				log_data_string("cmd", MSG_MODMGR),
+				log_data_string("target", target),
+				log_data_string("subcmd", cmd),
+				log_data_string("modname", (modname ? modname : "*")),
+				log_data_string("exlibs", exlibs)
+			);
+		}
+		else {
+			unreal_log(ULOG_INFO, "modmanager_irc", "MODMANAGER_IRC_USAGE", client, "$client.details used the $cmd command [args: $target $subcmd $modname]",
+				log_data_string("cmd", MSG_MODMGR),
+				log_data_string("target", target),
+				log_data_string("subcmd", cmd),
+				log_data_string("modname", (modname ? modname : "*"))
+			);
+		}
 	}
 
 	// Forward the command to a specific server if we need to (in which case we always use the "local" option)
@@ -656,8 +664,11 @@ EVENT(modmanager_irc_closechild_event) {
 			continue; // Don't output this line either kek
 		}
 
-		if(deadclient)
-			sendto_realops("[modmanager_irc, relayed] %s", stdbuf);
+		if(deadclient) {
+			unreal_log(ULOG_INFO, "modmanager_irc", "MODMANAGER_IRC_RELAYEDOUTPUT", client, "[relayed] $out",
+				log_data_string("out", stdbuf)
+			);
+		}
 		else
 			sendnotice(client, "[modmanager_irc] %s", stdbuf);
 	}
@@ -673,8 +684,11 @@ EVENT(modmanager_irc_closechild_event) {
 				else
 					continue;
 			}
-			if(deadclient)
-				sendto_realops("[modmanager_irc, relayed] %s", stdbuf);
+			if(deadclient) {
+				unreal_log(ULOG_INFO, "modmanager_irc", "MODMANAGER_IRC_RELAYEDOUTPUT", client, "[relayed] $out",
+					log_data_string("out", stdbuf)
+				);
+			}
 			else if(runningchild->localclient)
 				sendnotice(client, "[modmanager_irc] %s", stdbuf);
 			else if(!strncmp(stdbuf, "Post-installation information", 29)) // Skip post-install text for remote oper
@@ -692,8 +706,11 @@ EVENT(modmanager_irc_closechild_event) {
 	if(WIFSIGNALED(status)) {
 		// SIGTERM etc
 		remove = 1;
-		if(deadclient)
-			sendto_realops("[modmanager_irc, relayed] Child process terminated unexpectedly: received signal %d", WTERMSIG(status));
+		if(deadclient) {
+			unreal_log(ULOG_INFO, "modmanager_irc", "MODMANAGER_IRC_RELAYEDOUTPUT", client, "[relayed] Child process terminated unexpectedly: received signal $signal",
+				log_data_integer("signal", WTERMSIG(status))
+			);
+		}
 		else
 			sendnotice(client, "[modmanager_irc] Child process terminated unexpectedly: received signal %d", WTERMSIG(status));
 	}

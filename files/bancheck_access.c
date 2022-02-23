@@ -8,8 +8,8 @@
 module {
 	documentation "https://gottem.nl/unreal/man/bancheck_access";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
-	min-unrealircd-version "5.*";
-	//max-unrealircd-version "5.*";
+	min-unrealircd-version "6.*";
+	//max-unrealircd-version "6.*";
 	post-install-text {
 		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
 		"loadmodule \"third/bancheck_access\";";
@@ -47,10 +47,10 @@ int showNotif = 0; // Display message in case of disallowed masks
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/bancheck_access", // Module name
-	"2.0.1", // Version
+	"2.1.0", // Version
 	"Prevents people who have +o or higher from getting banned, unless done by people with +a/+q or opers", // Description
 	"Gottem", // Author
-	"unrealircd-5", // Modversion
+	"unrealircd-6", // Modversion
 };
 
 // Configuration testing-related hewks go in testing phase obv
@@ -72,7 +72,7 @@ MOD_INIT() {
 
 // Actually load the module here (also command overrides as they may not exist in MOD_INIT yet)
 MOD_LOAD() {
-	CheckAPIError("CommandOverrideAdd(MODE)", CommandOverrideAdd(modinfo->handle, OVR_MODE, bancheck_override));
+	CheckAPIError("CommandOverrideAdd(MODE)", CommandOverrideAdd(modinfo->handle, OVR_MODE, 0, bancheck_override));
 	return MOD_SUCCESS; // We good
 }
 
@@ -90,15 +90,15 @@ int bancheck_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our directive, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
-	if(!ce->ce_vardata || (strcmp(ce->ce_vardata, "0") && strcmp(ce->ce_vardata, "1"))) {
-		config_error("%s:%i: %s must be either 0 or 1 fam", ce->ce_fileptr->cf_filename, ce->ce_varlinenum, MYCONF);
+	if(!ce->value || (strcmp(ce->value, "0") && strcmp(ce->value, "1"))) {
+		config_error("%s:%i: %s must be either 0 or 1 fam", ce->file->filename, ce->line_number, MYCONF);
 		errors++; // Increment err0r count fam
 	}
 
@@ -114,14 +114,14 @@ int bancheck_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		return 0; // Returning 0 means idgaf bout dis
 
 	// Check for valid config entries first
-	if(!ce || !ce->ce_varname)
+	if(!ce || !ce->name)
 		return 0;
 
 	// If it isn't our directive, idc
-	if(strcmp(ce->ce_varname, MYCONF))
+	if(strcmp(ce->name, MYCONF))
 		return 0;
 
-	showNotif = atoi(ce->ce_vardata);
+	showNotif = atoi(ce->value);
 
 	return 1; // We good
 }
@@ -143,15 +143,15 @@ CMD_OVERRIDE_FUNC(bancheck_override) {
 	int newparc; // Keep track of proper param count
 	int cont, dironly;
 	char newflags[MODEBUFLEN + 3]; // Store cleaned up flags
-	char *newparv[MAXPARA + 1]; // Ditto for masks etc
+	const char *newparv[MAXPARA + 1]; // Ditto for masks etc
 	char c; // Current flag lol, can be '+', '-' or any letturchar
 	char curdir; // Current direction (add/del etc)
-	char *tmpmask; // Store "cleaned" ban mask
+	const char *tmpmask; // Store "cleaned" ban mask
 	char *banmask; // Have to store it agen so it doesn't get fukt lol (sheeeeeit)
 	char umask[NICKLEN + USERLEN + HOSTLEN + 24], realumask[NICKLEN + USERLEN + HOSTLEN + 24]; // Full nick!ident@host masks for users yo
 
 	// Need to be at least hops or higher on a channel for this to kicc in obv (or U-Line, to prevent bypassing this module with '/cs mode')
-	if(!MyUser(client) || IsOper(client) || parc < 3 || !(channel = find_channel(parv[1], NULL)) || !(is_skochanop(client, channel) || IsULine(client))) {
+	if(!MyUser(client) || IsOper(client) || parc < 3 || !(channel = find_channel(parv[1])) || !(check_channel_access(client, channel, "hoaq") || IsULine(client))) {
 		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
 		return;
 	}
@@ -163,8 +163,9 @@ CMD_OVERRIDE_FUNC(bancheck_override) {
 	newparv[0] = parv[0];
 	newparv[1] = parv[1];
 	memset(newflags, '\0', sizeof(newflags)); // Set 'em
-	for(i = 0; i < parc; i++)
-		skip[i] = 0; // Set default so the loop doesn't fuck it up as it goes along
+	memset(&skip, 0, sizeof(skip));
+	memset(umask, '\0', sizeof(umask));
+	memset(realumask, '\0', sizeof(realumask));
 
 	// Loop over every mode flag
 	for(i = 0; i < strlen(parv[2]); i++) {
@@ -190,8 +191,8 @@ CMD_OVERRIDE_FUNC(bancheck_override) {
 				if(curdir != '+')
 					break;
 
-				// On error getting dis, just let CallCommandOverride handle it
-				tmpmask = clean_ban_mask(parv[j], MODE_ADD, client); // Turns "+b *" into "+b *!*@*" so we can easily check bel0w =]
+				// Turn "+b *" into "+b *!*@*" so we can easily check bel0w =]
+				tmpmask = clean_ban_mask(parv[j], (curdir == '-' ? MODE_DEL : MODE_ADD), client, 0);
 				if(!tmpmask)
 					break;
 
@@ -204,9 +205,9 @@ CMD_OVERRIDE_FUNC(bancheck_override) {
 				for(memb = channel->members; memb; memb = memb->next) {
 					acptr = memb->client; // Ban target
 					if(acptr) { // Sanity check lol
-						snprintf(umask, sizeof(umask), make_nick_user_host(acptr->name, acptr->user->username, GetHost(acptr))); // Get full nick!ident@host mask imo tbh
-						snprintf(realumask, sizeof(realumask), make_nick_user_host(acptr->name, acptr->user->username, acptr->user->cloakedhost)); // Get it with the "real" host imo
-						if(umask && is_chan_op(acptr, channel) && (match_simple(banmask, umask) || match_simple(banmask, realumask))) { // Check if banmask matches it for +o and highur
+						strlcpy(umask, make_nick_user_host(acptr->name, acptr->user->username, GetHost(acptr)), sizeof(umask)); // Get full nick!ident@host mask imo tbh (either vhost or uncloaked host)
+						strlcpy(realumask, make_nick_user_host(acptr->name, acptr->user->username, acptr->user->cloakedhost), sizeof(realumask)); // Get it with the cloaked host too
+						if(check_channel_access(acptr, channel, "oaq") && (match_simple(banmask, umask) || match_simple(banmask, realumask))) { // Check if banmask matches it for +o and highur
 							skip[j] = 1; // Skip it lol
 							newparc--; // Decrement parc so Unreal doesn't shit itself =]
 							cont = 1;
@@ -285,7 +286,7 @@ CMD_OVERRIDE_FUNC(bancheck_override) {
 	}
 
 	if(stripped && showNotif)
-		sendto_one(client, NULL, ":%s NOTICE %s :[BA] Stripped %d mask(s) (disallowed)", me.name, channel->chname, stripped);
+		sendto_one(client, NULL, ":%s NOTICE %s :[BA] Stripped %d mask(s) (disallowed)", me.name, channel->name, stripped);
 
 	// Nothing left, don't even bother passing it back =]
 	if(!newflags[0])
