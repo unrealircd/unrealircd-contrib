@@ -51,20 +51,21 @@ CMD_OVERRIDE_FUNC(fixhop_modeoverride);
 // Ripped functions (from src/modules/invite.c) =]
 void add_invite(Client *from, Client *to, Channel *channel, MessageTag *mtags);
 void del_invite(Client *client, Channel *channel);
+int is_chmode_denied(char mode, char direction);
 
 ModDataInfo *userInvitesMD, *channelInvitesMD;
 
 // Set config defaults here
 int allowInvite = 0; // Allow hops to /invite
-int disallowWidemasks = 0; // Disallow them from banning/exempting *!*@* etc
-int widemaskNotif = 0; // Display notifications to hops why something was disallowed/stripped
-char *disallowChmodes = NULL; // Disallow hops changing +t channel mode
+int denyWidemasks = 0; // Prevent them from banning/exempting *!*@* etc
+int widemaskNotif = 0; // Display notifications to hops why something was denied/stripped
+char *denyChmodes = NULL; // Prevent hops changing certain channel modes
 int chmodeNotif = 0; // Notification to go wit it
 
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/fixhop", // Module name
-	"2.2.0", // Version
+	"2.3.0", // Version
 	"The +h access mode seems to be a little borked/limited, this module implements some tweaks for it", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -107,7 +108,7 @@ MOD_LOAD() {
 
 // Called on unload/rehash obv
 MOD_UNLOAD() {
-	safe_free(disallowChmodes);
+	safe_free(denyChmodes);
 	return MOD_SUCCESS; // We good
 }
 
@@ -137,19 +138,19 @@ int fixhop_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 			continue; // Next iteration imo tbh
 		}
 
-		if(!strcmp(cep->name, "allow_invite") || !strcmp(cep->name, "disallow_widemasks") || !strcmp(cep->name, "widemask_notif") ||
+		if(!strcmp(cep->name, "allow_invite") || !strcmp(cep->name, "deny_widemasks") || !strcmp(cep->name, "widemask_notif") ||
 			!strcmp(cep->name, "chmode_notif"))
 			continue;
 
-		if(!strcmp(cep->name, "disallow_chmodes")) {
+		if(!strcmp(cep->name, "deny_chmodes")) {
 			if(!cep->value || strlen(cep->value) < 1) {
-				config_error("%s:%i: no modes specified for %s::disallow_chmodes", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
+				config_error("%s:%i: no modes specified for %s::deny_chmodes", cep->file->filename, cep->line_number, MYCONF); // Rep0t error
 				errors++; // Increment err0r count fam
 				continue;
 			}
 			for(i = 0; i < strlen(cep->value); i++) {
-				if(!isalpha(cep->value[i])) {
-					config_error("%s:%i: invalid mode character '%c' in %s::disallow_chmodes", cep->file->filename, cep->line_number, cep->value[i], MYCONF); // Rep0t error
+				if(!isalpha(cep->value[i]) && !strchr("+-", cep->value[i])) {
+					config_error("%s:%i: invalid mode character '%c' in %s::deny_chmodes", cep->file->filename, cep->line_number, cep->value[i], MYCONF); // Rep0t error
 					errors++;
 				}
 			}
@@ -192,8 +193,8 @@ int fixhop_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 			continue;
 		}
 
-		if(!strcmp(cep->name, "disallow_widemasks")) {
-			disallowWidemasks = 1;
+		if(!strcmp(cep->name, "deny_widemasks")) {
+			denyWidemasks = 1;
 			continue;
 		}
 
@@ -202,8 +203,8 @@ int fixhop_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 			continue;
 		}
 
-		if(!strcmp(cep->name, "disallow_chmodes") && cep->value) {
-			safe_strdup(disallowChmodes, cep->value);
+		if(!strcmp(cep->name, "deny_chmodes") && cep->value) {
+			safe_strdup(denyChmodes, cep->value);
 			continue;
 		}
 
@@ -213,17 +214,17 @@ int fixhop_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 		}
 	}
 
-	if(!disallowWidemasks && widemaskNotif)
-		config_warn("fixhop: You've enabled widemask_notif but not disallow_widemasks"); // Rep0t warn
+	if(!denyWidemasks && widemaskNotif)
+		config_warn("[fixhop] You've enabled widemask_notif but not deny_widemasks"); // Rep0t warn
 
-	if(!disallowChmodes && chmodeNotif)
-		config_warn("fixhop: You've enabled chmode_notif but not disallow_chmodes"); // Rep0t warn
+	if(!denyChmodes && chmodeNotif)
+		config_warn("[fixhop] You've enabled chmode_notif but not deny_chmodes"); // Rep0t warn
 
 	return 1; // We good
 }
 
 int fixhop_rehash(void) {
-	allowInvite = disallowWidemasks = widemaskNotif = chmodeNotif = 0;
+	allowInvite = denyWidemasks = widemaskNotif = chmodeNotif = 0;
 	return HOOK_CONTINUE;
 }
 
@@ -386,77 +387,83 @@ CMD_OVERRIDE_FUNC(fixhop_modeoverride) {
 	int fc, mc, cc, pc; // Flag count, mask count and char counters respectively
 	int i, j; // Just s0em iterators fam
 	int stripped_wide; // Count 'em
-	int stripped_disallowed; // Count 'em
+	int stripped_deny; // Count 'em
 	int skip[MAXPARA + 1]; // Skippem
 	int newparc; // Keep track of proper param count
 	int cont, dironly;
 	char newflags[MODEBUFLEN + 3]; // Store cleaned up flags
 	const char *newparv[MAXPARA + 1]; // Ditto for masks etc
-	char c; // Current flag lol, can be '+', '-' or any letturchar
+	char c; // Current character lol, can be '+', '-' or any lettur
 	char curdir; // Current direction (add/del etc)
 	const char *p; // To check the non-wildcard length shit
 	const char *mask; // Store "cleaned" ban mask
 
-	// Need to be at least hops or higher on a channel for this to kicc in obv (or U-Line, to prevent bypassing this module with '/cs mode')
-	if(!MyUser(client) || IsOper(client) || (!disallowWidemasks && !disallowChmodes) || parc < 2|| !(channel = find_channel(parv[1])) || !(check_channel_access(client, channel, "h") || IsULine(client))) {
+	// May not be anything to do =]
+	if((!denyWidemasks && !denyChmodes) || !MyUser(client) || IsOper(client) || parc < 3) {
+		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+		return;
+	}
+
+	// You need to have hops on a channel for this to kicc in obv (or U-Line, to prevent bypassing this module with '/cs mode')
+	if(!(channel = find_channel(parv[1])) || !(check_channel_access(client, channel, "h") || IsULine(client))) {
 		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
 		return;
 	}
 
 	newparc = 3; // Initialise new param count, starting at 3 lol (MODE #chan +something)
 	fc = mc = cc = pc = 0; // Ditto for em other counters
-	curdir = '+'; // Set "direction" (+ or -)
-	stripped_wide = stripped_disallowed = 0;
+	curdir = '+'; // Set "direction" ('+' or '-')
+	stripped_wide = stripped_deny = 0;
 	newparv[0] = parv[0];
 	newparv[1] = parv[1];
 	memset(newflags, '\0', sizeof(newflags)); // Set 'em
 	memset(&skip, 0, sizeof(skip));
 
-	// Loop over every mode flag
+	// Loop over every mode character
 	for(i = 0; i < strlen(parv[2]); i++) {
 		c = parv[2][i];
 		mask = NULL; // Aye elemao
 		cont = 0;
 
-		// Check for disallowed modes early
-		if(disallowChmodes && strchr(disallowChmodes, c)) {
-			stripped_disallowed++; // increment counter
+		// Since we check for denied modes early we also need to know the "direction" early
+		if(strchr("+-", c)) {
+			curdir = c;
+			newflags[cc++] = c;
+			continue;
+		}
 
-			// Some modes take an argument
-			if(strchr("beIvhoaqfkLl", c)) {
+		if(is_chmode_denied(c, curdir)) {
+			stripped_deny++; // Increment counter
+
+			// Some modes take an argument, let's skip that too so we don't fall through to listing ban masks in case of shit like '+bb foo!bar@ke.ks'
+			if(strchr("beIvhoaqfkLljJH", c)) {
 				fc++;
-				j = mc + 3;
-				if(parc <= j || BadPtr(parv[j])) {
-					if(fc > 1)
-						cont = 1;
-				}
-				else {
+				j = mc + 3; // In parv[] the first mask is found at index 3
+				if(parc > j && !BadPtr(parv[j])) {
 					mc++;
 					skip[j] = 1;
 				}
-				if(!cont)
-					newflags[cc++] = c;
 			}
 			continue;
 		}
 
-		// Check if we need to verify somethang
+		// Check if we need to verify somethang else
 		switch(c) {
 			// El list stuff
 			case 'b': // Ban
 			case 'e': // Ban exempts
 			case 'I': // Invite exempts
 				fc++;
-				j = mc + 3; // In parv[] the first mask is found at index 3
+				j = mc + 3;
 				if(parc <= j || BadPtr(parv[j])) {
-					if(fc > 1) // Skip this flag entirely so we don't fall through to listing ban masks in case of shit like '+bb foo!bar@ke.ks'
+					if(fc > 1)
 						cont = 1;
 					break;
 				}
 				mc++;
 				newparc++;
 
-				if(!disallowWidemasks)
+				if(!denyWidemasks)
 					break;
 
 				// On error getting dis, just let CallCommandOverride handle it
@@ -505,12 +512,6 @@ CMD_OVERRIDE_FUNC(fixhop_modeoverride) {
 				newparc++;
 				break;
 
-			// Directionals yo
-			case '+':
-			case '-':
-				curdir = c;
-				break;
-
 			// Fuck errythang else lol
 			default:
 				fc++;
@@ -519,7 +520,7 @@ CMD_OVERRIDE_FUNC(fixhop_modeoverride) {
 
 		if(cont)
 			continue;
-		newflags[cc++] = c; // Seems to be a sane mode, append it
+		newflags[cc++] = c; // Seems to be a sane character, append it
 	}
 
 	// Correct parv count due to possibly (now) missing flags/masks lol
@@ -544,11 +545,11 @@ CMD_OVERRIDE_FUNC(fixhop_modeoverride) {
 		newparv[j++] = parv[i];
 	}
 
+	if(stripped_deny && chmodeNotif)
+		sendto_one(client, NULL, ":%s NOTICE %s :[FH] Stripped %d mode(s) (denied)", me.name, channel->name, stripped_deny);
+
 	if(stripped_wide && widemaskNotif)
 		sendto_one(client, NULL, ":%s NOTICE %s :[FH] Stripped %d mask(s) (too wide)", me.name, channel->name, stripped_wide);
-
-	if(stripped_disallowed && chmodeNotif)
-		sendto_one(client, NULL, ":%s NOTICE %s :[FH] Stripped %d modes (disallowed)", me.name, channel->name, stripped_disallowed);
 
 	// Nothing left, don't even bother passing it back =]
 	if(!newflags[0])
@@ -614,4 +615,25 @@ void del_invite(Client *client, Channel *channel) {
 			break;
 		}
 	}
+}
+
+int is_chmode_denied(char mode, char direction) {
+	char curdir;
+	char *p;
+
+	if(!denyChmodes || !strchr(denyChmodes, mode))
+		return 0;
+
+	curdir = 0;
+	for(p = denyChmodes; *p; p++) {
+		if(strchr("+-", *p)) {
+			curdir = *p;
+			continue;
+		}
+
+		if((curdir == 0 || curdir == direction) && *p == mode)
+			return 1;
+	}
+
+	return 0;
 }
