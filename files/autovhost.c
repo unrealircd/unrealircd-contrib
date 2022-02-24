@@ -46,7 +46,7 @@ int vhostCount = 0;
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/autovhost", // Module name
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Apply vhosts at connect time based on users' raw nick formats or IPs", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -234,61 +234,70 @@ int autovhost_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 }
 
 int autovhost_connect(Client *client) {
+	vhostEntry *vEntry;
+	char *newhost_nick, *newhost_ident, *newhost_account;
+	char newhost[HOSTLEN + 1];
+	int doaccount;
+
 	if(!client || !client->user)
 		return HOOK_CONTINUE;
 
-	vhostEntry *vEntry;
-	char *newhost_nick, *newhost_ident, newhost[HOSTLEN];
-	int doident;
 	for(vEntry = vhostList; vEntry; vEntry = vEntry->next) {
-		// Check if the mask matches the user's full nick mask (with REAL host) or IP
-		if(match_simple(vEntry->mask, make_nick_user_host(client->name, client->user->username, client->user->realhost)) || match_simple(vEntry->mask, GetIP(client))) {
-			snprintf(newhost, sizeof(newhost), "%s", vEntry->vhost);
-			doident = (strstr(newhost, "$ident") ? 1 : 0);
-			if(strstr(newhost, "$nick")) {
-				newhost_nick = replaceem(newhost, "$nick", client->name);
-				if(!doident && !valid_host(newhost_nick, 0)) { // Can't really do this earlier because of $nick etc ;];]
-					unreal_log(ULOG_ERROR, "autovhost", "AUTOVHOST_INVALID", client, "Invalid result vhost: $mask => $result",
-						log_data_string("mask", vEntry->vhost),
-						log_data_string("result", newhost_nick)
-					);
-					safe_free(newhost_nick);
-					break;
-				}
-				snprintf(newhost, sizeof(newhost), "%s", newhost_nick);
-				safe_free(newhost_nick);
+		// Check if the mask matches the user's full nick mask (with REAL host) or IP (possibly with CIDR)
+		if(!match_user(vEntry->mask, client, MATCH_CHECK_REAL_HOST|MATCH_CHECK_IP))
+			continue;
+
+		doaccount = 0;
+		if(strstr(vEntry->vhost, "$account")) {
+			if(!IsLoggedIn(client)) {
+				unreal_log(ULOG_ERROR, "autovhost", "AUTOVHOST_INVALID", client, "Invalid result vhost: $mask contains $account variable but user isn't logged in ($client.details)",
+					log_data_string("mask", vEntry->vhost)
+				);
+				continue;
 			}
-
-			if(doident) {
-				newhost_ident = replaceem(newhost, "$ident", ((client->user && client->user->username) ? client->user->username : "unknown"));
-				if(!valid_host(newhost_ident, 0)) { // Can't really do this earlier because of $ident etc ;];]
-					unreal_log(ULOG_ERROR, "autovhost", "AUTOVHOST_INVALID", client, "Invalid result vhost: $mask => $result",
-						log_data_string("mask", vEntry->vhost),
-						log_data_string("result", newhost_ident)
-					);
-					safe_free(newhost_nick);
-					safe_free(newhost_ident);
-					break;
-				}
-				snprintf(newhost, sizeof(newhost), "%s", newhost_ident);
-				safe_free(newhost_ident);
-			}
-
-			if(strlen(newhost) > HOSTLEN)
-				newhost[HOSTLEN - 1] = '\0';
-
-			userhost_save_current(client); // Need to do this to take care of CAP capable clients etc
-
-			// Actually set the new one here
-			safe_strdup(client->user->virthost, newhost);
-			client->umodes |= UMODE_HIDE;
-			client->umodes |= UMODE_SETHOST;
-			sendto_server(client, 0, 0, NULL, ":%s SETHOST %s", client->id, newhost);
-			sendto_one(client, NULL, ":%s MODE %s :+tx", client->name, client->name);
-			sendnotice(client, "*** Your vhost has been changed to %s", newhost);
-			userhost_changed(client); // m0ar CAP shit
-			break;
+			doaccount = 1;
 		}
+
+		snprintf(newhost, sizeof(newhost), "%s", vEntry->vhost);
+
+		if(strstr(newhost, "$nick")) {
+			newhost_nick = replaceem(newhost, "$nick", client->name);
+			snprintf(newhost, sizeof(newhost), "%s", newhost_nick);
+			safe_free(newhost_nick);
+		}
+
+		if(strstr(newhost, "$ident")) {
+			newhost_ident = replaceem(newhost, "$ident", (client->user->username ? client->user->username : "unknown"));
+			snprintf(newhost, sizeof(newhost), "%s", newhost_ident);
+			safe_free(newhost_ident);
+		}
+
+		if(doaccount) {
+			newhost_account = replaceem(newhost, "$account", client->user->account);
+			snprintf(newhost, sizeof(newhost), "%s", newhost_account);
+			safe_free(newhost_account);
+		}
+
+		// Can't really do this earlier because of em $variables etc ;];]
+		if(!valid_host(newhost, 0)) {
+			unreal_log(ULOG_ERROR, "autovhost", "AUTOVHOST_INVALID", client, "Invalid result vhost: $mask => $result ($client.details)",
+				log_data_string("mask", vEntry->vhost),
+				log_data_string("result", newhost)
+			);
+			continue;
+		}
+
+		userhost_save_current(client); // Need to do this to take care of CAP capable clients etc
+
+		// Actually set the new one here
+		safe_strdup(client->user->virthost, newhost);
+		client->umodes |= UMODE_HIDE;
+		client->umodes |= UMODE_SETHOST;
+		sendto_server(client, 0, 0, NULL, ":%s SETHOST %s", client->id, newhost);
+		sendto_one(client, NULL, ":%s MODE %s :+tx", client->name, client->name);
+		sendnotice(client, "*** Your vhost has been changed to %s", newhost);
+		userhost_changed(client); // m0ar CAP shit
+		break;
 	}
 	return HOOK_CONTINUE;
 }
