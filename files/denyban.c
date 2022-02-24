@@ -59,13 +59,13 @@ int denyCount = 0; // Counter yo
 
 // Set config defaults here
 int allowOpers = 1; // Allow IRC opers to set denied bans regardless
-int denyNotice = 0; // Display notifications why something was disallowed/stripped
+int denyNotice = 0; // Display notifications why something was denied/stripped
 char *denyReason = NULL; // What message to display
 
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/denyban", // Module name
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Deny specific ban masks network-wide", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -346,8 +346,14 @@ CMD_OVERRIDE_FUNC(denyban_modeoverride) {
 	char *reason; // Message to display
 	char num[8]; // Store stripped as char lol
 
+	// May not be anything to do =]
+	if(!MyUser(client) || (IsOper(client) && allowOpers) || parc < 3) {
+		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+		return;
+	}
+
 	// Need to be at least hops or higher on a channel for this to kicc in obv (or U-Line, to prevent bypassing this module with '/cs mode')
-	if(!MyUser(client) || (IsOper(client) && allowOpers) || parc < 3 || !(channel = find_channel(parv[1])) || !(check_channel_access(client, channel, "hoaq") || IsULine(client))) {
+	if(!(channel = find_channel(parv[1])) || !(check_channel_access(client, channel, "hoaq") || IsULine(client))) {
 		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
 		return;
 	}

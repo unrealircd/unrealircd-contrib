@@ -42,12 +42,12 @@ int bancheck_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
 int bancheck_rehash(void);
 CMD_OVERRIDE_FUNC(bancheck_override);
 
-int showNotif = 0; // Display message in case of disallowed masks
+int showNotif = 0; // Display message in case of denied masks
 
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/bancheck_access", // Module name
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Prevents people who have +o or higher from getting banned, unless done by people with +a/+q or opers", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -150,8 +150,14 @@ CMD_OVERRIDE_FUNC(bancheck_override) {
 	char *banmask; // Have to store it agen so it doesn't get fukt lol (sheeeeeit)
 	char umask[NICKLEN + USERLEN + HOSTLEN + 24], realumask[NICKLEN + USERLEN + HOSTLEN + 24]; // Full nick!ident@host masks for users yo
 
+	// May not be anything to do =]
+	if(!MyUser(client) || IsOper(client) || parc < 3) {
+		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+		return;
+	}
+
 	// Need to be at least hops or higher on a channel for this to kicc in obv (or U-Line, to prevent bypassing this module with '/cs mode')
-	if(!MyUser(client) || IsOper(client) || parc < 3 || !(channel = find_channel(parv[1])) || !(check_channel_access(client, channel, "hoaq") || IsULine(client))) {
+	if(!(channel = find_channel(parv[1])) || !(check_channel_access(client, channel, "hoaq") || IsULine(client))) {
 		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
 		return;
 	}
@@ -286,7 +292,7 @@ CMD_OVERRIDE_FUNC(bancheck_override) {
 	}
 
 	if(stripped && showNotif)
-		sendto_one(client, NULL, ":%s NOTICE %s :[BA] Stripped %d mask(s) (disallowed)", me.name, channel->name, stripped);
+		sendto_one(client, NULL, ":%s NOTICE %s :[BA] Stripped %d mask(s) (denied)", me.name, channel->name, stripped);
 
 	// Nothing left, don't even bother passing it back =]
 	if(!newflags[0])
