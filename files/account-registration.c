@@ -140,10 +140,15 @@ CMD_FUNC(cmd_registration)
 			ARUSER(target)->accreg_complete++;
 			sendto_one(target, NULL, "%s SUCCESS %s", cmd, txt);
 		}
+		else if (*parv[5] == 'N')
+			sendto_one(target, NULL, "NOTE %s %s", cmd, txt);
+		
+		else if (*parv[5] == 'W')
+			sendto_one(target, NULL, "WARN %s %s", cmd, txt);
+			
 		else if (*parv[5] == 'A')
 		{
 			abort_accreg(client);
-			return;
 		}
 	
 		return;
