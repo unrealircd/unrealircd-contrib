@@ -66,7 +66,7 @@ MOD_UNLOAD()
 
 int i3react_mtag_is_ok(Client *client, const char *name, const char *value)
 {
-	if (BadPtr(value) || !strlen(value) || strlen(value) < 10)
+	if (BadPtr(value) || !strlen(value) || strlen(value) > 10)
 		return 0;
 
 	return 1;
