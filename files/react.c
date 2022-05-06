@@ -16,7 +16,7 @@ module
 				"The module is installed. Now all you need to do is add a loadmodule line:";
 				"loadmodule \"third/react\";";
 				"You need to restart your server for this to show up in CLIENTTAGDENY";
-				"The module does not need any other configuration."
+				"The module does not need any other configuration.";
 		}
 }
 *** <<<MODULE MANAGER END>>>
