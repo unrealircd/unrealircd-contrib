@@ -155,7 +155,7 @@ CMD_FUNC(cmd_registration)
 	}
 
 	/* not for us; propagate. */
-	sendto_server(client, 0, 0, NULL, ":%s REGISTRATION %s %s %s %c %s %s",
+	sendto_server(NULL, 0, 0, NULL, ":%s REGISTRATION %s %s %s %c %s %s",
 		client->name, parv[1], parv[2], parv[3], *parv[4], parv[5], txt);
 }
 
