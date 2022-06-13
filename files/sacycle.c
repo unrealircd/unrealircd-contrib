@@ -1,7 +1,6 @@
 /* 
 	LICENSE: GPLv3
-  	Copyright Ⓒ 2022 Valerie Pond
-
+	Copyright Ⓒ 2022 Valerie Pond
 	SACYCLE command for forcing someone to cycle a channel 
 
 	Largely taken from unrealircd sauce code
@@ -42,7 +41,7 @@ CMD_FUNC(yeetus);
 
 ModuleHeader MOD_HEADER = {
 	"third/sacycle",
-	"1.1",
+	"1.2",
 	"Force someone to part and rejoin a channel",
 	"Valware",
 	"unrealircd-6",
@@ -103,7 +102,7 @@ CMD_FUNC(yeetus){
 	{
 		if (++ntargets > maxtargets)
 		{
-			sendnumeric(client, ERR_TOOMANYTARGETS, name, maxtargets, "SACYCLE");
+			sendnumeric(client, ERR_TOOMANYTARGETS, name, maxtargets, "CYCLE");
 			break;
 		}
 		if (!(channel = find_channel(name)))
@@ -122,7 +121,7 @@ CMD_FUNC(yeetus){
 
 		if (!(lp = find_membership_link(target->user->channel, channel)))
 		{
-			sendnumeric(client, ERR_USERNOTINCHANNEL, target->name, name);
+			sendnumeric(client, ERR_USERNOTINCHANNEL, name, target->name);
 			continue;
 		}
 		if (*jbuf)
