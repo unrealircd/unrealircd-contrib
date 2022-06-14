@@ -119,8 +119,8 @@ int cmode_sopmode_is_ok(Client *client, Channel *channel, char mode, const char 
         return EX_DENY;
     }
     
-
-    ClearJoiningAsSop(target);
+    if (IsJoiningAsSop(target))
+        ClearJoiningAsSop(target);
     return EX_ALLOW;
 
 }
