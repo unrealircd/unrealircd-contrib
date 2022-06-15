@@ -183,7 +183,7 @@ CMD_FUNC(ojoin)
 	const char *member_modes;
 	const char *parv_stuff_lol[3];
 	int ntargets = 0;
-	int maxtargets = max_targets_for_command("JOIN");
+	int maxtargets = 1;
 	Membership *membership;
 	Channel *chan;
 	MessageTag *mtags = NULL;
