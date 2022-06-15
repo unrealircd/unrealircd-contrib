@@ -56,10 +56,10 @@ MOD_INIT()
 	CmodeInfo creq;
 	ModDataInfo mreq;
 
-    MARK_AS_GLOBAL_MODULE(modinfo);
+	MARK_AS_GLOBAL_MODULE(modinfo);
 
-    /* some module data for restricting setting +Y to only settable using `/OJOIN` */
-    memset(&mreq, 0, sizeof(mreq));
+	/* some module data for restricting setting +Y to only settable using `/OJOIN` */
+	memset(&mreq, 0, sizeof(mreq));
 	mreq.name = "ojoin_md";
 	mreq.free = ojoin_free;
 	mreq.serialize = ojoin_serialize;
@@ -70,7 +70,7 @@ MOD_INIT()
 	if (!ojoin_md)
 		abort();
 
-    /* Channel mode +Y */
+	/* Channel mode +Y */
 	memset(&creq, 0, sizeof(creq));
 	creq.paracount = 1;
 	creq.is_ok = cmode_sopmode_is_ok;
@@ -81,8 +81,8 @@ MOD_INIT()
 	creq.unset_with_param = 1;
 	creq.type = CMODE_MEMBER;
 	CmodeAdd(modinfo->handle, creq, NULL);
-    CommandAdd(modinfo->handle, CMD_OJOIN, ojoin, MAXPARA, CMD_USER);
-    HookAdd(modinfo->handle, HOOKTYPE_CAN_KICK, 0, ojoin_kick_check);
+	CommandAdd(modinfo->handle, CMD_OJOIN, ojoin, MAXPARA, CMD_USER);
+	HookAdd(modinfo->handle, HOOKTYPE_CAN_KICK, 0, ojoin_kick_check);
 
 
 	return MOD_SUCCESS;
@@ -100,49 +100,58 @@ MOD_UNLOAD()
 
 int cmode_sopmode_is_ok(Client *client, Channel *channel, char mode, const char *param, int type, int what)
 {
-    Client *target = find_user(param, NULL);
-    int valid_client = ValidatePermissionsForPath("ojoin",client,NULL,channel,NULL);
-    int valid_target = ValidatePermissionsForPath("ojoin",target,NULL,channel,NULL);
+    Client *target;
+	if (!(target = find_user(param, NULL)))
+		return EX_DENY;
 
-    if (!target)
-        return EX_DENY;
-    if (what == MODE_DEL && client == target && valid_client) // allow them to -Y themselves 
-        return EX_ALLOW;
-    if (!valid_target)
-     {
-        sendto_one(target, NULL, ":%s %d %s %s :%s", me.name, ERR_CANNOTDOCOMMAND, target->name, "MODE", "Permission denied!");
-        return EX_DENY;
-    }
-    if (what == MODE_ADD && !IsJoiningAsSop(target))
+    int can_ojoin = ValidatePermissionsForPath("ojoin",target,NULL,channel,NULL);
+
+	if (what == MODE_DEL && client == target && can_ojoin) // allow them to -Y themselves 
+		return EX_ALLOW;
+    else if (what == MODE_DEL && client != target) // if someone else is trying to -Y you
     {
-        sendto_one(target, NULL, ":%s %d %s %s :%s", me.name, ERR_CANNOTDOCOMMAND, target->name, "MODE", "Mode +Y is reserved for the command /OJOIN");
-        return EX_DENY;
+        if (!IsServer(client) && !IsULine(client)) // if they're not a server or ULine
+        {
+            sendto_one(target, NULL, ":%s %d %s %s :%s", me.name, ERR_CANNOTDOCOMMAND, target->name, "MODE", "Permission denied!"); // DENIED
+	    	return EX_ALWAYS_DENY; // DENIED even if you have override AHHAHA
+        }
     }
-    
-    if (IsJoiningAsSop(target))
-        ClearJoiningAsSop(target);
-    return EX_ALLOW;
+	if (!can_ojoin)
+	 {
+		sendto_one(target, NULL, ":%s %d %s %s :%s", me.name, ERR_CANNOTDOCOMMAND, target->name, "MODE", "Permission denied!");
+		return EX_DENY;
+	}
+	
+	if (what == MODE_ADD && !IsJoiningAsSop(target))
+	{
+		sendto_one(target, NULL, ":%s %d %s %s :%s", me.name, ERR_CANNOTDOCOMMAND, target->name, "MODE", "Mode +Y is reserved for the command /OJOIN");
+		return EX_ALWAYS_DENY;
+	}
+
+	if (IsJoiningAsSop(target))
+		ClearJoiningAsSop(target);
+	return EX_ALLOW;
 
 }
 
 /* Make the user unkickable */
 int ojoin_kick_check(Client *client, Client *target, Channel *channel, const char *comment, const char *client_member_modes, const char *target_member_modes, const char **reject_reason)
 {
-    static char errmsg[256];
-    char *p;
-    int has_sop = 0;
-    if (strstr(target_member_modes,"Y"))
-    {
-        ircsnprintf(errmsg, sizeof(errmsg), ":%s %d %s %s :%s",
-		            me.name, ERR_CANNOTDOCOMMAND, client->name,
-		            "KICK", "Permission denied!");
+	static char errmsg[256];
+	char *p;
+	int has_sop = 0;
+	if (strstr(target_member_modes,"Y"))
+	{
+		ircsnprintf(errmsg, sizeof(errmsg), ":%s %d %s %s :%s",
+					me.name, ERR_CANNOTDOCOMMAND, client->name,
+					"KICK", "Permission denied!");
 		*reject_reason = errmsg;
-        has_sop = 1;
-    }
-    if (has_sop)
-        return EX_DENY;
-    else
-        return EX_ALLOW;
+		has_sop = 1;
+	}
+	if (has_sop)
+		return EX_DENY;
+	else
+		return EX_ALLOW;
 }
 
 const char *ojoin_serialize(ModData *m)
@@ -156,110 +165,102 @@ const char *ojoin_serialize(ModData *m)
 
 void ojoin_free(ModData *m)
 {
-    m->i = 0;
+	m->i = 0;
 }
 
 void ojoin_unserialize(const char *str, ModData *m)
 {
-    m->i = atoi(str);
+	m->i = atoi(str);
 }
 
 CMD_FUNC(ojoin)
 {
-    char *name = '\0';
-    char *p = '\0';
+	char *modes;
+	char *name = '\0';
+	char *p = '\0';
+	char *m0de;
 	char request[BUFSIZE];
-    int ntargets = 0;
-	int maxtargets = max_targets_for_command("JOIN");
+	const char *member_modes;
+	const char *parv_stuff_lol[3];
+	int ntargets = 0;
+	int maxtargets = 1;
+	Membership *membership;
+	Channel *chan;
+	MessageTag *mtags = NULL;
    
-    if (!IsULine(client) && !ValidatePermissionsForPath("ojoin", client, NULL, NULL, NULL))
-    {
-        sendnumeric(client, ERR_CANNOTDOCOMMAND, CMD_OJOIN, "Permission denied!");
-        return;
-    }
+	if (!IsULine(client) && !ValidatePermissionsForPath("ojoin", client, NULL, NULL, NULL))
+	{
+		sendnumeric(client, ERR_CANNOTDOCOMMAND, CMD_OJOIN, "Permission denied!");
+		return;
+	}
  
-    if (!maxtargets)
-    {
-        unreal_log(ULOG_INFO, "ojoin", "OJOIN_COMMAND", client, "OJOIN: $client tried to use OJOIN but our `maxtargets` was none. This is a serious problem and means nobody can join channels.");
-        return;
-    }
+	if (!maxtargets)
+	{
+		unreal_log(ULOG_INFO, "ojoin", "OJOIN_COMMAND", client, "OJOIN: $client tried to use OJOIN but our `maxtargets` was none. This is a serious problem and means nobody can join channels.");
+		return;
+	}
 
 	if (parc < 2 || BadPtr(parv[1]))
-    {
+	{
 		sendnumeric(client, ERR_NEEDMOREPARAMS, CMD_OJOIN);
 		return;
 	}
-    
-    strlcpy(request, parv[1], sizeof(request));
-    
-    for (name = strtoken(&p, request, ","); name; name = strtoken(&p, NULL, ","))
-    {
-        Channel *chan;
-        const char *member_modes;
-        Membership *membership;
+	
+	strlcpy(request, parv[1], sizeof(request));
+	
 
-        if (!strlen(name))
-        {
-            sendnotice(client,"Invalid channel name: %s", name);
-            continue;
-        }
+	if (!strlen(request) || !valid_channelname(request))
+	{
+		sendnotice(client,"Invalid channel name: %s", request);
+		return;
+	}
 
-        if (++ntargets > maxtargets)
-        {
-            sendnumeric(client, ERR_TOOMANYTARGETS, name, maxtargets, CMD_OJOIN);
-            break;
-        }
+	if (++ntargets > maxtargets)
+	{
+		sendnumeric(client, ERR_TOOMANYTARGETS, request, maxtargets, CMD_OJOIN);
+		return;
+	}
 
-        if (strlen(name) > CHANNELLEN)
-        {
-            sendnotice(client, "Channel name too long: %s", name);
-            continue;
-        }
+	if (strlen(request) > CHANNELLEN)
+	{
+		sendnotice(client, "Channel name too long: %s", request);
+		return;
+	}
 
-        member_modes = (ChannelExists(name)) ? "" : LEVEL_ON_JOIN;
-        chan = make_channel(name);
+	member_modes = (ChannelExists(request)) ? "" : LEVEL_ON_JOIN;
+	chan = make_channel(request);
 
-        if (!chan)
-        {
-            sendnumeric(client, ERR_NOSUCHCHANNEL, name);
-            continue;
-        }
+	if (!chan) // shouldn't really happen because we just created it, but if something went wrong...
+	{
+		sendnumeric(client, ERR_NOSUCHCHANNEL, request);
+		return;
+	}
 
-       
-    }
-    for (name = strtoken(&p, request, ","); name; name = strtoken(&p, NULL, ","))
-    {
-        if (!name)
-            break;
-        char *modes;
-        MessageTag *mtags = NULL;
-        const char *member_modes;
-        Channel *chan;
-        Membership *membership;
-        member_modes = (ChannelExists(name)) ? "" : LEVEL_ON_JOIN;
-		chan = make_channel(name);
-        const char *parv_stuff_lol[3];
+	member_modes = (ChannelExists(request)) ? "" : LEVEL_ON_JOIN;
+	chan = make_channel(request);
 
-        /* if they not on that channel we join 'em first */
-        if (!(membership = find_membership_link(client->user->channel, chan)))
-        {
-            new_message(client, NULL, &mtags);
-    		join_channel(chan, client, mtags, member_modes);
-        }
+	/* if they not on that channel we join 'em first */
+	if (!(membership = find_membership_link(client->user->channel, chan)))
+	{
+		new_message(client, NULL, &mtags);
+		join_channel(chan, client, mtags, member_modes);
+	}
 
-        char *m0de;
-        m0de = safe_alloc(3);
-        m0de[0] = MODE_SOPMODE;
-        parv_stuff_lol[0] = m0de;
-        parv_stuff_lol[1] = client->name;
-        parv_stuff_lol[2] = 0;
-        sendto_channel(chan, &me, NULL, NULL, 0, SEND_ALL, mtags, ":%s NOTICE %s :%s entering this channel on official network business.", me.name, chan->name, client->name);
-        SetJoiningAsSop(client);
-        unreal_log(ULOG_INFO, "ojoin", "OJOIN_COMMAND", client, "OJOIN: $client used OJOIN to join $channel on official network business.",
-		    log_data_string("channel", chan->name));
-        do_mode(chan, client, mtags, 3, parv_stuff_lol, 0, 0);
-        safe_free(m0de);
-       
-        free_message_tags(mtags);
-    }
+	m0de = safe_alloc(3);
+	m0de[0] = MODE_SOPMODE;
+	parv_stuff_lol[0] = m0de;
+	parv_stuff_lol[1] = client->name;
+	parv_stuff_lol[2] = 0;
+	sendto_channel(chan, &me, NULL, NULL, 0, SEND_ALL, mtags, ":%s NOTICE %s :%s entering this channel on official network business.", me.name, chan->name, client->name);
+	SetJoiningAsSop(client);
+	unreal_log(ULOG_INFO, "ojoin", "OJOIN_COMMAND", client, "OJOIN: $client used OJOIN to join $channel on official network business.",
+		log_data_string("channel", chan->name));
+	do_mode(chan, &me, mtags, 3, parv_stuff_lol, 0, 0);
+	m0de[0] = 'o';
+	parv_stuff_lol[0] = m0de;
+	do_mode(chan, &me, mtags, 3, parv_stuff_lol, 0, 0);
+	safe_free(m0de);
+	
+	free_message_tags(mtags);
+
 }
