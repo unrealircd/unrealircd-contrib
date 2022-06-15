@@ -100,22 +100,22 @@ MOD_UNLOAD()
 
 int cmode_sopmode_is_ok(Client *client, Channel *channel, char mode, const char *param, int type, int what)
 {
-    Client *target;
+	Client *target;
 	if (!(target = find_user(param, NULL)))
 		return EX_DENY;
 
-    int can_ojoin = ValidatePermissionsForPath("ojoin",target,NULL,channel,NULL);
+	int can_ojoin = ValidatePermissionsForPath("ojoin",target,NULL,channel,NULL);
 
 	if (what == MODE_DEL && client == target && can_ojoin) // allow them to -Y themselves 
 		return EX_ALLOW;
-    else if (what == MODE_DEL && client != target) // if someone else is trying to -Y you
-    {
-        if (!IsServer(client) && !IsULine(client)) // if they're not a server or ULine
-        {
-            sendto_one(target, NULL, ":%s %d %s %s :%s", me.name, ERR_CANNOTDOCOMMAND, target->name, "MODE", "Permission denied!"); // DENIED
-	    	return EX_ALWAYS_DENY; // DENIED even if you have override AHHAHA
-        }
-    }
+	else if (what == MODE_DEL && client != target) // if someone else is trying to -Y you
+	{
+		if (!IsServer(client) && !IsULine(client)) // if they're not a server or ULine
+		{
+			sendto_one(target, NULL, ":%s %d %s %s :%s", me.name, ERR_CANNOTDOCOMMAND, target->name, "MODE", "Permission denied!"); // DENIED
+			return EX_ALWAYS_DENY; // DENIED even if you have override AHHAHA
+		}
+	}
 	if (!can_ojoin)
 	 {
 		sendto_one(target, NULL, ":%s %d %s %s :%s", me.name, ERR_CANNOTDOCOMMAND, target->name, "MODE", "Permission denied!");
@@ -183,7 +183,7 @@ CMD_FUNC(ojoin)
 	const char *member_modes;
 	const char *parv_stuff_lol[3];
 	int ntargets = 0;
-	int maxtargets = 1;
+	int maxtargets = max_targets_for_command("JOIN");
 	Membership *membership;
 	Channel *chan;
 	MessageTag *mtags = NULL;
