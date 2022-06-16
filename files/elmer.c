@@ -13,16 +13,16 @@
 /*** <<<MODULE MANAGER START>>>
 module
 {
-        documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/elmer/README.md";
+		documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/elmer/README.md";
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
-        min-unrealircd-version "6.*";
-        max-unrealircd-version "6.*";
-        post-install-text {
-                "The module is installed. Now all you need to do is add a loadmodule line:";
-                "loadmodule \"third/elmer\";";
-                "And /REHASH the IRCd.";
-                "The module does not need any other configuration.";
-        }
+		min-unrealircd-version "6.*";
+		max-unrealircd-version "6.*";
+		post-install-text {
+				"The module is installed. Now all you need to do is add a loadmodule line:";
+				"loadmodule \"third/elmer\";";
+				"And /REHASH the IRCd.";
+				"The module does not need any other configuration.";
+		}
 }
 *** <<<MODULE MANAGER END>>>
 */
@@ -31,7 +31,7 @@ module
 
 ModuleHeader MOD_HEADER = {
 	"third/elmer",
-	"1.0",
+	"2.0",
 	"Make people talk like Elmer",
 	"Valware",
 	"unrealircd-6",
@@ -75,8 +75,8 @@ MOD_INIT() {
 	if (!elmer_md)
 		abort();
 	
-	CommandAdd(modinfo->handle, ADDELM, ADDELMER, 1, CMD_OPER);
-	CommandAdd(modinfo->handle, DELELM, DELELMER, 1, CMD_OPER);
+	CommandAdd(modinfo->handle, ADDELM, ADDELMER, 1, CMD_USER);
+	CommandAdd(modinfo->handle, DELELM, DELELMER, 1, CMD_USER);
 	HookAdd(modinfo->handle, HOOKTYPE_CAN_SEND_TO_CHANNEL, 0, elmer_chanmsg);
 	HookAdd(modinfo->handle, HOOKTYPE_CAN_SEND_TO_USER, 0, elmer_usermsg);
 	
@@ -103,11 +103,11 @@ const char *elmer_serialize(ModData *m)
 }
 void elmer_free(ModData *m)
 {
-    m->i = 0;
+	m->i = 0;
 }
 void elmer_unserialize(const char *str, ModData *m)
 {
-    m->i = atoi(str);
+	m->i = atoi(str);
 }
 CMD_FUNC(ADDELMER)
 {
@@ -116,24 +116,34 @@ CMD_FUNC(ADDELMER)
 	if (hunt_server(client, NULL, "ELMER", 1, parc, parv) != HUNTED_ISME)
 		return;
 	
-	if (!IsOper(client))
-	{
-		sendnumeric(client, ERR_NOPRIVILEGES);
-		return;	
-	}
+	
 	else if (parc < 2) {
 		sendnumeric(client, ERR_NEEDMOREPARAMS, ADDELM);
 		return;
 	}
+	
 	else if (!(target = find_user(parv[1], NULL))) {
 		sendnumeric(client, ERR_NOSUCHNICK, parv[1]);
 		return;
 	}
-	if (IsOper(target) && client != target)
+	
+	if (IsOper(target) && client != target) // cannot elmer another oper
+	{
+		sendnumeric(client, ERR_NOPRIVILEGES); 
+		return;	
+	}
+	
+	if (!IsOper(client) && client == target) // client is not oper but wants to elmer themselves
+	{
+		/* HELL YEAH -- skip this check */
+	}
+	
+	else if (!IsOper(client))
 	{
 		sendnumeric(client, ERR_NOPRIVILEGES);
 		return;	
 	}
+	
 	if (IsElmer(target))
 	{
 		sendnotice(client,"%s is already talking like Elmer!",target->name);
@@ -151,11 +161,6 @@ CMD_FUNC(DELELMER)
 	if (hunt_server(client, NULL, "DELMER", 1, parc, parv) != HUNTED_ISME)
 		return;
 
-	if (!IsOper(client))
-	{
-		sendnumeric(client, ERR_NOPRIVILEGES);
-		return;	
-	}
 	else if (parc < 2) {
 		sendnumeric(client, ERR_NEEDMOREPARAMS, DELELM);
 		return;
@@ -169,7 +174,16 @@ CMD_FUNC(DELELMER)
 		sendnumeric(client, ERR_NOPRIVILEGES);
 		return;	
 	}
+	if (!IsOper(client) && client == target) // client is not oper but wants to elmer themselves
+	{
+		/* HELL YEAH -- skip this check */
+	}
 	
+	else if (!IsOper(client))
+	{
+		sendnumeric(client, ERR_NOPRIVILEGES);
+		return;	
+	}
 	if (!IsElmer(target))
 	{
 		sendnotice(client,"%s was not talking like Elmer anyway.",target->name);
