@@ -13,16 +13,16 @@
 /*** <<<MODULE MANAGER START>>>
 module
 {
-		documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/elmer/README.md";
-	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
-		min-unrealircd-version "6.*";
-		max-unrealircd-version "6.*";
-		post-install-text {
-				"The module is installed. Now all you need to do is add a loadmodule line:";
-				"loadmodule \"third/elmer\";";
-				"And /REHASH the IRCd.";
-				"The module does not need any other configuration.";
-		}
+        documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/elmer/README.md";
+		troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+        min-unrealircd-version "6.*";
+        max-unrealircd-version "6.*";
+        post-install-text {
+                "The module is installed. Now all you need to do is add a loadmodule line:";
+                "loadmodule \"third/elmer\";";
+                "And /REHASH the IRCd.";
+                "The module does not need any other configuration.";
+        }
 }
 *** <<<MODULE MANAGER END>>>
 */
@@ -30,8 +30,8 @@ module
 #include "unrealircd.h"
 
 ModuleHeader MOD_HEADER = {
-	"third/elmer",
-	"2.0",
+	"third/elmer2",
+	"2.1",
 	"Make people talk like Elmer",
 	"Valware",
 	"unrealircd-6",
@@ -57,7 +57,37 @@ static char *convert_to_elmer(char *line);
 int elmer_chanmsg(Client *client, Channel *channel, Membership *lp, const char **msg, const char **errmsg, SendType sendtype);
 int elmer_usermsg(Client *client, Client *target, const char **msg, const char **errmsg, SendType sendtype);
 
+static void dumpit(Client *client, char **p);
+
+static char *help_elmer[] = {
+	"***** Elmer *****",
+	"-",
+	"Forces another user (or yourself) to talk like",
+	"Elmer Fudd. (Replaces 'r's and 'l's with 'w's)",
+	"-",
+	"Syntax:",
+	"    /ELMER [-list|-help|<nick>]",
+	"    /DELMER <nick>",
+	"-",
+	"Examples:",
+	"-",
+	"List users who are Elmer (Oper):",
+	"    /ELMER -list",
+	"-",
+	"View this output:",
+	"    /ELMER -help",
+	"-",
+	"Add a user whose nick is Lamer32 as Elmer:",
+	"    /ELMER Lamer32",
+	"-",
+	"Remove a user whose nick is Lamer32 as Elmer:",
+	"    /DELMER Lamer32",
+	"-",
+	NULL
+};
 ModDataInfo *elmer_md;
+
+
 
 MOD_INIT() {
 	ModDataInfo mreq;
@@ -80,6 +110,8 @@ MOD_INIT() {
 	HookAdd(modinfo->handle, HOOKTYPE_CAN_SEND_TO_CHANNEL, 0, elmer_chanmsg);
 	HookAdd(modinfo->handle, HOOKTYPE_CAN_SEND_TO_USER, 0, elmer_usermsg);
 	
+	/* adding a fkn /HELP command output XD */
+	//add_elmer_help();
 	return MOD_SUCCESS;
 }
 /** Called upon module load */
@@ -103,42 +135,67 @@ const char *elmer_serialize(ModData *m)
 }
 void elmer_free(ModData *m)
 {
-	m->i = 0;
+    m->i = 0;
 }
 void elmer_unserialize(const char *str, ModData *m)
 {
-	m->i = atoi(str);
+    m->i = atoi(str);
 }
+
+static void dumpit(Client *client, char **p) {
+	if(IsServer(client))
+		return;
+	for(; *p != NULL; p++)
+		sendto_one(client, NULL, ":%s %03d %s :%s", me.name, RPL_TEXT, client->name, *p);
+}
+
 CMD_FUNC(ADDELMER)
 {
 	Client *target;
-	
-	if (hunt_server(client, NULL, "ELMER", 1, parc, parv) != HUNTED_ISME)
-		return;
-	
-	
-	else if (parc < 2) {
-		sendnumeric(client, ERR_NEEDMOREPARAMS, ADDELM);
+	int self = 0;
+	int operclient;
+	if (parc < 2 || !strcasecmp(parv[1],"-help"))
+	{
+		dumpit(client,help_elmer);
 		return;
 	}
-	
+	else if (!strcasecmp(parv[1],"-list") && IsOper(client))
+	{
+		int found = 0;
+		int listnum = 1;
+		sendnotice(client,"Listing all ELMER'd users:");
+		list_for_each_entry(target, &client_list, client_node)
+		{
+			if (!IsServer(target) && IsElmer(target))
+			{
+				found = 1;
+				sendnotice(client,"%d) %s", listnum, target->name);
+				listnum++;
+			}
+		}
+		if (!found)
+				sendnotice(client,"ELMER list is empty.");
+		return;
+	}
 	else if (!(target = find_user(parv[1], NULL))) {
 		sendnumeric(client, ERR_NOSUCHNICK, parv[1]);
 		return;
 	}
-	
-	if (IsOper(target) && client != target) // cannot elmer another oper
+	operclient = IsOper(client) ? 1 : 0; // ¿are we an oper?
+
+	if (IsOper(target) && client != target)
 	{
-		sendnumeric(client, ERR_NOPRIVILEGES); 
-		return;	
+		// huhuhuhu... lets let it get sent to ulines tho
+		if (!IsULine(target) && operclient) 
+		{
+			sendnumeric(client, ERR_NOPRIVILEGES);
+			return;
+		}	
 	}
+	if (!operclient && client == target) // client is not oper but wants to elmer themselves
+		self++;
 	
-	if (!IsOper(client) && client == target) // client is not oper but wants to elmer themselves
-	{
-		/* HELL YEAH -- skip this check */
-	}
-	
-	else if (!IsOper(client))
+	else if (!operclient)
 	{
 		sendnumeric(client, ERR_NOPRIVILEGES);
 		return;	
@@ -146,51 +203,67 @@ CMD_FUNC(ADDELMER)
 	
 	if (IsElmer(target))
 	{
-		sendnotice(client,"%s is already talking like Elmer!",target->name);
+		sendto_one(target, NULL, "FAIL %s %s %s :%s", ADDELM, "USER_ALREADY_ELMER",target->name,"That user is already marked as Elmer.");
 		return;
 	}
+	/* if they set it on themselves from not being an oper, they won't see the log snotice, so we should inform them manually
+	 * reason we do this is because they will see either one or the other. we don't like duplicate confirmations, but we don't leave them out.
+	 */
+	if (self) // if they set it on themselves from not being an oper, they won't see the log snotice, so we should inform them manually
+		sendnotice(client,"You are now marked as speaking like Elmer.");
+
 	SetElmer(target);
-	sendnotice(client,"%s is now talking like Elmer.",target->name);
+	
+	unreal_log(ULOG_INFO, "elmer", "ADD_ELMER", client, "$client has marked $target as 'Elmer'.",log_data_string("client", client->name),log_data_string("target", target->name));
 	return;
 }
 
 CMD_FUNC(DELELMER)
 {
 	Client *target;
-	
-	if (hunt_server(client, NULL, "DELMER", 1, parc, parv) != HUNTED_ISME)
-		return;
-
-	else if (parc < 2) {
-		sendnumeric(client, ERR_NEEDMOREPARAMS, DELELM);
+	int self = 0;
+	int operclient;
+	if (parc < 2 || !strcasecmp(parv[1],"-help"))
+	{
+		dumpit(client,help_elmer);
 		return;
 	}
 	else if (!(target = find_user(parv[1], NULL))) {
 		sendnumeric(client, ERR_NOSUCHNICK, parv[1]);
 		return;
 	}
+	operclient = IsOper(client) ? 1 : 0; // ¿are we an oper?
+
 	if (IsOper(target) && client != target)
 	{
-		sendnumeric(client, ERR_NOPRIVILEGES);
-		return;	
+		// huhuhuhu... lets let it get sent to ulines tho
+		if (!IsULine(target) && operclient) 
+		{
+			sendnumeric(client, ERR_NOPRIVILEGES);
+			return;
+		}	
 	}
-	if (!IsOper(client) && client == target) // client is not oper but wants to elmer themselves
-	{
-		/* HELL YEAH -- skip this check */
-	}
+	if (!operclient && client == target) // client is not oper but wants to delmer themselves
+		self++;
 	
-	else if (!IsOper(client))
+	else if (!operclient)
 	{
 		sendnumeric(client, ERR_NOPRIVILEGES);
 		return;	
 	}
 	if (!IsElmer(target))
 	{
-		sendnotice(client,"%s was not talking like Elmer anyway.",target->name);
+		sendto_one(target, NULL, "FAIL %s %s %s :%s", DELELM, "USER_NOT_ELMER",target->name,"That user is not marked as Elmer anyway.");
 		return;
 	}
+	/* if they unset it from themselves from not being an oper, they won't see the log snotice, so we should inform them manually
+	 * reason we do this is because they will see either one or the other. we don't like duplicate confirmations, but we don't leave them out.
+	 */
+	if (self) 
+		sendnotice(client,"You are no longer marked as speaking like Elmer.");
+		
+	unreal_log(ULOG_INFO, "elmer", "DEL_ELMER", client, "$client has removed $target as 'Elmer'.",log_data_string("client", client->name),log_data_string("target", target->name));
 	ClearElmer(target);
-	sendnotice(client,"%s is no longer talking like Elmer.",target->name);
 	return;
 }
 
