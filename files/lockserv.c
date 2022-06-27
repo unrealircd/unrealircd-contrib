@@ -292,7 +292,7 @@ CMD_FUNC(cmd_lockserv)
 	moddata_client_set(target, "lockserv_reason", reason);
 
 	char s[300] = "\0";
-	ircsnprintf(s, sizeof(s), "%s!%s@%s [Oper: %s [%s]]make", client->name, client->ident, client->ip, moddata_client_get(client, "operlogin"),moddata_client_get(client, "operclass"));
+	ircsnprintf(s, sizeof(s), "%s!%s@%s [Oper: %s [%s]]", client->name, client->ident, client->ip, moddata_client_get(client, "operlogin"),moddata_client_get(client, "operclass"));
 	const char *lockedby = s;
 	moddata_client_set(target, "lockserv_lockedby", lockedby);
 
