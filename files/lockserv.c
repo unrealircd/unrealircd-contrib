@@ -89,7 +89,7 @@ static char *lockserv_help[] = {
 	"    /LOCKSERV Valware Server closed for spam.",
 	"-",
 	"Unlock a server to resume allowing connections:",
-	"    /UNLOCKSERV Lamer32",
+	"    /UNLOCKSERV lol.valware.uk",
 	"-",
 	NULL
 };
@@ -352,7 +352,7 @@ CMD_FUNC(cmd_unlockserv)
 int lockserv_connect(Client *client)
 {
 	Client *server = find_server(me.name, NULL);
-	if (IsServerLocked(server) && !IsServer(client)) // allow servers to connect still :D
+	if (IsServerLocked(server) && IsUser(client) && !find_tkl_exception(TKL_ZAP, client)) // allow servers/rpc/everything else to connect still :D
 	{
 		exit_client(client, NULL, LockReason(server));
 		return HOOK_DENY;
@@ -387,8 +387,7 @@ CMD_OVERRIDE_FUNC(lockserv_cap_ovr)
 {
 	Client *server = find_server(me.name, NULL);
 
-	/* don't know if servers do CAP tbh but might as well be safe and let them do it */
-	if (IsServerLocked(server) && !IsServer(client))
+	if (IsServerLocked(server) && IsUser(client) && !find_tkl_exception(TKL_ZAP, client))
 		return;
 
 	CallCommandOverride(ovr, client, recv_mtags, parc, parv);
