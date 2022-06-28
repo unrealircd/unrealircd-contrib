@@ -147,7 +147,8 @@ MOD_INIT() {
 		return MOD_FAILED;
 	}
 
-	HookAdd(modinfo->handle, HOOKTYPE_PRE_LOCAL_CONNECT, 0, lockserv_connect);
+	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_CONNECT, 0, lockserv_connect);
+	HookAdd(modinfo->handle, HOOKTYPE_REMOTE_CONNECT, 0, lockserv_connect);
 	CommandAdd(modinfo->handle, MSG_LOCKSERV, cmd_lockserv, MAXPARA, CMD_OPER | CMD_SERVER);
 	CommandAdd(modinfo->handle, MSG_UNLOCKSERV, cmd_unlockserv, 1, CMD_OPER | CMD_SERVER);
 	CommandOverrideAdd(modinfo->handle, "CAP", 0, lockserv_cap_ovr);
@@ -351,10 +352,11 @@ CMD_FUNC(cmd_unlockserv)
 
 int lockserv_connect(Client *client)
 {
-	Client *server = find_server(me.name, NULL);
-	if (IsServerLocked(server) && IsUser(client) && !find_tkl_exception(TKL_ZAP, client)) // allow servers/rpc/everything else to connect still :D
+	if (IsServerLocked(client->uplink) && !find_tkl_exception(TKL_ZAP, client) && IsUser(client)) // allow servers/rpc/everything else to connect still :D
 	{
-		exit_client(client, NULL, LockReason(server));
+		if (!MyConnect(client))
+			sendto_server(NULL, 0, 0, NULL, ":%s KILL %s :%s", me.name, client->id, LockReason(client->uplink));
+		exit_client(client, NULL, LockReason(client->uplink));
 		return HOOK_DENY;
 	}
 	return HOOK_CONTINUE;
@@ -383,12 +385,17 @@ void lockserv_list(Client *client)
 		sendnotice(client,"*** End of /LOCKSERV -list");
 }
 
+/* if for some reason we didn't catch them because they connected without caps (is it even possible?)
+ * not to worry we'll catch them a little later */
 CMD_OVERRIDE_FUNC(lockserv_cap_ovr)
 {
 	Client *server = find_server(me.name, NULL);
 
-	if (IsServerLocked(server) && IsUser(client) && !find_tkl_exception(TKL_ZAP, client))
+	if (IsServerLocked(server) && !find_tkl_exception(TKL_ZAP, client) && !IsRegistered(client))
+	{
+		exit_client(client, NULL, LockReason(server));
 		return;
+	}
 
 	CallCommandOverride(ovr, client, recv_mtags, parc, parv);
 }
