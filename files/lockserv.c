@@ -148,7 +148,6 @@ MOD_INIT() {
 	}
 
 	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_CONNECT, 0, lockserv_connect);
-	HookAdd(modinfo->handle, HOOKTYPE_REMOTE_CONNECT, 0, lockserv_connect);
 	CommandAdd(modinfo->handle, MSG_LOCKSERV, cmd_lockserv, MAXPARA, CMD_OPER | CMD_SERVER);
 	CommandAdd(modinfo->handle, MSG_UNLOCKSERV, cmd_unlockserv, 1, CMD_OPER | CMD_SERVER);
 	CommandOverrideAdd(modinfo->handle, "CAP", 0, lockserv_cap_ovr);
