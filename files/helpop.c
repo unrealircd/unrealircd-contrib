@@ -50,7 +50,7 @@ CMD_FUNC(REPORT);
 
 ModuleHeader MOD_HEADER = {
 	"third/helpop", // Module name
-	"1.3", // Module Version
+	"1.4", // Module Version
 	"HelpOp - Provides usermode h (HelpOp) and swhois line, channelmode g (HelpOp-only room), and command /HELPOPS", // Description
 	"Valware", // Author
 	"unrealircd-6", // Unreal Version
@@ -58,12 +58,8 @@ ModuleHeader MOD_HEADER = {
 
 int helpop_whois(Client *requester, Client *acptr, NameValuePrioList **list);
 int helponly_check (Client *client, Channel *channel, const char *key, char **errmsg);
+int helpchan_join_op_presence_check(Client *client, Channel *channel, MessageTag *mtags);
 
-typedef struct {
-	// Change this or add more variables, whatever suits you fam
-	char flag;
-	int p;
-} aModeX;
 
 // Initialisation routine (register hooks, commands and modes or create structs etc)
 MOD_INIT() {
@@ -80,6 +76,7 @@ MOD_INIT() {
 	CheckAPIError("CommandAdd(MSG_MYCMD)", CommandAdd(modinfo->handle, MSG_MYCMD, HELPOPS, 1, CMD_SERVER | CMD_USER));
 	
 	HookAdd(modinfo->handle, HOOKTYPE_WHOIS, 0, helpop_whois);
+	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_JOIN, 0, helpchan_join_op_presence_check);
 
 	MARK_AS_GLOBAL_MODULE(modinfo);
 	return MOD_SUCCESS;
@@ -161,4 +158,41 @@ CMD_FUNC(HELPOPS) {
 	}
 	sendto_umode_global(extumode_helpop,"(HelpOps) from %s: %s",client->name,parv[1]);
 
+}
+
+int helpchan_join_op_presence_check(Client *client, Channel *channel, MessageTag *mtags)
+{
+	if (strcasecmp(channel->name,HELP_CHANNEL))
+		return 0;
+	
+	Member *member;
+	int found = 0;
+	for (member = channel->members; member; member = member->next)
+	{
+		Membership *mb = find_membership_link(member->client->user->channel, channel);
+		if (IsHelpop(member->client) && client == member->client)
+		{
+			MessageTag *mtags = NULL;
+	
+			new_message(member->client, NULL, &mtags);
+			sendto_channel(channel, &me, NULL, 0, 0, SEND_ALL, mtags,
+						":%s MODE %s %s %s",
+						me.name, channel->name, "+o", client->name);
+			sendto_server(NULL, 0, 0, mtags, ":%s MODE %s %s %s%s", me.id, channel->name, "+o", client->name, IsServer(member->client)?" 0":"");
+			free_message_tags(mtags);
+			add_member_mode_fast(member, mb, 'o');
+			found = 1;
+		}
+		if (check_channel_access(member->client, channel, "hoaq"))
+		{
+
+			if (!IsULine(member->client))
+				found = 1;
+		}		
+	}
+	if (!found) // found no op so let them helpops know
+	{
+		sendto_umode(extumode_helpop,"[%s] %s has joined the help channel and there are no ops on that channel.", HELP_CHANNEL, client->name);
+	}
+	return 0;
 }
