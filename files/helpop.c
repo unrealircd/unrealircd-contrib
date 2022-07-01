@@ -49,7 +49,7 @@ CMD_FUNC(REPORT);
 
 
 ModuleHeader MOD_HEADER = {
-	"third/helpop", // Module name
+	"third/helpop2", // Module name
 	"1.4", // Module Version
 	"HelpOp - Provides usermode h (HelpOp) and swhois line, channelmode g (HelpOp-only room), and command /HELPOPS", // Description
 	"Valware", // Author
@@ -171,7 +171,8 @@ int helpchan_join_op_presence_check(Client *client, Channel *channel, MessageTag
 	for (member = channel->members; member; member = member->next)
 	{
 		Membership *mb = find_membership_link(member->client->user->channel, channel);
-		if (IsHelpop(member->client) && client == member->client)
+
+		if (IsHelpop(member->client) && client == member->client && client->local)
 		{
 			MessageTag *mtags = NULL;
 	
