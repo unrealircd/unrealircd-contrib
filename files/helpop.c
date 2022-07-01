@@ -49,7 +49,7 @@ CMD_FUNC(REPORT);
 
 
 ModuleHeader MOD_HEADER = {
-	"third/helpop2", // Module name
+	"third/helpop", // Module name
 	"1.4", // Module Version
 	"HelpOp - Provides usermode h (HelpOp) and swhois line, channelmode g (HelpOp-only room), and command /HELPOPS", // Description
 	"Valware", // Author
