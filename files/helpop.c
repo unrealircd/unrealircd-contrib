@@ -77,6 +77,7 @@ MOD_INIT() {
 	
 	HookAdd(modinfo->handle, HOOKTYPE_WHOIS, 0, helpop_whois);
 	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_JOIN, 0, helpchan_join_op_presence_check);
+	HookAdd(modinfo->handle, HOOKTYPE_REMOTE_JOIN, 0, helpchan_join_op_presence_check);
 
 	MARK_AS_GLOBAL_MODULE(modinfo);
 	return MOD_SUCCESS;
