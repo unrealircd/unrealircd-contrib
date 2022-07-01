@@ -176,7 +176,7 @@ int helpchan_join_op_presence_check(Client *client, Channel *channel, MessageTag
 			MessageTag *mtags = NULL;
 	
 			new_message(member->client, NULL, &mtags);
-			sendto_channel(channel, &me, NULL, 0, 0, SEND_ALL, mtags,
+			sendto_channel(channel, &me, NULL, 0, 0, SEND_LOCAL, mtags,
 						":%s MODE %s %s %s",
 						me.name, channel->name, "+o", client->name);
 			sendto_server(NULL, 0, 0, mtags, ":%s MODE %s %s %s%s", me.id, channel->name, "+o", client->name, IsServer(member->client)?" 0":"");
