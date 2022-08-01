@@ -31,7 +31,7 @@ module
 
 ModuleHeader MOD_HEADER = {
 	"third/elmer",
-	"2.1",
+	"2.2",
 	"Make people talk like Elmer",
 	"Valware",
 	"unrealircd-6",
@@ -100,6 +100,7 @@ MOD_INIT() {
 	mreq.serialize = elmer_serialize;
 	mreq.unserialize = elmer_unserialize;
 	mreq.sync = 1;
+	mreq.remote_write = 1;
 	mreq.type = MODDATATYPE_CLIENT;
 	elmer_md = ModDataAdd(modinfo->handle, mreq);
 	if (!elmer_md)
@@ -195,7 +196,7 @@ CMD_FUNC(ADDELMER)
 	if (!operclient && client == target) // client is not oper but wants to elmer themselves
 		self++;
 	
-	else if (!operclient)
+	if (!operclient && !self)
 	{
 		sendnumeric(client, ERR_NOPRIVILEGES);
 		return;	
@@ -246,7 +247,7 @@ CMD_FUNC(DELELMER)
 	if (!operclient && client == target) // client is not oper but wants to delmer themselves
 		self++;
 	
-	else if (!operclient)
+	if (!operclient && !self)
 	{
 		sendnumeric(client, ERR_NOPRIVILEGES);
 		return;	
