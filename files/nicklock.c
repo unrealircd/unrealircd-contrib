@@ -32,7 +32,7 @@ module
 
 ModuleHeader MOD_HEADER = {
 	"third/nicklock",
-	"1.0",
+	"1.1",
 	"Adds the /NICKLOCK command which allows server operators to prevent a user from changing their nick during their session.",
 	"Valware",
 	"unrealircd-6",
@@ -54,6 +54,7 @@ CMD_OVERRIDE_FUNC(nick_override);
 void nicklock_free(ModData *m);
 const char *nicklock_serialize(ModData *m);
 void nicklock_unserialize(const char *str, ModData *m);
+int nicklock_whois(Client *requester, Client *client, NameValuePrioList **list);
 
 ModDataInfo *nicklock_md;
 
@@ -76,6 +77,7 @@ MOD_INIT() {
 		return MOD_FAILED;
 	}
 	
+	HookAdd(modinfo->handle, HOOKTYPE_WHOIS, 0, nicklock_whois);
 	CommandAdd(modinfo->handle, NLOCK, NICKLOCK, 2, CMD_OPER);
 	CommandAdd(modinfo->handle, RNLOCK, NICKUNLOCK, 1, CMD_OPER);
 	
@@ -118,9 +120,6 @@ CMD_FUNC(NICKLOCK)
 	char oldnickname[NICKLEN+1];
 	MessageTag *mtags = NULL;
 	
-	if (hunt_server(client, NULL, "NICKLOCK", 1, parc, parv) != HUNTED_ISME)
-		return;
-	
 	if (!IsOper(client))
 	{
 		sendnumeric(client, ERR_NOPRIVILEGES);
@@ -132,6 +131,24 @@ CMD_FUNC(NICKLOCK)
 		return;
 	}
     
+	/* the oper wants to see a list of nicklocked nicks =] */
+	if (!strcasecmp(parv[1],"-list"))
+	{
+		int listnum = 1;
+		sendnotice(client, "Listing NICKLOCK'd users:");
+		list_for_each_entry(target, &client_list, client_node)
+		{
+			if (IsNickLock(target))
+			{
+				sendnotice(client,"%d) %s", listnum, target->name); /* show them */
+				listnum++;
+			}
+		}
+		return;
+	}
+	if (hunt_server(client, NULL, "NICKLOCK", 1, parc, parv) != HUNTED_ISME)
+		return;
+
 	if (!(target = find_user(parv[1], NULL))) {
 		sendnumeric(client, ERR_NOSUCHNICK, parv[1]);
 		return;
@@ -236,4 +253,12 @@ CMD_OVERRIDE_FUNC(nick_override)
 	if (!IsNickLock(client))
 		CallCommandOverride(ovr, client, recv_mtags, parc, parv);
 	return;
+}
+
+int nicklock_whois(Client *requester, Client *client, NameValuePrioList **list)
+{
+	if (IsOper(requester) && IsNickLock(client))
+		add_nvplist_numeric_fmt(list, 0, "nicklock", client, 320, "%s :has been locked from changing nicks", client->name);
+	
+	return 0;
 }
