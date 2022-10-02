@@ -28,7 +28,7 @@ module
 
 ModuleHeader MOD_HEADER = {
 	"third/lockserv",
-	"1.0",
+	"1.1",
 	"Adds the /lockserv command which allows privileged server operators to prevent connections to a particular server.",
 	"Valware",
 	"unrealircd-6",
@@ -151,6 +151,7 @@ MOD_INIT() {
 	CommandAdd(modinfo->handle, MSG_LOCKSERV, cmd_lockserv, MAXPARA, CMD_OPER | CMD_SERVER);
 	CommandAdd(modinfo->handle, MSG_UNLOCKSERV, cmd_unlockserv, 1, CMD_OPER | CMD_SERVER);
 	CommandOverrideAdd(modinfo->handle, "CAP", 0, lockserv_cap_ovr);
+	CommandOverrideAdd(modinfo->handle, "AUTH", 0, lockserv_cap_ovr);
 
 
 	return MOD_SUCCESS;
@@ -383,7 +384,9 @@ void lockserv_list(Client *client)
 }
 
 /* if for some reason we didn't catch them because they connected without caps (is it even possible?)
- * not to worry we'll catch them a little later */
+ * not to worry we'll catch them a little later
+ * Will also override 'AUTH'
+*/
 CMD_OVERRIDE_FUNC(lockserv_cap_ovr)
 {
 	Client *server = find_server(me.name, NULL);
