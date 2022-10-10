@@ -457,7 +457,7 @@ int mute_configrun(ConfigFile *cf, ConfigEntry *ce, int type)
 			safe_strdup(ourconf.reason, cep->value);
 			continue;
 		}
-		if (!strcmp(cep->name,"lagtime"))
+		if (!strcmp(cep->name,"lag-time"))
 		{
 			ourconf.lagby = atoi(cep->value);
 			continue;
