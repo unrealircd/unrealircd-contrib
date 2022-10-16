@@ -25,7 +25,7 @@ module
 ModuleHeader MOD_HEADER
   = {
 	"third/mute",
-	"1.1",
+	"1.2",
 	"Globally mute a user", 
 	"Valware",
 	"unrealircd-6",
@@ -469,7 +469,7 @@ int mute_configrun(ConfigFile *cf, ConfigEntry *ce, int type)
 
 int who_the_hell_be_muted_lol(Client *client, Client *target, NameValuePrioList **list)
 {
-	if ((IsMuted(target) && IsOper(client)) || (target == client && ourconf.show_reason))
+	if (IsMuted(target) && (IsOper(client) || (target == client && ourconf.show_reason)))
 		add_nvplist_numeric(list, 0, "muted", client, RPL_WHOISSPECIAL, target->name, "has been muted");
 
 	return HOOK_CONTINUE;
