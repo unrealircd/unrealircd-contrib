@@ -25,7 +25,7 @@ module
 ModuleHeader MOD_HEADER
   = {
 	"third/mute",
-	"1.3",
+	"1.4",
 	"Globally mute a user", 
 	"Valware",
 	"unrealircd-6",
@@ -223,7 +223,7 @@ CMD_FUNC(CMD_MUTE)
 
 	if (parc < 2)
 	{
-		sendnumeric(client, ERR_NEEDMOREPARAMS, "MUTE");
+		sendnumeric(client, ERR_NEEDMOREPARAMS, MSG_MUTE);
 		return;
 	}
 
@@ -263,12 +263,12 @@ CMD_FUNC(CMD_MUTE)
 	}
 	if (IsOper(target) && client != target) // let them mute themselves why not
 	{
-		sendnumeric(client, ERR_CANNOTDOCOMMAND, "MUTE", "Permission denied!");
+		sendnumeric(client, ERR_CANNOTDOCOMMAND, MSG_MUTE, "Permission denied!");
 		return;
 	}
 	if (IsMuted(target))
 	{
-		sendnumeric(client, ERR_CANNOTDOCOMMAND, "MUTE", "That user is already muted");
+		sendnumeric(client, ERR_CANNOTDOCOMMAND, MSG_MUTE, "That user is already muted");
 		return;
 	}
 	Mute(target);
@@ -285,7 +285,7 @@ CMD_FUNC(CMD_UNMUTE)
 
 	if (parc < 2)
 	{
-		sendnumeric(client, ERR_NEEDMOREPARAMS, "UMUTE");
+		sendnumeric(client, ERR_NEEDMOREPARAMS, MSG_UNMUTE);
 		return;
 	}
 
@@ -301,12 +301,12 @@ CMD_FUNC(CMD_UNMUTE)
 	}
 	if (IsOper(target) && target != client)
 	{
-		sendnumeric(client, ERR_CANNOTDOCOMMAND, "UNMUTE", "Permission denied!");
+		sendnumeric(client, ERR_CANNOTDOCOMMAND, MSG_UNMUTE, "Permission denied!");
 		return;
 	}
 	if (!IsMuted(target))
 	{
-		sendnumeric(client, ERR_CANNOTDOCOMMAND, "UNMUTE", "That user was not muted");
+		sendnumeric(client, ERR_CANNOTDOCOMMAND, MSG_UNMUTE, "That user was not muted");
 		return;
 	}
 	Unmute(target);
