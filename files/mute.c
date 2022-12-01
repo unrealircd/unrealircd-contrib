@@ -19,13 +19,13 @@ module
 }
 *** <<<MODULE MANAGER END>>>
 */
-
+#define MTAG_MUTED "valware.uk/muted"
 #include "unrealircd.h"
 
 ModuleHeader MOD_HEADER
   = {
 	"third/mute",
-	"1.2",
+	"1.4",
 	"Globally mute a user", 
 	"Valware",
 	"unrealircd-6",
@@ -56,7 +56,7 @@ typedef struct
 
 static muteconf ourconf;
 static void send_to_client_lol(Client *client, char **p);
-
+void mtag_add_muted(Client *client, MessageTag *recv_mtags, MessageTag **mtag_list, const char *signature);
 void mute_free(ModData *m);
 const char *mute_serialize(ModData *m);
 void mute_unserialize(const char *str, ModData *m);
@@ -67,20 +67,29 @@ int mutecheck_usermsg(Client *client, Client *target, const char **text, const c
 int mute_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int mute_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
 int who_the_hell_be_muted_lol(Client *client, Client *target, NameValuePrioList **list);
+int muted_mtag_is_ok(Client *client, const char *name, const char *value);
+int muted_mtag_should_send_to_client(Client *target);
 
 ModDataInfo *mute_md;
 MOD_TEST()
 {
 	memset(&ourconf, 0, sizeof(ourconf));
-
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGTEST, 0, mute_configtest);
 	return MOD_SUCCESS;
 }
 MOD_INIT() {
-	ModDataInfo mreq;
+	ModDataInfo mreq; // For MD
+	MessageTagHandlerInfo mtag; // For message-tagging
 
 	MARK_AS_GLOBAL_MODULE(modinfo);
 	
+	memset(&mtag, 0, sizeof(mtag));
+	mtag.name = MTAG_MUTED;
+	mtag.is_ok = muted_mtag_is_ok;
+	mtag.should_send_to_client = muted_mtag_should_send_to_client;
+	mtag.flags = MTAG_HANDLER_FLAGS_NO_CAP_NEEDED;
+	MessageTagHandlerAdd(modinfo->handle, &mtag);
+
 	setconf();
 	memset(&mreq, 0, sizeof(mreq));
 	mreq.name = "mute";
@@ -96,6 +105,7 @@ MOD_INIT() {
 	
 	CommandAdd(modinfo->handle, MSG_MUTE, CMD_MUTE, 2, CMD_OPER);
 	CommandAdd(modinfo->handle, MSG_UNMUTE, CMD_UNMUTE, 2, CMD_OPER);
+	HookAddVoid(modinfo->handle, HOOKTYPE_NEW_MESSAGE, 0, mtag_add_muted);
 	HookAdd(modinfo->handle, HOOKTYPE_CAN_SEND_TO_CHANNEL, -1, mutecheck_chmsg);
 	HookAdd(modinfo->handle, HOOKTYPE_CAN_SEND_TO_USER, -1, mutecheck_usermsg);
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGRUN, 0, mute_configrun);
@@ -138,6 +148,26 @@ static void send_to_client_lol(Client *client, char **p)
 		return;
 	for(; *p != NULL; p++)
 		sendto_one(client, NULL, ":%s %03d %s :%s", me.name, RPL_TEXT, client->name, *p);
+}
+
+void mtag_add_muted(Client *client, MessageTag *recv_mtags, MessageTag **mtag_list, const char *signature)
+{
+	MessageTag *m;
+
+	if (IsUser(client) && IsMuted(client))
+	{
+		MessageTag *m = find_mtag(recv_mtags, MTAG_MUTED);
+		if (m)
+		{
+			m = duplicate_mtag(m);
+		} else {
+
+			m = safe_alloc(sizeof(MessageTag));
+			safe_strdup(m->name, MTAG_MUTED);
+			m->value = NULL;
+		}
+		AddListItem(m, *mtag_list);
+	}
 }
 
 static char *help_mute[] = {
@@ -193,7 +223,7 @@ CMD_FUNC(CMD_MUTE)
 
 	if (parc < 2)
 	{
-		sendnumeric(client, ERR_NEEDMOREPARAMS, "MUTE");
+		sendnumeric(client, ERR_NEEDMOREPARAMS, MSG_MUTE);
 		return;
 	}
 
@@ -233,12 +263,12 @@ CMD_FUNC(CMD_MUTE)
 	}
 	if (IsOper(target) && client != target) // let them mute themselves why not
 	{
-		sendnumeric(client, ERR_CANNOTDOCOMMAND, "MUTE", "Permission denied!");
+		sendnumeric(client, ERR_CANNOTDOCOMMAND, MSG_MUTE, "Permission denied!");
 		return;
 	}
 	if (IsMuted(target))
 	{
-		sendnumeric(client, ERR_CANNOTDOCOMMAND, "MUTE", "That user is already muted");
+		sendnumeric(client, ERR_CANNOTDOCOMMAND, MSG_MUTE, "That user is already muted");
 		return;
 	}
 	Mute(target);
@@ -255,7 +285,7 @@ CMD_FUNC(CMD_UNMUTE)
 
 	if (parc < 2)
 	{
-		sendnumeric(client, ERR_NEEDMOREPARAMS, "UMUTE");
+		sendnumeric(client, ERR_NEEDMOREPARAMS, MSG_UNMUTE);
 		return;
 	}
 
@@ -271,12 +301,12 @@ CMD_FUNC(CMD_UNMUTE)
 	}
 	if (IsOper(target) && target != client)
 	{
-		sendnumeric(client, ERR_CANNOTDOCOMMAND, "UNMUTE", "Permission denied!");
+		sendnumeric(client, ERR_CANNOTDOCOMMAND, MSG_UNMUTE, "Permission denied!");
 		return;
 	}
 	if (!IsMuted(target))
 	{
-		sendnumeric(client, ERR_CANNOTDOCOMMAND, "UNMUTE", "That user was not muted");
+		sendnumeric(client, ERR_CANNOTDOCOMMAND, MSG_UNMUTE, "That user was not muted");
 		return;
 	}
 	Unmute(target);
@@ -473,4 +503,21 @@ int who_the_hell_be_muted_lol(Client *client, Client *target, NameValuePrioList 
 		add_nvplist_numeric(list, 0, "muted", client, RPL_WHOISSPECIAL, target->name, "has been muted");
 
 	return HOOK_CONTINUE;
+}
+
+int muted_mtag_is_ok(Client *client, const char *name, const char *value)
+{
+	if (IsServer(client))
+		return 1;
+
+	return 0;
+}
+
+int muted_mtag_should_send_to_client(Client *target)
+{
+	if (IsServer(target) || IsOper(target))
+		return 1;
+	return 0;
+
+	
 }
