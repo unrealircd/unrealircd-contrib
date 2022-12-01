@@ -95,7 +95,7 @@ CMD_FUNC(cmd_qline) {
 		"0",            /*6  expire_at; never expire */
 		NULL,           /*7  set_at */
 		"no reason",    /*8  default reason */
-		NULL			/*9 Extra NULL element to prevent OOB */
+		NULL		/*9 Extra NULL element to prevent OOB */
 	};
 
 	/* Verify privs */
@@ -124,7 +124,7 @@ CMD_FUNC(cmd_unqline) {
 		"*",               /*3  unused */
 		parv[1],           /*4  host */
 		client->name,      /*5  who removed the line */
-		NULL			   /*6 Extra NULL element to prevent OOB */
+		NULL		   /*6 Extra NULL element to prevent OOB */
 	};
 
 	/* Verify privs */
