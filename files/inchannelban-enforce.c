@@ -34,7 +34,7 @@ struct {
 	int have_action;
 	int have_kick_text;
 	int have_notice_text;
-} settings;
+} ice_settings;
 
 int ice_local_join(Client *client, Channel *joined_channel, MessageTag *mtags);
 
@@ -64,7 +64,7 @@ int ice_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 	if(strcmp(ce->name, MYCONF))
 		return 0;
 	
-	settings.have_config = 1;
+	ice_settings.have_config = 1;
 
 	for(cep = ce->items; cep; cep = cep->next) {
 		if(!cep->name) {
@@ -80,12 +80,12 @@ int ice_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 		}
 	
 		if(!strcmp(cep->name, "action")) {
-			settings.have_action = ACTION_NONE;
+			ice_settings.have_action = ACTION_NONE;
 			if(!strcmp(cep->value, "kick"))
-				settings.have_action = ACTION_KICK;
+				ice_settings.have_action = ACTION_KICK;
 			if(!strcmp(cep->value, "part"))
-				settings.have_action = ACTION_PART;
-			if(settings.have_action == ACTION_NONE){
+				ice_settings.have_action = ACTION_PART;
+			if(ice_settings.have_action == ACTION_NONE){
 				config_error("%s:%i: %s::%s must be either \"kick\" or \"part\"", cep->file->filename, cep->line_number, MYCONF, cep->name);
 				errors++;
 				break;
@@ -94,12 +94,12 @@ int ice_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 		}
 
 		if(!strcmp(cep->name, "notice-text")) {
-			settings.have_notice_text = 1;
+			ice_settings.have_notice_text = 1;
 			continue;
 		}
 
 		if(!strcmp(cep->name, "kick-text")) {
-			settings.have_kick_text = 1;
+			ice_settings.have_kick_text = 1;
 			continue;
 		}
 
@@ -112,11 +112,11 @@ int ice_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs) {
 
 int ice_configposttest(int *errs) {
 	int errors = 0;
-	if(settings.have_config && !settings.have_action){
+	if(ice_settings.have_config && !ice_settings.have_action){
 		config_error("No %s::action specfied!", MYCONF);
 		errors++;
 	}
-	if(settings.have_action == ACTION_KICK && !settings.have_kick_text){
+	if(ice_settings.have_action == ACTION_KICK && !ice_settings.have_kick_text){
 		config_error("%s::kick-text is required if %s::method is set to \"kick\"!", MYCONF, MYCONF);
 		errors++;
 	}
@@ -125,12 +125,12 @@ int ice_configposttest(int *errs) {
 		return -1;
 	}
 	/* config ok, proceed to apply defaults */
-	settings.kick_text = NULL;
-	settings.notice_text = NULL;
-	if(!settings.have_config){
-		safe_strdup(settings.kick_text, "Enforcing channel ban for $joined");
-		safe_strdup(settings.notice_text, "*** Restrictions set on $ban prevent you from being on $joined at the same time. Leaving $ban");
-		settings.action = ACTION_KICK;
+	ice_settings.kick_text = NULL;
+	ice_settings.notice_text = NULL;
+	if(!ice_settings.have_config){
+		safe_strdup(ice_settings.kick_text, "Enforcing channel ban for $joined");
+		safe_strdup(ice_settings.notice_text, "*** Restrictions set on $ban prevent you from being on $joined at the same time. Leaving $ban");
+		ice_settings.action = ACTION_KICK;
 	}
 	return 1;
 }
@@ -153,19 +153,19 @@ int ice_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 
 		if(!strcmp(cep->name, "action")) {
 			if(!strcmp(cep->value, "kick"))
-				settings.action = ACTION_KICK;
+				ice_settings.action = ACTION_KICK;
 			if(!strcmp(cep->value, "part"))
-				settings.action = ACTION_PART;
+				ice_settings.action = ACTION_PART;
 			continue;
 		}
 
 		if(!strcmp(cep->name, "notice-text")) {
-			safe_strdup(settings.notice_text, cep->value);
+			safe_strdup(ice_settings.notice_text, cep->value);
 			continue;
 		}
 
 		if(!strcmp(cep->name, "kick-text")) {
-			safe_strdup(settings.kick_text, cep->value);
+			safe_strdup(ice_settings.kick_text, cep->value);
 			continue;
 		}
 	}
@@ -174,7 +174,7 @@ int ice_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 
 ModuleHeader MOD_HEADER = {
 	"third/inchannelban-enforce",
-	"6.0",
+	"6.1",
 	"Enforce ~c bans so they can't be circumvented",
 	"k4be",
 	"unrealircd-6",
@@ -186,10 +186,10 @@ MOD_INIT(){
 }
 
 MOD_TEST(){
-	settings.have_config = 0;
-	settings.have_action = ACTION_NONE;
-	settings.have_kick_text = 0;
-	settings.have_notice_text = 0;
+	ice_settings.have_config = 0;
+	ice_settings.have_action = ACTION_NONE;
+	ice_settings.have_kick_text = 0;
+	ice_settings.have_notice_text = 0;
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGTEST, 0, ice_configtest);
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGPOSTTEST, 0, ice_configposttest);
 	return MOD_SUCCESS;
@@ -241,12 +241,12 @@ int ice_local_join(Client *client, Channel *joined_channel, MessageTag *mtags){
 			value[1] = joined_channel->name;
 			name[2] = NULL;
 			value[2] = NULL;
-			if(settings.notice_text){
-				buildvarstring(settings.notice_text, buf, sizeof(buf), name, value);
+			if(ice_settings.notice_text){
+				buildvarstring(ice_settings.notice_text, buf, sizeof(buf), name, value);
 				sendnotice(client, "%s", buf);
 			}
-			if(settings.action == ACTION_KICK){
-				buildvarstring(settings.kick_text, buf, sizeof(buf), name, value);
+			if(ice_settings.action == ACTION_KICK){
+				buildvarstring(ice_settings.kick_text, buf, sizeof(buf), name, value);
 				kick_user(NULL, channel, &me, client, buf);
 			} else {
 				parv[1] = channel->name;
