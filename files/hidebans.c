@@ -84,7 +84,8 @@ int hidebans_packet(Client *from, Client *to, Client *intended_to, char **msg, i
 	if (!strncmp(p, "367 ", 4) || !strncmp(p, "348 ", 4) || !strncmp(p, "346 ", 4)) /* +b, +e, +I */
 	{
 		/* +beI list results */
-		if (hidebans_isskochanop(p+4, to))
+		p = strchr(p+4, ' ');
+		if (p && hidebans_isskochanop(p+1, to))
 			return 0; /* show as-is if chanop */
 		
 		/* otherwise, drop it.. */
