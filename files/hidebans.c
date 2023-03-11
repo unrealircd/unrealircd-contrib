@@ -9,7 +9,7 @@
 ModuleHeader MOD_HEADER
   = {
 	"third/hidebans",
-	"1.1",
+	"1.2",
 	"Hide channel bans from non-ops",
 	"Bram Matthys (Syzop)",
 	"unrealircd-6"
