@@ -103,7 +103,8 @@ MOD_INIT() {
 }
 
 MOD_LOAD() {
-	CheckAPIError("CommandOverrideAdd(NICK)", CommandOverrideAdd(modinfo->handle, OVR_NICK, 0, nicksuffix_override));
+	// Lower priority override so we can go *after* any potential set::restrict-command directives
+	CheckAPIError("CommandOverrideAdd(NICK)", CommandOverrideAdd(modinfo->handle, OVR_NICK, 10, nicksuffix_override));
 	return MOD_SUCCESS; // We good
 }
 
