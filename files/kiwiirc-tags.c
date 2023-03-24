@@ -2,7 +2,8 @@
   Licence: GPLv3 or later
   Copyright Ⓒ 2022 Valerie Pond
 
-  Provides support for KiwiIRC-related tags
+
+
 */
 /*** <<<MODULE MANAGER START>>>
 module
@@ -90,38 +91,50 @@ int kiwiirc_tag(Client *client, const char *name, const char *value)
 		sendto_one(client, NULL, "FAIL * MESSAGE_TAG_TOO_SHORT %s :That message tag must contain a value.", name);
 		return 0;
 	}
+	else if (strlen(value) > 3500)
+	{
+		sendto_umode_global('o', "%s tried to send an oversized message-tag using tag name \"%s\"", client->name, name);
+		sendnumericfmt(client, ERR_INPUTTOOLONG, "Input line was too long");
+		return 0;
+	}
 	return 1;
 }
 
+/** Only allow one at a time =] */
 void mtag_add_kiwiirc_tag(Client *client, MessageTag *recv_mtags, MessageTag **mtag_list, const char *signature)
 {
 	MessageTag *m;
 
 	if (IsUser(client))
 	{
+
 		m = find_mtag(recv_mtags, MTAG_FILEUPLOAD);
 		if (m)
 		{
 			m = duplicate_mtag(m);
 			AddListItem(m, *mtag_list);
+			return;
 		}
 		m = find_mtag(recv_mtags, MTAG_CONFERENCE);
 		if (m)
 		{
 			m = duplicate_mtag(m);
 			AddListItem(m, *mtag_list);
+			return;
 		}
 		m = find_mtag(recv_mtags, MTAG_TICTACTOE_OLD);
 		if (m)
 		{
 			m = duplicate_mtag(m);
 			AddListItem(m, *mtag_list);
+			return;
 		}
 		m = find_mtag(recv_mtags, MTAG_TICTACTOE);
 		if (m)
 		{
 			m = duplicate_mtag(m);
 			AddListItem(m, *mtag_list);
+			return;
 		}
 	}
 }
