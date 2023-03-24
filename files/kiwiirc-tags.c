@@ -93,7 +93,6 @@ int kiwiirc_tag(Client *client, const char *name, const char *value)
 	}
 	else if (strlen(value) > 3500)
 	{
-		sendto_umode_global('o', "%s tried to send an oversized message-tag using tag name \"%s\"", client->name, name);
 		sendnumericfmt(client, ERR_INPUTTOOLONG, "Input line was too long");
 		return 0;
 	}
