@@ -789,8 +789,13 @@ void metadata_set_user(Client *user, const char *key, const char *value, Client 
 			}
 		}
 	}
-	if (!IsServer(client) && MyConnect(client))
-		sendnumeric(client, RPL_KEYVALUE, target_name, key, "*", value?value:""); /* all OK */
+	if (!IsServer(client) && MyConnect(client)) {
+        /* all OK */
+        if (value)
+            sendnumeric(client, RPL_KEYVALUE, target_name, key, "*", value);
+        else
+            sendnumeric(client, RPL_KEYNOTSET, target_name, key);
+    }
 	if (changed && (client == &me || IsUser(client) || IsServer(client)))
 		user_metadata_changed(target, key, value, client);
 }
@@ -860,8 +865,13 @@ void metadata_set_channel(Channel *channel, const char *key, const char *value, 
 			}
 		}
 	}
-	if (IsUser(client) && MyUser(client))
-		sendnumeric(client, RPL_KEYVALUE, channel->name, key, "*", value?value:""); /* all OK */
+	if (IsUser(client) && MyUser(client)) {
+        /* all OK */
+        if (value)
+            sendnumeric(client, RPL_KEYVALUE, channel->name, key, "*", value);
+        else
+            sendnumeric(client, RPL_KEYNOTSET, channel->name, key);
+    }
 	if (changed && (IsUser(client) || IsServer(client)))
 		channel_metadata_changed(channel, key, value, client);
 }
@@ -1169,11 +1179,11 @@ CMD_FUNC(cmd_metadata_local)
 			return;
 		}
 
-		if (!unrl_utf8_validate(value, NULL)) {
+		if (value && !unrl_utf8_validate(value, NULL)) {
 			sendto_one(client, NULL, STR_FAIL_VALUE_INVALID_UTF8, me.name);
 			return;
 		}
-		if (strlen(value) > MAX_VALUE_BYTES) {
+		if (value && strlen(value) > MAX_VALUE_BYTES) {
 			sendto_one(client, NULL, STR_FAIL_VALUE_INVALID_SIZE, me.name);
 			return;
 		}
