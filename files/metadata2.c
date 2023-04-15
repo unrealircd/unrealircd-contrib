@@ -42,15 +42,15 @@ module
 #define STR_RPL_METADATASYNCLATER	/* 774 */	"%s %s"
 
 #define STR_FAIL_INVALID_TARGET     ":%s FAIL METADATA INVALID_TARGET %s :invalid metadata target"
-#define STR_FAIL_INVALID_KEY        ":%s FAIL METADATA INVALID_KEY %s :invalid key"
-#define STR_FAIL_INVALID_SUBCOMMAND ":%s FAIL METADATA INVALID_SUBCOMMAND %s :invalid metadata subcommand"
+#define STR_FAIL_KEY_INVALID        ":%s FAIL METADATA KEY_INVALID %s :invalid key"
+#define STR_FAIL_SUBCOMMAND_INVALID ":%s FAIL METADATA SUBCOMMAND_INVALID %s :invalid metadata subcommand"
 #define STR_FAIL_KEY_NO_PERMISSION  ":%s FAIL METADATA KEY_NO_PERMISSION %s %s :permission denied"
 #define STR_FAIL_KEY_NOT_SET        ":%s FAIL METADATA KEY_NOT_SET %s :key not set"
 #define STR_FAIL_LIMIT_REACHED      ":%s FAIL METADATA LIMIT_REACHED %s :metadata limit reached"
 #define STR_FAIL_RATE_LIMITED       ":%s FAIL METADATA RATE_LIMITED %s :rate limited"
 #define STR_FAIL_TOO_MANY_SUBS      ":%s FAIL METADATA TOO_MANY_SUBS %s :too many subscriptions"
-#define STR_FAIL_INVALID_VALUE_UTF8 ":%s FAIL METADATA INVALID_VALUE :value contains invalid UTF8"
-#define STR_FAIL_INVALID_VALUE_SIZE ":%s FAIL METADATA INVALID_VALUE :value is too long"
+#define STR_FAIL_VALUE_INVALID_UTF8 ":%s FAIL METADATA VALUE_INVALID :value contains invalid UTF8"
+#define STR_FAIL_VALUE_INVALID_SIZE ":%s FAIL METADATA VALUE_INVALID :value is too long"
 
 /* actual METADATA code */
 
@@ -1132,7 +1132,7 @@ CMD_FUNC(cmd_metadata_local)
 			{
 				if (!metadata_key_valid(key))
 				{
-					batched(sendto_one, client, batchid, STR_FAIL_INVALID_KEY, me.name, key);
+					batched(sendto_one, client, batchid, STR_FAIL_KEY_INVALID, me.name, key);
 					continue;
 				}
 				if (channel)
@@ -1165,16 +1165,16 @@ CMD_FUNC(cmd_metadata_local)
 
 		if (!metadata_key_valid(key))
 		{
-			sendto_one(client, NULL, STR_FAIL_INVALID_KEY, me.name, key);
+			sendto_one(client, NULL, STR_FAIL_KEY_INVALID, me.name, key);
 			return;
 		}
 
 		if (!unrl_utf8_validate(value, NULL)) {
-			sendto_one(client, NULL, STR_FAIL_INVALID_VALUE_UTF8, me.name);
+			sendto_one(client, NULL, STR_FAIL_VALUE_INVALID_UTF8, me.name);
 			return;
 		}
 		if (strlen(value) > MAX_VALUE_BYTES) {
-			sendto_one(client, NULL, STR_FAIL_INVALID_VALUE_SIZE, me.name);
+			sendto_one(client, NULL, STR_FAIL_VALUE_INVALID_SIZE, me.name);
 			return;
 		}
 
@@ -1204,7 +1204,7 @@ CMD_FUNC(cmd_metadata_local)
 				metadata_subscribe(key, client, 0);
 			} else
 			{
-				sendto_one(client, NULL, STR_FAIL_INVALID_KEY, me.name, key);
+				sendto_one(client, NULL, STR_FAIL_KEY_INVALID, me.name, key);
 				continue;
 			}
 		}
@@ -1220,7 +1220,7 @@ CMD_FUNC(cmd_metadata_local)
 				metadata_subscribe(key, client, 1);
 			} else
 			{
-				sendto_one(client, NULL, STR_FAIL_INVALID_KEY, me.name, key);
+				sendto_one(client, NULL, STR_FAIL_KEY_INVALID, me.name, key);
 				continue;
 			}
 		}
@@ -1234,7 +1234,7 @@ CMD_FUNC(cmd_metadata_local)
 		PROCESS_TARGET_OR_DIE(target, user, channel, return);
 	} else
 	{
-		sendto_one(client, NULL, STR_FAIL_INVALID_SUBCOMMAND, me.name, cmd);
+		sendto_one(client, NULL, STR_FAIL_SUBCOMMAND_INVALID, me.name, cmd);
 	}
 }
 
