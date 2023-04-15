@@ -27,7 +27,6 @@ module
 
 #define RPL_WHOISKEYVALUE           760
 #define RPL_KEYVALUE                761
-#define RPL_METADATAEND             762
 #define RPL_KEYNOTSET               766
 #define RPL_METADATASUBOK           770
 #define RPL_METADATAUNSUBOK         771
@@ -36,7 +35,6 @@ module
 
 #define STR_RPL_WHOISKEYVALUE		/* 760 */	"%s %s %s :%s"
 #define STR_RPL_KEYVALUE		    /* 761 */	"%s %s %s :%s"
-#define STR_RPL_METADATAEND         /* 762 */   ":end of metadata"
 #define STR_RPL_KEYNOTSET		    /* 766 */	"%s %s :no matching key"
 #define STR_RPL_METADATASUBOK		/* 770 */	":%s"
 #define STR_RPL_METADATAUNSUBOK		/* 771 */	":%s"
@@ -113,6 +111,36 @@ module
 #define USER_METADATA(client) moddata_client(client, metadataUser).ptr
 #define CHANNEL_METADATA(channel) moddata_channel(channel, metadataChannel).ptr
 
+
+#if defined(__GNUC__)
+#define PUSH_IGNORE_ADDRESS \
+	_Pragma("GCC diagnostic push") \
+	_Pragma("GCC diagnostic ignored \"-Waddress\"")
+#define POP_IGNORE_ADDRESS \
+	_Pragma("GCC diagnostic pop")
+#else
+#define PUSH_IGNORE_ADDRESS
+#define POP_IGNORE_ADDRESS
+#endif
+
+#define batched(func, client, batch_id, ...) \
+{ \
+	MessageTag *mtags = NULL; \
+	MessageTag *m; \
+	PUSH_IGNORE_ADDRESS /* -Waddress warns when batch_id is an array */ \
+	if (!BadPtr(batch_id)) \
+	POP_IGNORE_ADDRESS \
+	{ \
+		mtags = safe_alloc(sizeof(MessageTag)); \
+		mtags->name = strdup("batch"); \
+		mtags->value = strdup(batchid); \
+	} \
+	func(client, mtags, ##__VA_ARGS__); \
+	if (mtags) \
+		free_message_tags(mtags); \
+}
+
+
 struct metadata {
 	char *name;
 	char *value;
@@ -161,8 +189,8 @@ void metadata_free_list(struct metadata *metadata, const char *whose, Client *cl
 struct metadata_moddata_user *metadata_prepare_user_moddata(Client *user);
 void metadata_set_channel(Channel *channel, const char *key, const char *value, Client *client);
 void metadata_set_user(Client *user, const char *key, const char *value, Client *client);
-void metadata_send_channel(Channel *channel, const char *key, Client *client);
-void metadata_send_user(Client *user, const char *key, Client *client);
+void metadata_send_channel(Channel *channel, const char *key, Client *client, const char *batchid);
+void metadata_send_user(Client *user, const char *key, Client *client, const char *batchid);
 int metadata_subscribe(const char *key, Client *client, int remove);
 void metadata_clear_channel(Channel *channel, Client *client);
 void metadata_clear_user(Client *user, Client *client);
@@ -915,7 +943,7 @@ int metadata_subscribe(const char *key, Client *client, int remove)
 	return 0;
 }
 
-void metadata_send_channel(Channel *channel, const char *key, Client *client)
+void metadata_send_channel(Channel *channel, const char *key, Client *client, const char *batchid)
 {
 	struct metadata *metadata;
 	int found = 0;
@@ -924,15 +952,15 @@ void metadata_send_channel(Channel *channel, const char *key, Client *client)
 		if (!strcasecmp(key, metadata->name))
 		{
 			found = 1;
-			sendnumeric(client, RPL_KEYVALUE, channel->name, key, "*", metadata->value);
+			batched(sendtaggednumeric, client, batchid, RPL_KEYVALUE, channel->name, key, "*", metadata->value);
 			break;
 		}
 	}
 	if (!found)
-		sendnumeric(client, RPL_KEYNOTSET, channel->name, key);
+		batched(sendtaggednumeric, client, batchid, RPL_KEYNOTSET, channel->name, key);
 }
 
-void metadata_send_user(Client *user, const char *key, Client *client)
+void metadata_send_user(Client *user, const char *key, Client *client, const char *batchid)
 {
 	if (!user)
 		user = client;
@@ -946,12 +974,12 @@ void metadata_send_user(Client *user, const char *key, Client *client)
 		if (!strcasecmp(key, metadata->name))
 		{
 			found = 1;
-			sendnumeric(client, RPL_KEYVALUE, user->name, key, "*", metadata->value);
+			batched(sendtaggednumeric, client, batchid, RPL_KEYVALUE, user->name, key, "*", metadata->value);
 			break;
 		}
 	}
 	if (!found)
-		sendnumeric(client, RPL_KEYNOTSET, user->name, key);
+		batched(sendtaggednumeric, client, batchid, RPL_KEYNOTSET, user->name, key);
 }
 
 void metadata_clear_channel(Channel *channel, Client *client)
@@ -987,20 +1015,33 @@ void metadata_send_subscribtions(Client *client)
 void metadata_send_all_for_channel(Channel *channel, Client *client)
 {
 	struct metadata *metadata;
+	char batchid[BATCHLEN+1];
+
+	generate_batch_id(batchid);
+
+	sendto_one(client, NULL, ":%s BATCH +%s metadata", me.name, batchid);
 	for (metadata = CHANNEL_METADATA(channel); metadata; metadata = metadata->next)
-		sendnumeric(client, RPL_KEYVALUE, channel->name, metadata->name, "*", metadata->value);
+		batched(sendtaggednumeric, client, batchid, RPL_KEYVALUE, channel->name, metadata->name, "*", metadata->value);
+	sendto_one(client, NULL, ":%s BATCH -%s", me.name, batchid);
 }
 
 void metadata_send_all_for_user(Client *user, Client *client)
 {
 	struct metadata *metadata;
+	char batchid[BATCHLEN+1];
+
+	generate_batch_id(batchid);
+
 	if (!user)
 		user = client;
 	struct metadata_moddata_user *moddata = USER_METADATA(user);
-	if (!moddata)
-		return;
-	for (metadata = moddata->metadata; metadata; metadata = metadata->next)
-		sendnumeric(client, RPL_KEYVALUE, user->name, metadata->name, "*", metadata->value);
+
+	sendto_one(client, NULL, ":%s BATCH +%s metadata", me.name, batchid);
+	if (moddata) {
+		for (metadata = moddata->metadata; metadata; metadata = metadata->next)
+			batched(sendtaggednumeric, client, batchid, RPL_KEYVALUE, user->name, metadata->name, "*", metadata->value);
+	}
+	sendto_one(client, NULL, ":%s BATCH -%s", me.name, batchid);
 }
 
 int metadata_key_valid(const char *key)
@@ -1065,6 +1106,7 @@ CMD_FUNC(cmd_metadata_local)
 	const char *value = NULL;
 	int keyindex = 3-1;
 	char *channame;
+	char batchid[BATCHLEN-1];
 
 	CHECKPARAMSCNT_OR_DIE(2, return);
 
@@ -1076,21 +1118,24 @@ CMD_FUNC(cmd_metadata_local)
 		CHECKREGISTERED_OR_DIE(client, return);
 		CHECKPARAMSCNT_OR_DIE(3, return);
 		PROCESS_TARGET_OR_DIE(target, user, channel, return);
+		generate_batch_id(batchid);
+		sendto_one(client, NULL, ":%s BATCH +%s metadata", me.name, batchid);
 		FOR_EACH_KEY(keyindex, parc, parv)
 		{
 			if (metadata_check_perms(user, channel, client, key, MODE_GET))
 			{
 				if (!metadata_key_valid(key))
 				{
-					sendto_one(client, NULL, STR_FAIL_INVALID_KEY, me.name, key);
+					batched(sendto_one, client, batchid, STR_FAIL_INVALID_KEY, me.name, key);
 					continue;
 				}
 				if (channel)
-					metadata_send_channel(channel, key, client);
+					metadata_send_channel(channel, key, client, batchid);
 				else
-					metadata_send_user(user, key, client);
+					metadata_send_user(user, key, client, batchid);
 			}
 		}
+		sendto_one(client, NULL, ":%s BATCH -%s", me.name, batchid);
 	} else if (!strcasecmp(cmd, "LIST"))
 	{ /* we're just not sending anything if there are no permissions */
 		CHECKREGISTERED_OR_DIE(client, return);
@@ -1102,7 +1147,6 @@ CMD_FUNC(cmd_metadata_local)
 			else
 				metadata_send_all_for_user(user, client);
 		}
-		sendnumeric(client, RPL_METADATAEND);
 	} else if (!strcasecmp(cmd, "SET"))
 	{
 		CHECKPARAMSCNT_OR_DIE(3, return);
@@ -1134,7 +1178,6 @@ CMD_FUNC(cmd_metadata_local)
 			else
 				metadata_clear_user(user, client);
 		}
-		sendnumeric(client, RPL_METADATAEND);
 	} else if (!strcasecmp(cmd, "SUB"))
 	{
 		PROCESS_TARGET_OR_DIE(target, user, channel, return);
@@ -1150,7 +1193,6 @@ CMD_FUNC(cmd_metadata_local)
 				continue;
 			}
 		}
-		sendnumeric(client, RPL_METADATAEND);
 	} else if (!strcasecmp(cmd, "UNSUB"))
 	{
 		CHECKREGISTERED_OR_DIE(client, return);
@@ -1167,12 +1209,10 @@ CMD_FUNC(cmd_metadata_local)
 				continue;
 			}
 		}
-		sendnumeric(client, RPL_METADATAEND);
 	} else if (!strcasecmp(cmd, "SUBS"))
 	{
 		CHECKREGISTERED_OR_DIE(client, return);
 		metadata_send_subscribtions(client);
-		sendnumeric(client, RPL_METADATAEND);
 	} else if (!strcasecmp(cmd, "SYNC"))
 	{ /* the SYNC command is ignored, as we're using events to send out the queue - only validate the params */
 		CHECKREGISTERED_OR_DIE(client, return);
