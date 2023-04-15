@@ -47,7 +47,7 @@ module
 #define STR_FAIL_KEY_NO_PERMISSION  ":%s FAIL METADATA KEY_NO_PERMISSION %s %s :permission denied"
 #define STR_FAIL_KEY_NOT_SET        ":%s FAIL METADATA KEY_NOT_SET %s :key not set"
 #define STR_FAIL_LIMIT_REACHED      ":%s FAIL METADATA LIMIT_REACHED %s :metadata limit reached"
-#define STR_FAIL_RATE_LIMITED       ":%s FAIL METADATA RATE_LIMITED %s :rate limited"
+#define STR_FAIL_RATE_LIMITED       ":%s FAIL METADATA RATE_LIMITED %s %s %s :rate limited"
 #define STR_FAIL_TOO_MANY_SUBS      ":%s FAIL METADATA TOO_MANY_SUBS %s :too many subscriptions"
 #define STR_FAIL_VALUE_INVALID_UTF8 ":%s FAIL METADATA VALUE_INVALID :value contains invalid UTF8"
 #define STR_FAIL_VALUE_INVALID_SIZE ":%s FAIL METADATA VALUE_INVALID :value is too long"
