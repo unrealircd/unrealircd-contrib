@@ -49,12 +49,18 @@ module
 #define STR_FAIL_LIMIT_REACHED      ":%s FAIL METADATA LIMIT_REACHED %s :metadata limit reached"
 #define STR_FAIL_RATE_LIMITED       ":%s FAIL METADATA RATE_LIMITED %s :rate limited"
 #define STR_FAIL_TOO_MANY_SUBS      ":%s FAIL METADATA TOO_MANY_SUBS %s :too many subscriptions"
+#define STR_FAIL_INVALID_VALUE_UTF8 ":%s FAIL METADATA INVALID_VALUE :value contains invalid UTF8"
+#define STR_FAIL_INVALID_VALUE_SIZE ":%s FAIL METADATA INVALID_VALUE :value is too long"
 
 /* actual METADATA code */
 
 /* get or set for perms */
 #define MODE_SET 0
 #define MODE_GET 1
+
+/* TODO: pick a less arbitrary value; to allow it to be as large as possible without
+ * overflowing IRC line length */
+#define MAX_VALUE_BYTES 300
 
 #define MYCONF "metadata2"
 
@@ -449,7 +455,7 @@ MOD_UNLOAD() {
 const char *metadata_cap_param(Client *client)
 {
 	static char buf[20];
-	ircsnprintf(buf, sizeof(buf), "maxsub=%d", metadata_settings.max_subscriptions);
+	ircsnprintf(buf, sizeof(buf), "max-sub=%d,max-value-bytes=%d", metadata_settings.max_subscriptions, MAX_VALUE_BYTES);
 	return buf;
 }
 
@@ -1160,6 +1166,15 @@ CMD_FUNC(cmd_metadata_local)
 		if (!metadata_key_valid(key))
 		{
 			sendto_one(client, NULL, STR_FAIL_INVALID_KEY, me.name, key);
+			return;
+		}
+
+		if (!unrl_utf8_validate(value, NULL)) {
+			sendto_one(client, NULL, STR_FAIL_INVALID_VALUE_UTF8, me.name);
+			return;
+		}
+		if (strlen(value) > MAX_VALUE_BYTES) {
+			sendto_one(client, NULL, STR_FAIL_INVALID_VALUE_SIZE, me.name);
 			return;
 		}
 
