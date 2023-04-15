@@ -1060,7 +1060,7 @@ int metadata_key_valid(const char *key)
 			continue;
 		if(*key >= '0' && *key <= '9')
 			continue;
-		if(*key == '_' || *key == '.' || *key == ':' || *key == '-')
+		if(*key == '_' || *key == '.' || *key == '/' || *key == ':' || *key == '-')
 			continue;
 		return 0;
 	}
