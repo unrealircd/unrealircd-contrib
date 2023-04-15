@@ -1,18 +1,17 @@
-/* Copyright (C) All Rights Reserved
-** Written by k4be
-** Website: https://github.com/pirc-pl/unrealircd-modules/
+/* Copyright (C) 2020-2021 k4be
+** Copyright (C) 2023 Valentin Lorentz
 ** License: GPLv3 https://www.gnu.org/licenses/gpl-3.0.html
 */
 
 /*** <<<MODULE MANAGER START>>>
 module
 {
-        documentation "https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md#metadata";
-        troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
+        documentation "Implements the draft IRCv3 metadata-2 specification https://github.com/ircv3/ircv3-specifications/pull/501"
+        troubleshooting "In case of problems, contact val on irc.unrealircd.org.";
         min-unrealircd-version "6.*";
         post-install-text {
                 "The module is installed. Now all you need to do is add a loadmodule line:";
-                "loadmodule \"third/metadata\";";
+                "loadmodule \"third/metadata2\";";
   				"And /REHASH the IRCd.";
 				"The module may be additionaly configured to change the defaults.";
 				"See documentation for help.";
@@ -69,7 +68,7 @@ module
 #define MODE_SET 0
 #define MODE_GET 1
 
-#define MYCONF "metadata"
+#define MYCONF "metadata2"
 
 #define CHECKPARAMSCNT_OR_DIE(count, return) \
 { \
@@ -198,10 +197,10 @@ struct metadata_settings_s {
 } metadata_settings;
 
 ModuleHeader MOD_HEADER = {
-	"third/metadata",
+	"third/metadata2",
 	"6.0",
-	"draft/metadata and draft/metadata-notify-2 cap",
-	"k4be",
+	"draft/metadata2 and draft/metadata-notify-2 cap",
+	"k4be & val",
 	"unrealircd-6"
 };
 
@@ -369,7 +368,7 @@ MOD_INIT() {
 	MARK_AS_GLOBAL_MODULE(modinfo);
 
 	memset(&cap, 0, sizeof(cap));
-	cap.name = "draft/metadata";
+	cap.name = "draft/metadata-2";
 	cap.parameter = metadata_cap_param;
 	c = ClientCapabilityAdd(modinfo->handle, &cap, &CAP_METADATA);
 	
@@ -501,17 +500,17 @@ int metadata_notify_or_queue(Client *client, const char *who, const char *key, c
 	int trylater = 0;
 	if (!who)
 	{
-		unreal_log(ULOG_DEBUG, "metadata", "METADATA_DEBUG", changer, "metadata_notify_or_queue called with null who!");
+		unreal_log(ULOG_DEBUG, "metadata2", "METADATA_DEBUG", changer, "metadata_notify_or_queue called with null who!");
 		return 0;
 	}
 	if (!key)
 	{
-		unreal_log(ULOG_DEBUG, "metadata", "METADATA_DEBUG", changer, "metadata_notify_or_queue called with null key!");
+		unreal_log(ULOG_DEBUG, "metadata2", "METADATA_DEBUG", changer, "metadata_notify_or_queue called with null key!");
 		return 0;
 	}
 	if (!client)
 	{
-		unreal_log(ULOG_DEBUG, "metadata", "METADATA_DEBUG", changer, "metadata_notify_or_queue called with null client!");
+		unreal_log(ULOG_DEBUG, "metadata2", "METADATA_DEBUG", changer, "metadata_notify_or_queue called with null client!");
 		return 0;
 	}
 
@@ -541,17 +540,17 @@ void metadata_send_change(Client *client, const char *who, const char *key, cons
 	char *sender = NULL;
 	if (!key)
 	{
-		unreal_log(ULOG_DEBUG, "metadata", "METADATA_DEBUG", changer, "metadata_send_change called with null key!");
+		unreal_log(ULOG_DEBUG, "metadata2", "METADATA_DEBUG", changer, "metadata_send_change called with null key!");
 		return;
 	}
 	if (!who)
 	{
-		unreal_log(ULOG_DEBUG, "metadata", "METADATA_DEBUG", changer, "metadata_send_change called with null who!");
+		unreal_log(ULOG_DEBUG, "metadata2", "METADATA_DEBUG", changer, "metadata_send_change called with null who!");
 		return;
 	}
 	if (!client)
 	{
-		unreal_log(ULOG_DEBUG, "metadata", "METADATA_DEBUG", changer, "metadata_send_change called with null client!");
+		unreal_log(ULOG_DEBUG, "metadata2", "METADATA_DEBUG", changer, "metadata_send_change called with null client!");
 		return;
 	}
 	if (changer)
@@ -1211,7 +1210,7 @@ CMD_FUNC(cmd_metadata_remote)
 			value = NULL;
 		} else
 		{
-			unreal_log(ULOG_DEBUG, "metadata", "METADATA_DEBUG", client, "METADATA S2S: not enough args from $sender",
+			unreal_log(ULOG_DEBUG, "metadata2", "METADATA_DEBUG", client, "METADATA S2S: not enough args from $sender",
 				log_data_string("sender", client->name));
 			return;
 		}
@@ -1226,7 +1225,7 @@ CMD_FUNC(cmd_metadata_remote)
 
 	if (!*target || !strcmp(target, "*") || !metadata_key_valid(key))
 	{
-		unreal_log(ULOG_DEBUG, "metadata", "METADATA_DEBUG", client, "METADATA S2S: bad metadata target $target or key $key from $sender",
+		unreal_log(ULOG_DEBUG, "metadata2", "METADATA_DEBUG", client, "METADATA S2S: bad metadata target $target or key $key from $sender",
 			log_data_string("target", target),
 			log_data_string("key", key),
 			log_data_string("sender", client->name));
