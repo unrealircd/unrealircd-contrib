@@ -25,44 +25,34 @@ module
 
 /* this should go into include/numeric.h (was there at one point of time) */
 
-#define RPL_WHOISKEYVALUE    760
-#define RPL_KEYVALUE         761
-#define RPL_METADATAEND      762
-#define ERR_METADATALIMIT    764
-#define ERR_TARGETINVALID    765
-#define ERR_NOMATCHINGKEY    766
-#define ERR_KEYINVALID       767
-#define ERR_KEYNOTSET        768
-#define ERR_KEYNOPERMISSION  769
-#define RPL_METADATASUBOK    770
-#define RPL_METADATAUNSUBOK  771
-#define RPL_METADATASUBS     772
-#define ERR_METADATATOOMANYSUBS 773
-#define ERR_METADATASYNCLATER 774
-#define ERR_METADATARATELIMIT 775
-#define ERR_METADATAINVALIDSUBCOMMAND 776
+#define RPL_WHOISKEYVALUE           760
+#define RPL_KEYVALUE                761
+#define RPL_METADATAEND             762
+#define RPL_KEYNOTSET               766
+#define RPL_METADATASUBOK           770
+#define RPL_METADATAUNSUBOK         771
+#define RPL_METADATASUBS            772
+#define RPL_METADATASYNCLATER       774
 
 #define STR_RPL_WHOISKEYVALUE		/* 760 */	"%s %s %s :%s"
-#define STR_RPL_KEYVALUE		/* 761 */	"%s %s %s :%s"
-#define STR_RPL_METADATAEND		/* 762 */	":end of metadata"
-#define STR_ERR_METADATALIMIT		/* 764 */	"%s :metadata limit reached"
-#define STR_ERR_TARGETINVALID		/* 765 */	"%s :invalid metadata target"
-#define STR_ERR_NOMATCHINGKEY		/* 766 */	"%s %s :no matching key"
-#define STR_ERR_KEYINVALID		/* 767 */	":%s"
-#define STR_ERR_KEYNOTSET		/* 768 */	"%s %s :key not set"
-#define STR_ERR_KEYNOPERMISSION		/* 769 */	"%s %s :permission denied"
+#define STR_RPL_KEYVALUE		    /* 761 */	"%s %s %s :%s"
+#define STR_RPL_METADATAEND         /* 762 */   ":end of metadata"
+#define STR_RPL_KEYNOTSET		    /* 766 */	"%s %s :no matching key"
 #define STR_RPL_METADATASUBOK		/* 770 */	":%s"
 #define STR_RPL_METADATAUNSUBOK		/* 771 */	":%s"
 #define STR_RPL_METADATASUBS		/* 772 */	":%s"
-#define STR_ERR_METADATATOOMANYSUBS	/* 773 */	"%s"
-#define STR_ERR_METADATASYNCLATER	/* 774 */	"%s %s"
-#define STR_ERR_METADATARATELIMIT	/* 775 */	"%s %s %s :%s"
-#define STR_ERR_METADATAINVALIDSUBCOMMAND /* 776 */	"%s :invalid metadata subcommand"
+#define STR_RPL_METADATASYNCLATER	/* 774 */	"%s %s"
+
+#define STR_FAIL_INVALID_TARGET     ":%s FAIL METADATA INVALID_TARGET %s :invalid metadata target"
+#define STR_FAIL_INVALID_KEY        ":%s FAIL METADATA INVALID_KEY %s :invalid key"
+#define STR_FAIL_INVALID_SUBCOMMAND ":%s FAIL METADATA INVALID_SUBCOMMAND %s :invalid metadata subcommand"
+#define STR_FAIL_KEY_NO_PERMISSION  ":%s FAIL METADATA KEY_NO_PERMISSION %s %s :permission denied"
+#define STR_FAIL_KEY_NOT_SET        ":%s FAIL METADATA KEY_NOT_SET %s :key not set"
+#define STR_FAIL_LIMIT_REACHED      ":%s FAIL METADATA LIMIT_REACHED %s :metadata limit reached"
+#define STR_FAIL_RATE_LIMITED       ":%s FAIL METADATA RATE_LIMITED %s :rate limited"
+#define STR_FAIL_TOO_MANY_SUBS      ":%s FAIL METADATA TOO_MANY_SUBS %s :too many subscriptions"
 
 /* actual METADATA code */
-
-#define STR_HELPER(x) #x
-#define STR(x) STR_HELPER(x)
 
 /* get or set for perms */
 #define MODE_SET 0
@@ -90,7 +80,7 @@ module
 		channel = find_channel(channame); \
 		if (!channel) \
 		{ \
-			sendnumeric(client, ERR_NOSUCHNICK, channame); \
+			sendto_one(client, NULL, STR_FAIL_INVALID_TARGET, me.name, channame); \
 			return; \
 		} \
 	} else \
@@ -100,7 +90,7 @@ module
 			user = hash_find_nickatserver(target, NULL); \
 			if (!user) \
 			{ \
-				sendnumeric(client, ERR_NOSUCHNICK, target); \
+				sendto_one(client, NULL, STR_FAIL_INVALID_TARGET, me.name, target); \
 				return; \
 			} \
 		} else \
@@ -728,7 +718,7 @@ void metadata_set_user(Client *user, const char *key, const char *value, Client 
 		}
 		if (!removed)
 		{
-			if(client) sendnumeric(client, ERR_KEYNOTSET, target_name, key); // not set so can't remove
+			if(client) sendnumeric(client, RPL_KEYNOTSET, target_name, key); // not set so can't remove
 			return;
 		}
 	} else
@@ -760,7 +750,7 @@ void metadata_set_user(Client *user, const char *key, const char *value, Client 
 			} else
 			{ /* no more allowed */
 				if (client)
-					sendnumeric(client, ERR_METADATALIMIT, target_name);
+					sendto_one(client, NULL, STR_FAIL_LIMIT_REACHED, me.name, target_name);
 				return;
 			}
 		}
@@ -800,7 +790,7 @@ void metadata_set_channel(Channel *channel, const char *key, const char *value, 
 		if (!removed)
 		{
 			if (client)
-				sendnumeric(client, ERR_KEYNOTSET, channel->name, key); /* not set so can't remove */
+				sendto_one(client, NULL, STR_FAIL_KEY_NOT_SET, me.name, key);
 			return;
 		}
 	} else { /* set */
@@ -831,7 +821,7 @@ void metadata_set_channel(Channel *channel, const char *key, const char *value, 
 			} else
 			{ /* no more allowed */
 				if (client)
-					sendnumeric(client, ERR_METADATALIMIT, channel->name);
+					sendto_one(client, NULL, STR_FAIL_LIMIT_REACHED, me.name, channel->name);
 				return;
 			}
 		}
@@ -885,7 +875,7 @@ int metadata_subscribe(const char *key, Client *client, int remove)
 			(*subs)->name = strdup(key);
 		} else
 		{ /* no more allowed */
-			sendnumeric(client, ERR_METADATATOOMANYSUBS, key);
+			sendto_one(client, NULL, STR_FAIL_TOO_MANY_SUBS, me.name, key);
 			return 0;
 		}
 	}
@@ -939,7 +929,7 @@ void metadata_send_channel(Channel *channel, const char *key, Client *client)
 		}
 	}
 	if (!found)
-		sendnumeric(client, ERR_NOMATCHINGKEY, channel->name, key);
+		sendnumeric(client, RPL_KEYNOTSET, channel->name, key);
 }
 
 void metadata_send_user(Client *user, const char *key, Client *client)
@@ -961,7 +951,7 @@ void metadata_send_user(Client *user, const char *key, Client *client)
 		}
 	}
 	if (!found)
-		sendnumeric(client, ERR_NOMATCHINGKEY, user->name, key);
+		sendnumeric(client, RPL_KEYNOTSET, user->name, key);
 }
 
 void metadata_clear_channel(Channel *channel, Client *client)
@@ -1060,7 +1050,7 @@ int metadata_check_perms(Client *user, Channel *channel, Client *client, const c
 		
 	}
 	if (key)
-		sendnumeric(client, ERR_KEYNOPERMISSION, user?user->name:channel->name, key);
+		sendto_one(client, NULL, STR_FAIL_KEY_NO_PERMISSION, me.name, user?user->name:channel->name, key);
 	return 0;
 }
 
@@ -1092,7 +1082,7 @@ CMD_FUNC(cmd_metadata_local)
 			{
 				if (!metadata_key_valid(key))
 				{
-					sendnumeric(client, ERR_KEYINVALID, key);
+					sendto_one(client, NULL, STR_FAIL_INVALID_KEY, me.name, key);
 					continue;
 				}
 				if (channel)
@@ -1125,7 +1115,7 @@ CMD_FUNC(cmd_metadata_local)
 
 		if (!metadata_key_valid(key))
 		{
-			sendnumeric(client, ERR_KEYINVALID, key);
+			sendto_one(client, NULL, STR_FAIL_INVALID_KEY, me.name, key);
 			return;
 		}
 
@@ -1156,7 +1146,7 @@ CMD_FUNC(cmd_metadata_local)
 				metadata_subscribe(key, client, 0);
 			} else
 			{
-				sendnumeric(client, ERR_KEYINVALID, key);
+				sendto_one(client, NULL, STR_FAIL_INVALID_KEY, me.name, key);
 				continue;
 			}
 		}
@@ -1173,7 +1163,7 @@ CMD_FUNC(cmd_metadata_local)
 				metadata_subscribe(key, client, 1);
 			} else
 			{
-				sendnumeric(client, ERR_KEYINVALID, key);
+				sendto_one(client, NULL, STR_FAIL_INVALID_KEY, me.name, key);
 				continue;
 			}
 		}
@@ -1189,7 +1179,7 @@ CMD_FUNC(cmd_metadata_local)
 		PROCESS_TARGET_OR_DIE(target, user, channel, return);
 	} else
 	{
-		sendnumeric(client, ERR_METADATAINVALIDSUBCOMMAND, cmd);
+		sendto_one(client, NULL, STR_FAIL_INVALID_SUBCOMMAND, me.name, cmd);
 	}
 }
 
