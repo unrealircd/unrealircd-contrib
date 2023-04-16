@@ -134,9 +134,8 @@ module
 	MessageTag *mtags = NULL; \
 	MessageTag *m; \
 	PUSH_IGNORE_ADDRESS /* -Waddress warns when batch_id is an array */ \
-	if (!BadPtr(batch_id)) \
+	if (!BadPtr(batch_id)) { \
 	POP_IGNORE_ADDRESS \
-	{ \
 		mtags = safe_alloc(sizeof(MessageTag)); \
 		mtags->name = strdup("batch"); \
 		mtags->value = strdup(batchid); \
@@ -206,7 +205,7 @@ void metadata_send_all_for_user(Client *user, Client *client);
 void metadata_sync(Client *client);
 int metadata_key_valid(const char *key);
 int metadata_check_perms(Client *user, Channel *channel, Client *client, const char *key, int mode);
-void metadata_send_change(Client *client, const char *who, const char *key, const char *value, Client *changer);
+void metadata_send_change(Client *client, const char *batchid, const char *who, const char *key, const char *value, Client *changer);
 int metadata_notify_or_queue(Client *client, const char *who, const char *key, const char *value, Client *changer);
 
 ModDataInfo *metadataUser;
@@ -545,7 +544,7 @@ int metadata_notify_or_queue(Client *client, const char *who, const char *key, c
 
 	if (IsSendable(client))
 	{
-		metadata_send_change(client, who, key, value, changer);
+		metadata_send_change(client, NULL, who, key, value, changer);
 	} else
 	{ /* store for the SYNC */
 		Client *who_client;
@@ -572,7 +571,7 @@ int metadata_notify_or_queue(Client *client, const char *who, const char *key, c
 	return trylater;
 }
 
-void metadata_send_change(Client *client, const char *who, const char *key, const char *value, Client *changer)
+void metadata_send_change(Client *client, const char *batchid, const char *who, const char *key, const char *value, Client *changer)
 {
 	char *sender = NULL;
 	if (!key)
@@ -601,16 +600,20 @@ void metadata_send_change(Client *client, const char *who, const char *key, cons
 		sender = me.name;
 	if (changer && IsUser(changer) && MyUser(client))
 	{
-		if (!value)
-			sendto_one(client, NULL, ":%s!%s@%s METADATA %s %s %s", sender, changer->user->username, GetHost(changer), who, key, "*");
-		else
-			sendto_one(client, NULL, ":%s!%s@%s METADATA %s %s %s :%s", sender, changer->user->username, GetHost(changer), who, key, "*", value);
+		if (!value) {
+			batched(sendto_one, client, batchid, ":%s!%s@%s METADATA %s %s %s", sender, changer->user->username, GetHost(changer), who, key, "*");
+		}
+		else {
+			batched(sendto_one, client, batchid, ":%s!%s@%s METADATA %s %s %s :%s", sender, changer->user->username, GetHost(changer), who, key, "*", value);
+		}
 	} else
 	{ /* sending S2S (sender is id) or receiving S2S (sender is servername) */
-		if (!value)
-			sendto_one(client, NULL, ":%s METADATA %s %s %s", sender, who, key, "*");
-		else
-			sendto_one(client, NULL, ":%s METADATA %s %s %s :%s", sender, who, key, "*", value);
+		if (!value) {
+			batched(sendto_one, client, batchid, ":%s METADATA %s %s %s", sender, who, key, "*");
+		}
+		else {
+			batched(sendto_one, client, batchid, ":%s METADATA %s %s %s :%s", sender, who, key, "*", value);
+		}
 	}
 }
 
@@ -629,7 +632,7 @@ void user_metadata_changed(Client *user, const char *key, const char *value, Cli
 	{ /* notifications for linked servers, TODO change to sendto_server */
 		if (acptr == &me)
 			continue;
-		metadata_send_change(acptr, user->name, key, value, changer);
+		metadata_send_change(acptr, NULL, user->name, key, value, changer);
 	}
 }
 
@@ -641,14 +644,14 @@ void channel_metadata_changed(Channel *channel, const char *key, const char *val
 	list_for_each_entry(acptr, &lclient_list, lclient_node)
 	{ /* notifications for local subscribers */
 		if (metadata_is_subscribed(acptr, key) && IsMember(acptr, channel))
-			metadata_send_change(acptr, channel->name, key, value, changer);
+			metadata_send_change(acptr, NULL, channel->name, key, value, changer);
 	}
 	
 	list_for_each_entry(acptr, &server_list, special_node)
 	{ /* notifications for linked servers, TODO change to sendto_server */
 		if(acptr == &me)
 			continue;
-		metadata_send_change(acptr, channel->name, key, value, changer);
+		metadata_send_change(acptr, NULL, channel->name, key, value, changer);
 	}
 }
 
@@ -1332,7 +1335,7 @@ int metadata_server_sync(Client *client)
 		if(!moddata)
 			continue;
 		for (metadata = moddata->metadata; metadata; metadata = metadata->next)
-			metadata_send_change(client, acptr->name, metadata->name, metadata->value, &me);
+			metadata_send_change(client, NULL, acptr->name, metadata->name, metadata->value, &me);
 	}
 
 	for (hashnum = 0; hashnum < CHAN_HASH_TABLE_SIZE; hashnum++)
@@ -1340,7 +1343,7 @@ int metadata_server_sync(Client *client)
 		for(channel = hash_get_chan_bucket(hashnum); channel; channel = channel->hnextch)
 		{
 			for(metadata = CHANNEL_METADATA(channel); metadata; metadata = metadata->next)
-				metadata_send_change(client, channel->name, metadata->name, metadata->value, &me);
+				metadata_send_change(client, NULL, channel->name, metadata->name, metadata->value, &me);
 		}
 	}
 	return 0;
@@ -1392,12 +1395,18 @@ void metadata_sync(Client *client)
 	Channel *channel = NULL;
 	int do_send = 0;
 	char *who;
+	char batchid[BATCHLEN+1] = "";
 
 	struct metadata_moddata_user *my_moddata = USER_METADATA(client);
 	if(!my_moddata)
 		return; /* nothing queued */
 	struct metadata_unsynced *us = my_moddata->us;
 	struct metadata_unsynced *prev_us;
+
+	if (us && HasCapability(client, "batch")) {
+		generate_batch_id(batchid);
+		sendto_one(client, NULL, ":%s BATCH +%s metadata", me.name, batchid);
+	}
 
 	while (us)
 	{
@@ -1432,7 +1441,7 @@ void metadata_sync(Client *client)
 					{ /* has it */
 						const char *value = metadata_get_user_key_value(acptr, us->key);
 						if(value)
-							metadata_send_change(client, us->id, us->key, value, NULL);
+							metadata_send_change(client, batchid, us->id, us->key, value, NULL);
 					}
 					metadata = metadata->next;
 				}
@@ -1445,6 +1454,9 @@ void metadata_sync(Client *client)
 		safe_free(prev_us);
 		my_moddata->us = us; /* we're always removing the first list item */
 	}
+	if (*batchid)
+		sendto_one(client, NULL, ":%s BATCH -%s", me.name, batchid);
+
 }
 
 int metadata_user_registered(Client *client)
