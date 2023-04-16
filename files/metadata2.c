@@ -1,4 +1,4 @@
-/* Copyright (C) 2020-2021 k4be
+/* Copyright (C) 2020-2021, 2023 k4be
 ** Copyright (C) 2023 Valentin Lorentz
 ** License: GPLv3 https://www.gnu.org/licenses/gpl-3.0.html
 */
@@ -164,8 +164,8 @@ struct metadata_moddata_user {
 	struct metadata_unsynced *us;
 };
 
-struct metadata_unsynced { /* we're listing users (nicknames) that should be synced but were not */
-	char *name;
+struct metadata_unsynced { /* we're listing users (UIDs) that should be synced but were not */
+	char *id;
 	char *key;
 	struct metadata_unsynced *next;
 };
@@ -548,11 +548,24 @@ int metadata_notify_or_queue(Client *client, const char *who, const char *key, c
 		metadata_send_change(client, who, key, value, changer);
 	} else
 	{ /* store for the SYNC */
+		Client *who_client;
+		const char *uid_or_channel;
+		if (*who == '#') {
+			uid_or_channel = who;
+		} else {
+			who_client = find_client(who, NULL); /* FIXME the caller should already have this figured out */
+			if (!who_client) {
+				unreal_log(ULOG_DEBUG, "metadata", "METADATA_DEBUG", changer, "metadata_notify_or_queue called with nonexistent client!");
+				return 0; /* shouldn't happen */
+			}
+			uid_or_channel = who_client->id;
+		}
+
 		trylater = 1;
 		while (*us)
 			us = &(*us)->next; /* find last list element */
 		*us = safe_alloc(sizeof(struct metadata_unsynced));
-		(*us)->name = strdup(who);
+		(*us)->id = strdup(uid_or_channel);
 		(*us)->key = strdup(key);
 		(*us)->next = NULL;
 	}
@@ -690,7 +703,7 @@ void metadata_user_free(ModData *md)
 	metadata_free_list(metadata, NULL, NULL);
 	while (us)
 	{
-		safe_free(us->name);
+		safe_free(us->id);
 		safe_free(us->key);
 		prev_us = us;
 		us = us->next;
@@ -1375,23 +1388,41 @@ int metadata_join(Client *client, Channel *channel, MessageTag *mtags)
 
 void metadata_sync(Client *client)
 {
-	Client *acptr;
+	Client *acptr = NULL;
 	Channel *channel = NULL;
+	int do_send = 0;
+	char *who;
 
 	struct metadata_moddata_user *my_moddata = USER_METADATA(client);
 	if(!my_moddata)
 		return; /* nothing queued */
 	struct metadata_unsynced *us = my_moddata->us;
 	struct metadata_unsynced *prev_us;
-	
+
 	while (us)
 	{
 		if (!IsSendable(client))
 			break;
-		acptr = hash_find_nickatserver(us->name, NULL);
-		if (acptr && has_common_channels(acptr, client))
-		{ /* if not, the user has vanished since or one of us parted the channel */
-			struct metadata_moddata_user *moddata = USER_METADATA(acptr);
+		if (*us->id == '#') {
+			channel = find_channel(us->id);
+			if (channel && IsMember(client, channel)) {
+				do_send = 1;
+				who = us->id;
+			}
+		} else {
+			acptr = find_client(us->id, NULL);
+			if (acptr && has_common_channels(acptr, client)) { /* if not, the user has vanished since or one of us parted the channel */
+				do_send = 1;
+				who = acptr->name;
+			}
+		}
+
+		if (do_send) {
+			struct metadata_moddata_user *moddata;
+			if (acptr)
+				moddata = USER_METADATA(acptr);
+			else
+				moddata = CHANNEL_METADATA(channel);
 			if (moddata)
 			{
 				struct metadata *metadata = moddata->metadata;
@@ -1401,7 +1432,7 @@ void metadata_sync(Client *client)
 					{ /* has it */
 						const char *value = metadata_get_user_key_value(acptr, us->key);
 						if(value)
-							metadata_send_change(client, us->name, us->key, value, NULL);
+							metadata_send_change(client, us->id, us->key, value, NULL);
 					}
 					metadata = metadata->next;
 				}
@@ -1410,7 +1441,7 @@ void metadata_sync(Client *client)
 		/* now remove the processed entry */
 		prev_us = us;
 		us = us->next;
-		safe_free(prev_us->name);
+		safe_free(prev_us->id);
 		safe_free(prev_us);
 		my_moddata->us = us; /* we're always removing the first list item */
 	}
