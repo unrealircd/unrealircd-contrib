@@ -187,7 +187,7 @@ CMD_FUNC(NICKLOCK)
 		sendto_one(target, mtags, ":%s NICK :%s", target->name, nickname);
 		sendto_server(NULL, 0, 0, mtags, ":%s NICK %s :%lld", target->id, nickname, (long long)target->lastnick);
 
-		add_history(target, 1);
+		add_history(target, 1, WHOWAS_EVENT_NICK_CHANGE);
 		del_from_client_hash_table(target->name, target);
 
 		strlcpy(target->name, nickname, sizeof target->name);
