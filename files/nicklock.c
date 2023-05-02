@@ -16,7 +16,7 @@ module
 {
         documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/nicklock/README.md";
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
-        min-unrealircd-version "6.*";
+        min-unrealircd-version "6.1.*";
         max-unrealircd-version "6.*";
         post-install-text {
                 "The module is installed. Now all you need to do is add a loadmodule line:";
@@ -32,7 +32,7 @@ module
 
 ModuleHeader MOD_HEADER = {
 	"third/nicklock",
-	"1.1",
+	"1.2",
 	"Adds the /NICKLOCK command which allows server operators to prevent a user from changing their nick during their session.",
 	"Valware",
 	"unrealircd-6",
