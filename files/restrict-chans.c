@@ -1,6 +1,6 @@
 /** 
  * LICENSE: GPLv3 or later
- * Copyright Ⓒ 2022 Valerie Pond
+ * Copyright Ⓒ 2023 Valerie Pond
  * 
  * Restricts channels to registered users
  * Requested by Chris[A]
