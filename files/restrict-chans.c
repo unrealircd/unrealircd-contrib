@@ -1,5 +1,5 @@
 /** 
- * LICENSE: GPLv3 or later
+ * LICENSE: GPLv3
  * Copyright Ⓒ 2023 Valerie Pond
  * 
  * Restricts channels to registered users
@@ -28,7 +28,7 @@ int isreg_can_join(Client *client, Channel *channel, const char *key, char **err
 ModuleHeader MOD_HEADER =
 {
 	"third/restrict-chans",
-	"1.0",
+	"1.1",
 	"Restrict channel creation to logged-in users",
 	"Valware",
 	"unrealircd-6",
@@ -57,8 +57,12 @@ MOD_TEST()
 
 int isreg_can_join(Client *client, Channel *channel, const char *key, char **errmsg)
 {
-	if (!channel->users && !IsLoggedIn(client) && !has_channel_mode(channel, 'P'))
+	/* allow people to join permanent empty channels and allow opers to create new channels */
+	if (!channel->users && !IsLoggedIn(client) && !has_channel_mode(channel, 'P') && !IsOper(client))
 	{
+		/* there aren't actually any users in the channel but sub1_from_channel()
+			will destroy the channel best without duplicating code */
+		sub1_from_channel(channel);
 		*errmsg = "%s :You must be logged in to create new channels", channel->name;
 		return ERR_CANNOTDOCOMMAND;
 	}
