@@ -1,5 +1,5 @@
 /** 
- * LICENSE: GPLv3
+ * LICENSE: GPLv3 or later
  * Copyright Ⓒ 2023 Valerie Pond
  * 
  * Restricts channels to registered users
@@ -23,12 +23,12 @@ module
 *** <<<MODULE MANAGER END>>>
 */
 #include "unrealircd.h"
-int isreg_can_join(Client *client, Channel *channel, const char *key, char **errmsg);
-
+int isreg_can_join(Client *client, Channel *channel, const char *key);
+int isreg_check_join(Client *client, Channel *channel, const char *key, char **errmsg);
 ModuleHeader MOD_HEADER =
 {
 	"third/restrict-chans",
-	"1.1",
+	"1.2",
 	"Restrict channel creation to logged-in users",
 	"Valware",
 	"unrealircd-6",
@@ -37,7 +37,8 @@ MOD_INIT()
 {
 	MARK_AS_GLOBAL_MODULE(modinfo);
 	
-	HookAdd(modinfo->handle, HOOKTYPE_CAN_JOIN, 0, isreg_can_join);
+	HookAdd(modinfo->handle, HOOKTYPE_CAN_JOIN, 0, isreg_check_join);
+	HookAdd(modinfo->handle, HOOKTYPE_PRE_LOCAL_JOIN, 0, isreg_can_join);
 	return MOD_SUCCESS;
 }
 
@@ -55,16 +56,34 @@ MOD_TEST()
 	return MOD_SUCCESS;
 }
 
-int isreg_can_join(Client *client, Channel *channel, const char *key, char **errmsg)
+int isreg_check_join(Client *client, Channel *channel, const char *key, char **errmsg)
 {
-	/* allow people to join permanent empty channels and allow opers to create new channels */
-	if (!channel->users && !IsLoggedIn(client) && !has_channel_mode(channel, 'P') && !IsOper(client))
+	if (has_channel_mode(channel, 'P')) // it's permanent, continue;
+		return HOOK_CONTINUE;
+	if (channel->users == 0)
 	{
-		/* there aren't actually any users in the channel but sub1_from_channel()
-			will destroy the channel best without duplicating code */
-		sub1_from_channel(channel);
+		if (IsLoggedIn(client))
+			return HOOK_CONTINUE;
+			
 		*errmsg = "%s :You must be logged in to create new channels", channel->name;
 		return ERR_CANNOTDOCOMMAND;
 	}
-	return 0;
+	return HOOK_CONTINUE;
+	
+}
+
+int isreg_can_join(Client *client, Channel *channel, const char *key)
+{
+	if (has_channel_mode(channel, 'P')) // it's permanent, continue;
+		return HOOK_CONTINUE;
+	/* allow people to join permanent empty channels and allow opers to create new channels */
+	if (channel->users == 0)
+	{
+		if (IsLoggedIn(client))
+			return HOOK_CONTINUE;
+			
+		sendnumeric(client, ERR_CANNOTDOCOMMAND, channel->name, "You must be logged in to create new channels");
+		return HOOK_DENY;
+	}
+	return HOOK_CONTINUE;
 }
