@@ -8,7 +8,7 @@ module
 {
 		documentation "Implements the draft IRCv3 message-redaction specification https://github.com/ircv3/ircv3-specifications/pull/524";
 		troubleshooting "In case of problems, contact val on irc.unrealircd.org.";
-		min-unrealircd-version "6.*";
+		min-unrealircd-version "6.1.2";
 		post-install-text {
 				"The module is installed. Now all you need to do is add a loadmodule line:";
 				"loadmodule \"third/redact\";";
