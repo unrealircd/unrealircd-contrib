@@ -6,7 +6,7 @@
 /*** <<<MODULE MANAGER START>>>
 module
 {
-		documentation "Implements the draft IRCv3 message-redaction specification https://github.com/ircv3/ircv3-specifications/pull/524";
+		documentation "https://github.com/ircv3/ircv3-specifications/pull/524";
 		troubleshooting "In case of problems, contact val on irc.unrealircd.org.";
 		min-unrealircd-version "6.1.2";
 		post-install-text {
@@ -27,7 +27,7 @@ module
 ModuleHeader MOD_HEADER = {
 	"third/redact",
 	"6.0",
-	"draft/message-redaction cap",
+	"Implements the draft IRCv3 message-redaction specification",
 	"val",
 	"unrealircd-6"
 };
