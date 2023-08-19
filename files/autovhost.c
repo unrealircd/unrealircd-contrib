@@ -46,7 +46,7 @@ int vhostCount = 0;
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/autovhost", // Module name
-	"2.1.1", // Version
+	"2.1.2", // Version
 	"Apply vhosts at connect time based on users' raw nick formats or IPs", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -247,15 +247,15 @@ int autovhost_connect(Client *client) {
 		if(!match_user(vEntry->mask, client, MATCH_CHECK_REAL_HOST|MATCH_CHECK_IP))
 			continue;
 
-		doaccount = 0;
-		if(strstr(vEntry->vhost, "$account")) {
-			if(!IsLoggedIn(client)) {
+		doaccount = (strstr(vEntry->vhost, "$account") ? 1 : 0);
+		if(doaccount && !IsLoggedIn(client)) {
+			// Let's not log this error for (very) wide masks, since in that case it's used as a kind of a catch-all thingy and any would-be errors aren't really an issue
+			if(strncmp(vEntry->mask, "*!*@", 4) != 0) {
 				unreal_log(ULOG_ERROR, "autovhost", "AUTOVHOST_INVALID", client, "Invalid result vhost: $mask contains $account variable but user isn't logged in ($client.details)",
 					log_data_string("mask", vEntry->vhost)
 				);
-				continue;
 			}
-			doaccount = 1;
+			continue;
 		}
 
 		snprintf(newhost, sizeof(newhost), "%s", vEntry->vhost);
