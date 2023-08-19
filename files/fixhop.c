@@ -45,13 +45,13 @@ module {
 int fixhop_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int fixhop_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
 int fixhop_rehash(void);
+int is_chmode_denied(char mode, char direction);
 CMD_OVERRIDE_FUNC(fixhop_inviteoverride);
 CMD_OVERRIDE_FUNC(fixhop_modeoverride);
 
 // Ripped functions (from src/modules/invite.c) =]
 void add_invite(Client *from, Client *to, Channel *channel, MessageTag *mtags);
 void del_invite(Client *client, Channel *channel);
-int is_chmode_denied(char mode, char direction);
 
 ModDataInfo *userInvitesMD, *channelInvitesMD;
 
@@ -65,7 +65,7 @@ int chmodeNotif = 0; // Notification to go wit it
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/fixhop", // Module name
-	"2.3.0", // Version
+	"2.3.1", // Version
 	"The +h access mode seems to be a little borked/limited, this module implements some tweaks for it", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -226,6 +226,27 @@ int fixhop_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 int fixhop_rehash(void) {
 	allowInvite = denyWidemasks = widemaskNotif = chmodeNotif = 0;
 	return HOOK_CONTINUE;
+}
+
+int is_chmode_denied(char mode, char direction) {
+	char curdir;
+	char *p;
+
+	if(!denyChmodes || !strchr(denyChmodes, mode))
+		return 0;
+
+	curdir = 0;
+	for(p = denyChmodes; *p; p++) {
+		if(strchr("+-", *p)) {
+			curdir = *p;
+			continue;
+		}
+
+		if((curdir == 0 || curdir == direction) && *p == mode)
+			return 1;
+	}
+
+	return 0;
 }
 
 // Now for the actual override
@@ -567,28 +588,42 @@ CMD_OVERRIDE_FUNC(fixhop_modeoverride) {
 void add_invite(Client *from, Client *to, Channel *channel, MessageTag *mtags) {
 	Link *inv, *tmp;
 
+	// This bit is not ripped from the original, but essa some backwards compatibility shit =]
+	int maxchans;
+#ifdef MAXCHANNELSPERUSER // Older versions
+	maxchans = MAXCHANNELSPERUSER;
+#else
+	maxchans = get_setting_for_user_number(from, SET_MAX_CHANNELS_PER_USER);
+#endif
+
 	del_invite(to, channel);
 	/* If too many invite entries then delete the oldest one */
-	if(link_list_length(CLIENT_INVITES(to)) >= MAXCHANNELSPERUSER) {
+	if(link_list_length(CLIENT_INVITES(to)) >= maxchans) {
 		for(tmp = CLIENT_INVITES(to); tmp->next; tmp = tmp->next)
 			;
 		del_invite(to, tmp->value.channel);
 
 	}
 
-	if(link_list_length(CHANNEL_INVITES(channel)) >= MAXCHANNELSPERUSER) {
+	/* We get pissy over too many invites per channel as well now,
+	 * since otherwise mass-inviters could take up some major
+	 * resources -Donwulff
+	 */
+	if(link_list_length(CHANNEL_INVITES(channel)) >= maxchans) {
 		for(tmp = CHANNEL_INVITES(channel); tmp->next; tmp = tmp->next)
 			;
 		del_invite(tmp->value.client, channel);
 	}
-
-	// Add client to the beginning of the channel invite list
+	/*
+	 * add client to the beginning of the channel invite list
+	 */
 	inv = make_link();
 	inv->value.client = to;
 	inv->next = CHANNEL_INVITES(channel);
 	CHANNEL_INVITES(channel) = inv;
-
-	// Add channel to the beginning of the client invite list
+	/*
+	 * add channel to the beginning of the client invite list
+	 */
 	inv = make_link();
 	inv->value.channel = channel;
 	inv->next = CLIENT_INVITES(to);
@@ -615,25 +650,4 @@ void del_invite(Client *client, Channel *channel) {
 			break;
 		}
 	}
-}
-
-int is_chmode_denied(char mode, char direction) {
-	char curdir;
-	char *p;
-
-	if(!denyChmodes || !strchr(denyChmodes, mode))
-		return 0;
-
-	curdir = 0;
-	for(p = denyChmodes; *p; p++) {
-		if(strchr("+-", *p)) {
-			curdir = *p;
-			continue;
-		}
-
-		if((curdir == 0 || curdir == direction) && *p == mode)
-			return 1;
-	}
-
-	return 0;
 }

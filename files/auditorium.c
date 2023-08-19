@@ -33,8 +33,13 @@ module {
 
 // Quality fowod declarations
 int auditorium_chmode_isok(Client *client, Channel *channel, char mode, const char *para, int checkt, int what);
-int auditorium_hook_visibleinchan(Client *target, Channel *channel);
 int auditorium_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype);
+
+#if (UNREAL_VERSION_MAJOR < 1 || (UNREAL_VERSION_MAJOR == 1 && UNREAL_VERSION_MINOR == 0))
+	int auditorium_hook_visibleinchan(Client *target, Channel *channel);
+#else
+	int auditorium_hook_visibleinchan(Client *target, Channel *channel, Member *client_member);
+#endif
 
 #define CHMODE_FLAG 'u' // Good ol' +u ;];]
 #define IsAudit(x) ((x) && has_channel_mode((x), CHMODE_FLAG))
@@ -45,7 +50,7 @@ Cmode_t extcmode_auditorium = 0L; // Store bitwise value latur
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/auditorium", // Module name
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Channel mode +u to show channel events/messages to/from people with +o/+a/+q only", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -111,7 +116,12 @@ int auditorium_chmode_isok(Client *client, Channel *channel, char mode, const ch
 	return EX_ALLOW; // Fallthrough, like when someone attempts +u 10 it'll simply do +u
 }
 
-int auditorium_hook_visibleinchan(Client *target, Channel *channel) {
+#if (UNREAL_VERSION_MAJOR < 1 || (UNREAL_VERSION_MAJOR == 1 && UNREAL_VERSION_MINOR == 0))
+	int auditorium_hook_visibleinchan(Client *target, Channel *channel)
+#else
+	int auditorium_hook_visibleinchan(Client *target, Channel *channel, Member *client_member)
+#endif
+{
 	if(IsAudit(channel) && !check_channel_access(target, channel, "oaq") && !IsULine(target)) // If channel has +u and the checked user (not you) doesn't have +o or higher...
 		return HOOK_DENY; // ...don't show in /names etc
 	return HOOK_CONTINUE;
