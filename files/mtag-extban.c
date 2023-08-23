@@ -22,7 +22,7 @@ module
 */
 #include "unrealircd.h"
 
-#define MAX_MTAG_BANS_PER_CHAN	 15 /* Max number of ~T bans in a channel. */
+#define MAX_MTAG_BANS_PER_CHAN	 15
 
 ModuleHeader MOD_HEADER
 = {
