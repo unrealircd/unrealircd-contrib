@@ -14,6 +14,9 @@ module
 	// Minimum version necessary for this module to work:
 	min-unrealircd-version "6.*";
 
+	// Maximum version (because this module is redundant in 6.1.2):
+	max-unrealircd-version "6.1.2";
+
 	post-install-text {
 		"The module is installed. Now all you need to do is add a loadmodule line:";
 		"loadmodule \"third/blacklistrecheck\";";
