@@ -29,8 +29,8 @@ int loggedinfrom_whois(Client *requester, Client *acptr, NameValuePrioList **lis
 /* Our module header */
 ModuleHeader MOD_HEADER = {
 	"third/logged-in-from",
-	"1.0.0",
-	"Displays account locations in /WHOIS",
+	"1.1",
+	"Extra /WHOIS information pertaining to account usage.",
 	"Valware",
 	"unrealircd-6",
 };
@@ -69,10 +69,15 @@ int loggedinfrom_whois(Client *requester, Client *acptr, NameValuePrioList **lis
 	if (!IsLoggedIn(acptr)) // not logged in, return
 		return 0;
 
-	if (!IsOper(requester) && acptr != requester) // only show to the self
+	if (!IsOper(requester) && strcasecmp(acptr->user->account,requester->user->account)) // only show to the self
 		return 0;
 	
 	int i = 1;
+
+	/**
+	 * We go through each user on the network looking for people who are logged into the
+	 * same account.
+	*/
 	list_for_each_entry(client, &client_list, client_node)
 	{
 		if (!strcasecmp(client->user->account,acptr->user->account))
@@ -87,10 +92,30 @@ int loggedinfrom_whois(Client *requester, Client *acptr, NameValuePrioList **lis
 			++i;
 		}
 	}
+
+	/**
+	 * We show the user how many places they're logged in, and then show the ^ above output (lower prio)
+	*/
 	if (acptr->user->account)
-	{
 		add_nvplist_numeric_fmt(list, 999900, "loggedin", acptr, 320, "%s :is logged in from \x02%i place%s\x02:", acptr->name, i - 1, (i-1 == 1) ? "" : "s");
-	}
 	
+
+	/**
+	 * This is where we add some extended information so that people logged in from multiple 
+	 * places may see more information about where they're logged in.
+	*/
+	if (acptr != requester && !IsOper(requester)) // wouldn't otherwise get to see their extended information...
+	{
+		// we add their real host and ip as if it were there all along :')
+		add_nvplist_numeric_fmt(list, -90000, "realhost", acptr, 378, "%s :is connecting from *@%s %s",
+									acptr->name,
+									acptr->user->realhost,
+									acptr->ip);
+
+		// and show what modes they're using.
+		add_nvplist_numeric_fmt(list, -100000, "modes", acptr, 379, "%s :is using modes %s %s",
+									acptr->name, get_usermode_string(acptr),
+									acptr->user->snomask ? acptr->user->snomask : "");
+	}
 	return 0;
 }
