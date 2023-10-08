@@ -14,8 +14,8 @@ module
 	// Minimum version necessary for this module to work:
 	min-unrealircd-version "6.*";
 
-	// Maximum version (because this module is redundant in 6.1.2):
-	max-unrealircd-version "6.1.2";
+	// Maximum version (actually this module is redundant in 6.1.2+):
+	max-unrealircd-version "6.*";
 
 	post-install-text {
 		"The module is installed. Now all you need to do is add a loadmodule line:";
@@ -58,6 +58,11 @@ int blr_config_run(ConfigFile *cf, ConfigEntry *ce, int type);
 
 MOD_TEST()
 {
+#if UNREAL_VERSION_TIME >= 202338
+	config_error("The blacklist recheck functionality is already included in UnrealIRCd 6.1.2 and later, no need to load third/blacklistrecheck.");
+	config_error("Please remove the loadmodule third/blacklistrecheck line from your config file.");
+	return MOD_FAILED;
+#endif
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGTEST, 0, blr_config_test);
 	return MOD_SUCCESS;
 }
