@@ -54,7 +54,11 @@ char send_buf[4096];
 struct sockaddr_un stats_addr;
 ModDataInfo *message_count_md;
 
+#if UNREAL_VERSION_TIME<202340
 int wwwstats_msg(Client *sptr, Channel *chptr, MessageTag *mtags, const char *msg, MESSAGE_SENDTYPE sendtype);
+#else
+int wwwstats_msg(Client *sptr, Channel *chptr, MessageTag **mtags, const char *msg, MESSAGE_SENDTYPE sendtype);
+#endif
 EVENT(wwwstats_socket_evt);
 char *json_escape(char *d, const char *a);
 void md_free(ModData *md);
@@ -226,7 +230,12 @@ void md_free(ModData *md){
 	md->i = 0;
 }
 
-int wwwstats_msg(Client *sptr, Channel *chptr, MessageTag *mtags, const char *msg, MESSAGE_SENDTYPE sendtype) { // called on channel messages
+#if UNREAL_VERSION_TIME<202340
+int wwwstats_msg(Client *sptr, Channel *chptr, MessageTag *mtags, const char *msg, MESSAGE_SENDTYPE sendtype)
+#else
+int wwwstats_msg(Client *sptr, Channel *chptr, MessageTag **mtags, const char *msg, MESSAGE_SENDTYPE sendtype)
+#endif
+{ // called on channel messages
 	counter++;
 	CHANNEL_MESSAGE_COUNT(chptr)++;
 	return HOOK_CONTINUE;
