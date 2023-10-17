@@ -63,7 +63,11 @@ struct t_fakechans {
 	char *name;
 	char *topic;
 	int users;
+#if (UNREAL_VERSION_MAJOR < 1 || (UNREAL_VERSION_MAJOR == 1 && UNREAL_VERSION_MINOR < 2))
 	BanAction banact;
+#else
+	BanActionValue banact;
+#endif
 	fakeChannel *next;
 };
 
@@ -97,7 +101,7 @@ int fakechanCount = 0;
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/listrestrict", // Module name
-	"2.2.0", // Version
+	"2.2.1", // Version
 	"Impose certain restrictions on /LIST usage", // Description
 	"Gottem / k4be", // Author
 	"unrealircd-6", // Modversion
@@ -296,7 +300,11 @@ CMD_OVERRIDE_FUNC(listrestrict_overridejoin) {
 
 	// Place ban if necessary =]
 	if(fakechanFail && (delayFail || authFail)) {
+	#if (UNREAL_VERSION_MAJOR < 1 || (UNREAL_VERSION_MAJOR == 1 && UNREAL_VERSION_MINOR < 2))
 		place_host_ban(client, fchanEntry->banact, "Invalid channel", muhcfg.ban_time);
+	#else
+		take_action(client, banact_value_to_struct(fchanEntry->banact), "Invalid channel", muhcfg.ban_time, 0, NULL);
+	#endif
 		return;
 	}
 	CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
@@ -307,7 +315,11 @@ int listrestrict_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs
 	int errors = 0; // Error count
 	int i;
 	int have_fchanname;
+#if (UNREAL_VERSION_MAJOR < 1 || (UNREAL_VERSION_MAJOR == 1 && UNREAL_VERSION_MINOR < 2))
 	BanAction banact;
+#else
+	BanActionValue banact;
+#endif
 
 	// Since we'll add a new top-level block to unrealircd.conf, need to filter on CONFIG_MAIN lmao
 	if(type != CONFIG_MAIN)
@@ -475,11 +487,19 @@ int listrestrict_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs
 						continue;
 					}
 
-					if(IsSoftBanAction(banact) || banact == BAN_ACT_WARN) {
-						config_error("%s:%i: invalid %s::fake-channel::%s (cannot be a soft action, block or warn)", cep2->file->filename, cep2->line_number, MYCONF, cep2->name);
+				#if (UNREAL_VERSION_MAJOR < 1 || (UNREAL_VERSION_MAJOR == 1 && UNREAL_VERSION_MINOR < 2))
+					if(IsSoftBanAction(banact) || banact == BAN_ACT_DCCBLOCK || banact == BAN_ACT_BLOCK || banact == BAN_ACT_WARN) {
+						config_error("%s:%i: invalid %s::fake-channel::%s (cannot be a soft action, any type of block or warn)", cep2->file->filename, cep2->line_number, MYCONF, cep2->name);
 						errors++; // Increment err0r count fam
 					}
 					continue;
+				#else
+					if(IsSoftBanAction(banact) || banact == BAN_ACT_DCCBLOCK || banact == BAN_ACT_BLOCK || banact == BAN_ACT_WARN || banact == BAN_ACT_REPORT || banact == BAN_ACT_SET || banact == BAN_ACT_STOP) {
+						config_error("%s:%i: invalid %s::fake-channel::%s (cannot be a soft action, any type of block, warn, report, set or stop)", cep2->file->filename, cep2->line_number, MYCONF, cep2->name);
+						errors++; // Increment err0r count fam
+					}
+					continue;
+				#endif
 				}
 
 				config_error("%s:%i: invalid %s::fake-channel attribute %s (must be one of: name, topic, users, ban-action)", cep2->file->filename, cep2->line_number, MYCONF, cep2->name); // Rep0t error
@@ -527,7 +547,11 @@ int listrestrict_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 	char fchanName[CHANNELLEN + 1];
 	char fchanTopic[MAXTOPICLEN + 1]; // Just use absolute maximum topic length here ;]
 	int fchanUsers;
+#if (UNREAL_VERSION_MAJOR < 1 || (UNREAL_VERSION_MAJOR == 1 && UNREAL_VERSION_MINOR < 2))
 	BanAction fchanBanact;
+#else
+	BanActionValue fchanBanact;
+#endif
 	size_t len;
 	int topiclen;
 

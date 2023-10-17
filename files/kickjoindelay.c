@@ -55,11 +55,16 @@ int kickjoindelay_chmode_isok(Client *client, Channel *channel, char mode, const
 void *kickjoindelay_chmode_put_param(void *data, const char *para);
 const char *kickjoindelay_chmode_conv_param(const char *para, Client *client, Channel *channel);
 const char *kickjoindelay_chmode_get_param(void *data);
-void kickjoindelay_chmode_free_param(void *data);
 void *kickjoindelay_chmode_dup_struct(void *src);
 int kickjoindelay_chmode_sjoin_check(Channel *channel, void *ourx, void *theirx);
 void kickjoindelay_md_free(ModData *md);
 EVENT(kickjoindelay_event);
+
+#if (UNREAL_VERSION_MAJOR < 1)
+	void kickjoindelay_chmode_free_param(void *data);
+#else
+	int kickjoindelay_chmode_free_param(void *data, int soft);
+#endif
 
 Cmode_t extcmode_kickjoindelay = 0L; // Store bitwise value latur
 ModDataInfo *kickjoinMDI = NULL; // Persistent st0rage for kick timers
@@ -67,7 +72,7 @@ ModDataInfo *kickjoinMDI = NULL; // Persistent st0rage for kick timers
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/kickjoindelay", // Module name
-	"2.2.0", // Version
+	"2.2.1", // Version
 	"Chanmode +j to prevent people from rejoining too fast after a kick", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -299,11 +304,19 @@ const char *kickjoindelay_chmode_get_param(void *data) {
 }
 
 // When unsetting the mode, gotta free our shit
-void kickjoindelay_chmode_free_param(void *data) {
+#if (UNREAL_VERSION_MAJOR < 1)
+	void kickjoindelay_chmode_free_param(void *data)
+#else
+	int kickjoindelay_chmode_free_param(void *data, int soft)
+#endif
+{
 	/* Args:
 	** data: A void pointer to the custom aModej struct
 	*/
 	safe_free(data);
+#if (UNREAL_VERSION_MAJOR >= 1)
+	return 0;
+#endif
 }
 
 // Duplicate the struct, seems to be necessary ;]

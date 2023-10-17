@@ -74,7 +74,7 @@ static char *debughelp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/debug", // Module name
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Allows privileged opers to easily view internal (configuration) data", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -161,7 +161,7 @@ void debug_opers(Client *client) {
 		if(len < BUFSIZE && oper->maxlogins) // Maxlogins may not be specified either
 			len += snprintf(buf + len, BUFSIZE, ", allows %d login attempts", oper->maxlogins); // shit
 
-		sendnotice(client, buf, oper->name, oper->operclass); // Now finally send 'em notice
+		sendnotice(client, buf); // Now finally send 'em notice
 	}
 }
 

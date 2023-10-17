@@ -34,17 +34,19 @@ module {
 	} while(0)
 
 // Big hecks go here
-typedef struct _channels_users_ {
-	struct _channel_users *prev, *next;
+typedef struct t_users UsersM;
+struct t_users {
+	UsersM *prev, *next;
 	Client *source;
 	Channel *channel;
 	int joined_since;
-} UsersM;
+};
 
-typedef struct _joinmute {
+typedef struct t_joinmute JoinMute;
+struct t_joinmute {
 	char flag;
 	int seconds;
-} JoinMute;
+};
 
 // Quality fowod declarations
 void add_user_to_memory(Client *client, Channel *channel);
@@ -56,20 +58,25 @@ int joinmute_hook_part(Client *client, Channel *channel, MessageTag *mtags, cons
 int joinmute_hook_quit(Client *client, MessageTag *recv_mtags, const char *comment);
 int joinmute_hook_kick(Client *client, Client *victim, Channel *channel, MessageTag *mtags, const char *comment);
 int modeJ_is_ok(Client *client, Channel *channel, char mode, const char *para, int checkt, int what);
-void *modeJ_put_param(void *lst, const char *para);
+void *modeJ_put_param(void *lst, const char *param);
 const char *modeJ_conv_param(const char *param, Client *client, Channel *channel);
 const char *modeJ_get_param(void *lst);
-void modeJ_free_param(void *lst);
 void *modeJ_dup_struct(void *src);
 int modeJ_sjoin_check(Channel *channel, void *ourx, void *theirx);
 int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype);
+
+#if (UNREAL_VERSION_MAJOR < 1)
+	void modeJ_free_param(void *lst);
+#else
+	int modeJ_free_param(void *lst, int soft);
+#endif
 
 UsersM *muted_users = NULL; // List of data
 Cmode_t extcmode_joinmute = 0L; // To store the bit flag latur
 
 ModuleHeader MOD_HEADER = {
 	"third/joinmute",
-	"2.2.0", // Version
+	"2.2.1", // Version
 	"Adds +J chmode: Mute newly joined people for +J X seconds",
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -174,9 +181,17 @@ const char *modeJ_conv_param(const char *param, Client *client, Channel *channel
 	return retbuf;
 }
 
-void modeJ_free_param(void *r) {
-	JoinMute *n = (JoinMute *)r;
+#if (UNREAL_VERSION_MAJOR < 1)
+	void modeJ_free_param(void *lst)
+#else
+	int modeJ_free_param(void *lst, int soft)
+#endif
+{
+	JoinMute *n = (JoinMute *)lst;
 	safe_free(n);
+#if (UNREAL_VERSION_MAJOR >= 1)
+	return 0;
+#endif
 }
 
 void *modeJ_dup_struct(void *src) {
