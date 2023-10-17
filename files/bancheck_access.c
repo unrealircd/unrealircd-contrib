@@ -47,7 +47,7 @@ int showNotif = 0; // Display message in case of denied masks
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/bancheck_access", // Module name
-	"2.1.1", // Version
+	"2.1.2", // Version
 	"Prevents people who have +o or higher from getting banned, unless done by people with +a/+q or opers", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -149,6 +149,8 @@ CMD_OVERRIDE_FUNC(bancheck_override) {
 	const char *tmpmask; // Store "cleaned" ban mask
 	char *banmask; // Have to store it agen so it doesn't get fukt lol (sheeeeeit)
 	char umask[NICKLEN + USERLEN + HOSTLEN + 24], realumask[NICKLEN + USERLEN + HOSTLEN + 24]; // Full nick!ident@host masks for users yo
+	Cmode *chanmode;
+	int chanmode_max;
 
 	// May not be anything to do =]
 	if(!MyUser(client) || IsOper(client) || parc < 3) {
@@ -181,6 +183,12 @@ CMD_OVERRIDE_FUNC(bancheck_override) {
 
 		// Check if we need to verify somethang
 		switch(c) {
+			// Directionals yo
+			case '+':
+			case '-':
+				curdir = c;
+				break;
+
 			// Do shit for bans only
 			case 'b': // Ban
 				fc++;
@@ -252,15 +260,25 @@ CMD_OVERRIDE_FUNC(bancheck_override) {
 				newparc++;
 				break;
 
-			// Directionals yo
-			case '+':
-			case '-':
-				curdir = c;
-				break;
-
-			// Fuck errythang else lol (likely won't have a param anyways y0)
+			// Let's also account for ne third-party m0ds we don't know about, which should always have ->paracount set I think
 			default:
 				fc++;
+				chanmode = find_channel_mode_handler(c);
+				if(!chanmode || !chanmode->paracount || (!chanmode->unset_with_param && curdir == '-'))
+					break;
+
+				j = mc + 3;
+				chanmode_max = j + chanmode->paracount;
+				while(j < chanmode_max) {
+					if(parc <= j || BadPtr(parv[j])) {
+						if(fc > 1)
+							cont = 1;
+						break;
+					}
+					mc++;
+					newparc++;
+					j++;
+				}
 				break;
 		}
 

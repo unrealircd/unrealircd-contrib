@@ -65,7 +65,7 @@ int chmodeNotif = 0; // Notification to go wit it
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/fixhop", // Module name
-	"2.3.1", // Version
+	"2.3.2", // Version
 	"The +h access mode seems to be a little borked/limited, this module implements some tweaks for it", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -418,6 +418,8 @@ CMD_OVERRIDE_FUNC(fixhop_modeoverride) {
 	char curdir; // Current direction (add/del etc)
 	const char *p; // To check the non-wildcard length shit
 	const char *mask; // Store "cleaned" ban mask
+	Cmode *chanmode;
+	int chanmode_max;
 
 	// May not be anything to do =]
 	if((!denyWidemasks && !denyChmodes) || !MyUser(client) || IsOper(client) || parc < 3) {
@@ -533,9 +535,25 @@ CMD_OVERRIDE_FUNC(fixhop_modeoverride) {
 				newparc++;
 				break;
 
-			// Fuck errythang else lol
+			// Let's also account for ne third-party m0ds we don't know about, which should always have ->paracount set I think
 			default:
 				fc++;
+				chanmode = find_channel_mode_handler(c);
+				if(!chanmode || !chanmode->paracount || (!chanmode->unset_with_param && curdir == '-'))
+					break;
+
+				j = mc + 3;
+				chanmode_max = j + chanmode->paracount;
+				while(j < chanmode_max) {
+					if(parc <= j || BadPtr(parv[j])) {
+						if(fc > 1)
+							cont = 1;
+						break;
+					}
+					mc++;
+					newparc++;
+					j++;
+				}
 				break;
 		}
 

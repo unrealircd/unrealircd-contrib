@@ -65,7 +65,7 @@ char *denyReason = NULL; // What message to display
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/denyban", // Module name
-	"2.1.1", // Version
+	"2.1.2", // Version
 	"Deny specific ban masks network-wide", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -345,6 +345,8 @@ CMD_OVERRIDE_FUNC(denyban_modeoverride) {
 	const char *mask; // Store "cleaned" ban mask
 	char *reason; // Message to display
 	char num[8]; // Store stripped as char lol
+	Cmode *chanmode;
+	int chanmode_max;
 
 	// May not be anything to do =]
 	if(!MyUser(client) || (IsOper(client) && allowOpers) || parc < 3) {
@@ -376,6 +378,12 @@ CMD_OVERRIDE_FUNC(denyban_modeoverride) {
 
 		// Check if we need to verify somethang
 		switch(c) {
+			// Directionals yo
+			case '+':
+			case '-':
+				curdir = c;
+				break;
+
 			// El list stuff
 			case 'b': // Ban
 				fc++;
@@ -431,15 +439,24 @@ CMD_OVERRIDE_FUNC(denyban_modeoverride) {
 				newparc++;
 				break;
 
-			// Directionals yo
-			case '+':
-			case '-':
-				curdir = c;
-				break;
-
-			// Fuck errythang else lol (likely won't have a param anyways y0)
 			default:
 				fc++;
+				chanmode = find_channel_mode_handler(c);
+				if(!chanmode || !chanmode->paracount || (!chanmode->unset_with_param && curdir == '-'))
+					break;
+
+				j = mc + 3;
+				chanmode_max = j + chanmode->paracount;
+				while(j < chanmode_max) {
+					if(parc <= j || BadPtr(parv[j])) {
+						if(fc > 1)
+							cont = 1;
+						break;
+					}
+					mc++;
+					newparc++;
+					j++;
+				}
 				break;
 		}
 
