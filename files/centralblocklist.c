@@ -27,11 +27,14 @@ module
 */
 
 #include "unrealircd.h"
+#ifndef _WIN32
+#include <netinet/tcp.h>
+#endif
 
 ModuleHeader MOD_HEADER
   = {
 	"third/centralblocklist",
-	"0.9.8",
+	"0.9.9",
 	"Check users at central blocklist",
 	"UnrealIRCd Team",
 	"unrealircd-6",
@@ -606,6 +609,31 @@ void cbl_add_client_info(Client *client)
 		if (client->local->sni_servername)
 			json_object_set_new(tls, "sni_servername", json_string_unreal(client->local->sni_servername));
 	}
+
+	/* Linux only? Or on FreeBSD as well?
+	 * Are all these fields safe or does it require a minimum version?
+	 * This should probably be behind an autoconf test, but we are a 3rd party mod atm :(
+	 */
+#if defined(__linux__) && defined(TCP_INFO) && defined(SOL_TCP)
+	if (client->local->fd >= 0)
+	{
+		socklen_t optlen = sizeof(struct tcp_info);
+		struct tcp_info tcp_info;
+		optlen = sizeof(tcp_info);
+		memset(&tcp_info, 0, sizeof(tcp_info));
+		if (getsockopt(client->local->fd, SOL_TCP, TCP_INFO, (void *)&tcp_info, &optlen) == 0)
+		{
+			json_t *j = json_object();
+			json_object_set_new(child, "tcp_info", j);
+			json_object_set_new(j, "rtt", json_integer(MAX(tcp_info.tcpi_rtt,1)/1000));
+			json_object_set_new(j, "rtt_var", json_integer(MAX(tcp_info.tcpi_rttvar,1)/1000));
+			json_object_set_new(j, "pmtu", json_integer(tcp_info.tcpi_pmtu));
+			json_object_set_new(j, "snd_cwnd", json_integer(tcp_info.tcpi_snd_cwnd));
+			json_object_set_new(j, "snd_mss", json_integer(tcp_info.tcpi_snd_mss));
+			json_object_set_new(j, "rcv_mss", json_integer(tcp_info.tcpi_rcv_mss));
+		}
+	}
+#endif
 }
 
 CMD_OVERRIDE_FUNC(cbl_override)
