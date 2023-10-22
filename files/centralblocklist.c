@@ -31,7 +31,7 @@ module
 ModuleHeader MOD_HEADER
   = {
 	"third/centralblocklist",
-	"0.9.7",
+	"0.9.8",
 	"Check users at central blocklist",
 	"UnrealIRCd Team",
 	"unrealircd-6",
@@ -752,6 +752,7 @@ void cbl_download_complete(const char *url, const char *file, const char *memory
 	int spam_score = 0; // spam score, can be negative too
 	json_error_t jerr;
 	Client *client;
+	Tag *tag;
 	ScoreAction *action;
 
 	transfer = (CBLTransfer *)rs_key;
@@ -789,13 +790,26 @@ void cbl_download_complete(const char *url, const char *file, const char *memory
 	spam_score = json_object_get_integer(response, "spam_score", 0);
 	safe_json_decref(response);
 
+	tag = find_tag(client, "CBL_SCORE");
+	if (tag)
+		tag->value = spam_score;
+	else
+		add_tag(client, "CBL_SCORE", spam_score);
+
 	for (action = cfg.actions; action; action = action->next)
 	{
 		if (spam_score >= action->score)
 		{
-			unreal_log(ULOG_INFO, "central-blocklist", "CBL_REJECTED_USER", client,
-				   "CBL: Client $client.details is rejected by central-blocklist (score $spam_score)",
-				   log_data_integer("spam_score", spam_score));
+			if (highest_ban_action(action->ban_action) <= BAN_ACT_WARN)
+			{
+				unreal_log(ULOG_INFO, "central-blocklist", "CBL_HIT", client,
+					   "CBL: Client $client.details flagged by central-blocklist, but allowed in (score $spam_score)",
+					   log_data_integer("spam_score", spam_score));
+			} else {
+				unreal_log(ULOG_INFO, "central-blocklist", "CBL_HIT_REJECTED_USER", client,
+					   "CBL: Client $client.details is rejected by central-blocklist (score $spam_score)",
+					   log_data_integer("spam_score", spam_score));
+			}
 			if (take_action(client, action->ban_action, action->ban_reason, action->ban_time, 0, NULL) <= BAN_ACT_WARN)
 				goto cbl_failure; /* only warn/report/set/stop = allow client through */
 			return;
