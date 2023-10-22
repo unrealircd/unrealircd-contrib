@@ -31,7 +31,7 @@ module
 ModuleHeader MOD_HEADER
   = {
 	"third/centralblocklist",
-	"0.9.6",
+	"0.9.7",
 	"Check users at central blocklist",
 	"UnrealIRCd Team",
 	"unrealircd-6",
@@ -41,6 +41,7 @@ ModDataInfo *centralblocklist_md = NULL;
 Module *cbl_module = NULL;
 
 #define CBL_URL	 "https://centralblocklist.unrealircd.org/api/v0"
+#define CBL_TRANSFER_TIMEOUT 10
 
 /* For tracking current HTTPS requests */
 typedef struct CBLTransfer CBLTransfer;
@@ -48,22 +49,32 @@ struct CBLTransfer
 {
 	CBLTransfer *prev, *next;
 	char id[IDLEN+1];
+	time_t started;
 };
 
-struct cfgstruct {
-	char *api_key;
+typedef struct ScoreAction ScoreAction;
+struct ScoreAction {
+	ScoreAction *prev, *next;
+	int priority;
 	int score;
 	BanAction *ban_action;
 	char *ban_reason;
 	long ban_time;
+};
+
+struct cfgstruct {
+	char *api_key;
 	int max_downloads;
 	SecurityGroup *except;
+	ScoreAction *actions;
 };
 
 static struct cfgstruct cfg;
 
 struct reqstruct {
 	char api_key;
+	char old_style;
+	char new_style;
 };
 static struct reqstruct req;
 
@@ -79,6 +90,10 @@ int cbl_is_handshake_finished(Client *client);
 void cbl_download_complete(const char *url, const char *file, const char *memory, int memory_len, const char *errorbuf, int cached, void *rs_key);
 void cbl_mdata_free(ModData *m);
 int cbl_start_request(Client *client);
+void cbl_retry_canceled_requests(void);
+void cbl_cancel_all_transfers(void);
+EVENT(centralblocklist_timeout_evt);
+void cbl_allow(Client *client);
 
 #define CBLRAW(x)	(moddata_local_client(x, centralblocklist_md).ptr)
 #define CBL(x)		((json_t *)(moddata_local_client(x, centralblocklist_md).ptr))
@@ -88,17 +103,41 @@ int cbl_start_request(Client *client);
 						moddata_local_client(x, centralblocklist_md).ptr = json_object(); \
 				   } while(0)
 
+#define AddScoreAction(item,list) do { item->priority = 0 - item->score; AddListItemPrio(item, list, item->priority); } while(0)
+
 CMD_OVERRIDE_FUNC(cbl_override);
+
+static void set_default_score_action(ScoreAction *action)
+{
+	action->ban_action = banact_value_to_struct(BAN_ACT_KILL);
+	action->ban_time = 900;
+	safe_strdup(action->ban_reason, "Rejected by central blocklist");
+}
 
 /* Default config */
 static void init_config(void)
 {
 	memset(&cfg, 0, sizeof(cfg));
-	cfg.score = 5;
-	safe_strdup(cfg.ban_reason, "Rejected by central blocklist");
 	cfg.max_downloads = 100;
-	cfg.ban_action = banact_value_to_struct(BAN_ACT_SHUN);
-	cfg.ban_time = 900;
+	// default action
+	if (!req.new_style)
+	{
+		ScoreAction *action;
+		/* score 5+ */
+		action = safe_alloc(sizeof(ScoreAction));
+		action->score = 5;
+		action->ban_action = banact_value_to_struct(BAN_ACT_KLINE);
+		action->ban_time = 900; /* 15m */
+		safe_strdup(action->ban_reason, "Rejected by central blocklist");
+		AddScoreAction(action, cfg.actions);
+		/* score 10+ */
+		action = safe_alloc(sizeof(ScoreAction));
+		action->score = 10;
+		action->ban_action = banact_value_to_struct(BAN_ACT_SHUN);
+		action->ban_time = 3600; /* 1h */
+		safe_strdup(action->ban_reason, "Rejected by central blocklist");
+		AddScoreAction(action, cfg.actions);
+	}
 	// and the default except block
 	cfg.except = safe_alloc(sizeof(SecurityGroup));
 	cfg.except->reputation_score = 2016; /* 7 days unregged, or 3.5 days identified */
@@ -115,9 +154,19 @@ static void init_config(void)
 
 static void free_config(void)
 {
-	safe_free(cfg.ban_reason);
+	ScoreAction *s, *s_next;
+
+	for (s = cfg.actions; s; s = s_next)
+	{
+		s_next = s->next;
+		safe_free(s->ban_reason);
+		safe_free_all_ban_actions(s->ban_action);
+		safe_free(s);
+	}
+	cfg.actions = NULL;
+
 	free_security_group(cfg.except);
-	safe_free_all_ban_actions(cfg.ban_action);
+	safe_free(cfg.api_key);
 	memset(&cfg, 0, sizeof(cfg)); /* needed! */
 }
 
@@ -169,10 +218,225 @@ void do_command_overrides(ModuleInfo *modinfo)
 	}
 }
 
+
+MOD_LOAD()
+{
+	do_command_overrides(modinfo);
+	cbl_retry_canceled_requests();
+	EventAdd(modinfo->handle, "centralblocklist_timeout_evt", centralblocklist_timeout_evt, NULL, 1000, 0);
+	return MOD_SUCCESS;
+}
+
+MOD_UNLOAD()
+{
+	cbl_cancel_all_transfers();
+	free_config();
+	return MOD_SUCCESS;
+}
+
+/** Test the set::central-blocklist configuration */
+int cbl_config_test(ConfigFile *cf, ConfigEntry *ce, int type, int *errs)
+{
+	int errors = 0;
+	ConfigEntry *cep, *cepp;
+
+	if (type != CONFIG_SET)
+		return 0;
+	
+	/* We are only interrested in set::central-blocklist.. */
+	if (!ce || !ce->name || strcmp(ce->name, "central-blocklist"))
+		return 0;
+	
+	for (cep = ce->items; cep; cep = cep->next)
+	{
+		if (!strcmp(cep->name, "api-key"))
+		{
+			req.api_key = 1;
+		} else
+		if (!strcmp(cep->name, "except"))
+		{
+			test_match_block(cf, cep, &errors);
+		} else
+		if (!strcmp(cep->name, "score"))
+		{
+			int v = atoi(cep->value);
+			if ((v < 1) || (v > 99))
+			{
+				config_error("%s:%i: set::central-blocklist::score: must be between 1 - 99 (got: %d)",
+					cep->file->filename, cep->line_number, v);
+				errors++;
+			}
+			if (cep->items)
+			{
+				req.new_style = 1;
+				for (cepp = cep->items; cepp; cepp = cepp->next)
+				{
+					if (!strcmp(cepp->name, "ban-action"))
+					{
+						errors += test_ban_action_config(cepp);
+					} else
+					if (!strcmp(cepp->name, "ban-reason"))
+					{
+					} else
+					if (!strcmp(cepp->name, "ban-time"))
+					{
+					} else
+					{
+						config_error("%s:%i: unknown directive set::central-blocklist::score::%s",
+							cepp->file->filename, cepp->line_number, cepp->name);
+						errors++;
+						continue;
+					}
+				}
+			}
+		} else
+		if (!cep->value)
+		{
+			config_error("%s:%i: set::central-blocklist::%s with no value",
+				cep->file->filename, cep->line_number, cep->name);
+			errors++;
+		} else
+		if (!strcmp(cep->name, "max-downloads"))
+		{
+			int v = atoi(cep->value);
+			if ((v < 1) || (v > 500))
+			{
+				config_error("%s:%i: set::central-blocklist::score: must be between 1 - 500 (got: %d)",
+					cep->file->filename, cep->line_number, v);
+				errors++;
+			}
+		} else
+		if (!strcmp(cep->name, "ban-action"))
+		{
+			req.old_style = 1;
+			errors += test_ban_action_config(cep);
+		} else
+		if (!strcmp(cep->name, "ban-reason"))
+		{
+			req.old_style = 1;
+		} else
+		if (!strcmp(cep->name, "ban-time"))
+		{
+			req.old_style = 1;
+		} else
+		{
+			config_error("%s:%i: unknown directive set::central-blocklist::%s",
+				cep->file->filename, cep->line_number, cep->name);
+			errors++;
+			continue;
+		}
+	}
+	
+	*errs = errors;
+	return errors ? -1 : 1;
+}
+
+int cbl_config_posttest(int *errs)
+{
+	int errors = 0;
+
+	if (!req.api_key)
+	{
+		config_error("set::central-blocklist::api-key missing");
+		errors++;
+	}
+
+	if (req.old_style && req.new_style)
+	{
+		config_error("set::central-blocklist: you cannot mix OLD style ban-action/ban-time/ban-reason with NEW style score X { } blocks.");
+		errors++;
+	} else
+	if (req.old_style)
+	{
+		config_warn("set::central-blocklist: we now support and use multiple score actions via score X { } blocks. "
+		            "Please update your config file. "
+		            "See https://www.unrealircd.org/docs/Central_Blocklist#Configuration");
+	}
+	*errs = errors;
+	return errors ? -1 : 1;
+}
+
+/* Configure ourselves based on the set::central-blocklist settings */
+int cbl_config_run(ConfigFile *cf, ConfigEntry *ce, int type)
+{
+	ConfigEntry *cep, *cepp;
+
+	if (type != CONFIG_SET)
+		return 0;
+	
+	/* We are only interrested in set::central-blocklist.. */
+	if (!ce || !ce->name || strcmp(ce->name, "central-blocklist"))
+		return 0;
+	
+	for (cep = ce->items; cep; cep = cep->next)
+	{
+		if (!strcmp(cep->name, "api-key"))
+		{
+			safe_strdup(cfg.api_key, cep->value);
+		} else
+		if (!strcmp(cep->name, "score"))
+		{
+			if (!cep->items)
+			{
+				cfg.actions->score = atoi(cep->value);
+			} else
+			{
+				ScoreAction *action = safe_alloc(sizeof(ScoreAction));
+				set_default_score_action(action);
+				action->score = atoi(cep->value);
+				AddScoreAction(action, cfg.actions);
+
+				for (cepp = cep->items; cepp; cepp = cepp->next)
+				{
+					if (!strcmp(cepp->name, "ban-action"))
+					{
+						parse_ban_action_config(cepp, &action->ban_action);
+					} else
+					if (!strcmp(cepp->name, "ban-reason"))
+					{
+						safe_strdup(action->ban_reason, cepp->value);
+					} else
+					if (!strcmp(cepp->name, "ban-time"))
+					{
+						action->ban_time = config_checkval(cepp->value, CFG_TIME);
+					}
+				}
+			}
+		} else
+		if (!strcmp(cep->name, "max-downloads"))
+		{
+			cfg.max_downloads = atoi(cep->value);
+		} else
+		if (!strcmp(cep->name, "ban-action"))
+		{
+			parse_ban_action_config(cep, &cfg.actions->ban_action);
+		} else
+		if (!strcmp(cep->name, "ban-reason"))
+		{
+			safe_strdup(cfg.actions->ban_reason, cep->value);
+		} else
+		if (!strcmp(cep->name, "ban-time"))
+		{
+			cfg.actions->ban_time = config_checkval(cep->value, CFG_TIME);
+		} else
+		if (!strcmp(cep->name, "except"))
+		{
+			if (cfg.except)
+			{
+				free_security_group(cfg.except);
+				cfg.except = NULL;
+			}
+			conf_match_block(cf, cep, &cfg.except);
+		}
+	}
+	return 1;
+}
+
 CBLTransfer *add_cbl_transfer(Client *client)
 {
 	CBLTransfer *c = safe_alloc(sizeof(CBLTransfer));
 	strlcpy(c->id, client->id, sizeof(c->id));
+	c->started = TStime();
 	AddListItem(c, cbltransfers);
 	return c;
 }
@@ -227,154 +491,35 @@ void cbl_retry_canceled_requests(void)
 	}
 }
 
-MOD_LOAD()
+EVENT(centralblocklist_timeout_evt)
 {
-	do_command_overrides(modinfo);
-	cbl_retry_canceled_requests();
-	return MOD_SUCCESS;
-}
+	CBLTransfer *c, *c_next;
+	Client *client;
 
-MOD_UNLOAD()
-{
-	cbl_cancel_all_transfers();
-	free_config();
-	return MOD_SUCCESS;
-}
-
-/** Test the set::central-blocklist configuration */
-int cbl_config_test(ConfigFile *cf, ConfigEntry *ce, int type, int *errs)
-{
-	int errors = 0;
-	ConfigEntry *cep, *cepp;
-
-	if (type != CONFIG_SET)
-		return 0;
-	
-	/* We are only interrested in set::central-blocklist.. */
-	if (!ce || !ce->name || strcmp(ce->name, "central-blocklist"))
-		return 0;
-	
-	for (cep = ce->items; cep; cep = cep->next)
+	for (c = cbltransfers; c; c = c_next)
 	{
-		if (!strcmp(cep->name, "api-key"))
+		json_t *cbl;
+		c_next = c->next;
+
+		if (TStime() - c->started > CBL_TRANSFER_TIMEOUT)
 		{
-			req.api_key = 1;
-		} else
-		if (!strcmp(cep->name, "except"))
-		{
-			test_match_block(cf, cep, &errors);
-		} else
-		if (!cep->value)
-		{
-			config_error("%s:%i: set::central-blocklist::%s with no value",
-				cep->file->filename, cep->line_number, cep->name);
-			errors++;
-		} else
-		if (!strcmp(cep->name, "score"))
-		{
-			int v = atoi(cep->value);
-			if ((v < 1) || (v > 99))
+			client = find_client(c->id, NULL);
+			if (client && (cbl = CBL(client)))
 			{
-				config_error("%s:%i: set::central-blocklist::score: must be between 1 - 99 (got: %d)",
-					cep->file->filename, cep->line_number, v);
-				errors++;
+				// TODO: throttle this warning
+				unreal_log(ULOG_WARNING, "central-blocklist", "CENTRAL_BLOCKLIST_TIMEOUT", client, 
+					   "Central blocklist too slow to respond. "
+					   "Possible problem with infrastructure at unrealircd.org. "
+					   "Allowing user $client.details in unchecked.");
+				*c->id = '\0';
+				cbl_allow(client);
 			}
-		} else
-		if (!strcmp(cep->name, "max-downloads"))
-		{
-			int v = atoi(cep->value);
-			if ((v < 1) || (v > 500))
-			{
-				config_error("%s:%i: set::central-blocklist::score: must be between 1 - 500 (got: %d)",
-					cep->file->filename, cep->line_number, v);
-				errors++;
-			}
-		} else
-		if (!strcmp(cep->name, "ban-action"))
-		{
-			errors += test_ban_action_config(cep);
-		} else
-		if (!strcmp(cep->name, "ban-reason"))
-		{
-		} else
-		if (!strcmp(cep->name, "ban-time"))
-		{
-		} else
-		{
-			config_error("%s:%i: unknown directive set::central-blocklist::%s",
-				cep->file->filename, cep->line_number, cep->name);
-			errors++;
-			continue;
+
+			url_cancel_handle_by_callback_data(c);
+			DelListItem(c, cbltransfers);
+			safe_free(c);
 		}
 	}
-	
-	*errs = errors;
-	return errors ? -1 : 1;
-}
-
-int cbl_config_posttest(int *errs)
-{
-	int errors = 0;
-
-	if (!req.api_key)
-	{
-		config_error("set::central-blocklist::api-key missing");
-		errors++;
-	}
-
-	*errs = errors;
-	return errors ? -1 : 1;
-}
-
-/* Configure ourselves based on the set::central-blocklist settings */
-int cbl_config_run(ConfigFile *cf, ConfigEntry *ce, int type)
-{
-	ConfigEntry *cep, *cepp;
-
-	if (type != CONFIG_SET)
-		return 0;
-	
-	/* We are only interrested in set::central-blocklist.. */
-	if (!ce || !ce->name || strcmp(ce->name, "central-blocklist"))
-		return 0;
-	
-	for (cep = ce->items; cep; cep = cep->next)
-	{
-		if (!strcmp(cep->name, "api-key"))
-		{
-			safe_strdup(cfg.api_key, cep->value);
-		} else
-		if (!strcmp(cep->name, "score"))
-		{
-			cfg.score = atoi(cep->value);
-		} else
-		if (!strcmp(cep->name, "max-downloads"))
-		{
-			cfg.max_downloads = atoi(cep->value);
-		} else
-		if (!strcmp(cep->name, "ban-action"))
-		{
-			parse_ban_action_config(cep, &cfg.ban_action);
-		} else
-		if (!strcmp(cep->name, "ban-reason"))
-		{
-			safe_strdup(cfg.ban_reason, cep->value);
-		} else
-		if (!strcmp(cep->name, "ban-time"))
-		{
-			cfg.ban_time = config_checkval(cep->value, CFG_TIME);
-		} else
-		if (!strcmp(cep->name, "except"))
-		{
-			if (cfg.except)
-			{
-				free_security_group(cfg.except);
-				cfg.except = NULL;
-			}
-			conf_match_block(cf, cep, &cfg.except);
-		}
-	}
-	return 1;
 }
 
 void show_client_json(Client *client)
@@ -470,6 +615,8 @@ CMD_OVERRIDE_FUNC(cbl_override)
 	json_t *item;
 	char timebuf[64];
 	char number[32];
+	char isnick = 0;
+	uint32_t nospoof = 0;
 
 	if (!MyConnect(client) ||
 	    !IsUnknown(client) ||
@@ -499,7 +646,26 @@ CMD_OVERRIDE_FUNC(cbl_override)
 	json_object_set_new(item, "raw", json_string_unreal(backupbuf));
 	json_object_set_new(cmds, number, item);
 
+	if (!strcmp(ovr->command->cmd, "NICK"))
+	{
+		isnick = 1;
+		nospoof = client->local->nospoof;
+	} else
+	if (!strcmp(ovr->command->cmd, "PONG") && (parc > 1) && !BadPtr(parv[1]))
+	{
+		unsigned long result = strtoul(parv[1], NULL, 16);
+		if (client->local->nospoof && (client->local->nospoof == result))
+		{
+			json_object_del(cbl, "pong_received");
+			json_object_set_new(cbl, "pong_received", json_string_unreal(timebuf));
+		}
+	}
 	CALL_NEXT_COMMAND_OVERRIDE();
+	if (isnick && !IsDead(client) && (nospoof != client->local->nospoof))
+	{
+		json_object_del(cbl, "ping_sent");
+		json_object_set_new(cbl, "ping_sent", json_string_unreal(timebuf));
+	}
 }
 
 int cbl_start_request(Client *client)
@@ -563,8 +729,6 @@ int cbl_is_handshake_finished(Client *client)
 	return cbl_start_request(client);
 }
 
-// TODO: event for (quicker) timeouts ;)
-
 void cbl_allow(Client *client)
 {
 	if (CBL(client))
@@ -588,6 +752,7 @@ void cbl_download_complete(const char *url, const char *file, const char *memory
 	int spam_score = 0; // spam score, can be negative too
 	json_error_t jerr;
 	Client *client;
+	ScoreAction *action;
 
 	transfer = (CBLTransfer *)rs_key;
 	client = find_client(transfer->id, NULL); // can be NULL
@@ -624,20 +789,22 @@ void cbl_download_complete(const char *url, const char *file, const char *memory
 	spam_score = json_object_get_integer(response, "spam_score", 0);
 	safe_json_decref(response);
 
-	if (spam_score < cfg.score)
+	for (action = cfg.actions; action; action = action->next)
 	{
-		unreal_log(ULOG_DEBUG, "central-blocklist", "DEBUG_CENTRAL_BLOCKLIST", client,
-                           "CBL: Client $client.details is allowed (score $spam_score)",
-                           log_data_integer("spam_score", spam_score));
-		cbl_allow(client);
-	} else 
-	{
-		unreal_log(ULOG_INFO, "central-blocklist", "CBL_REJECTED_USER", client,
-                           "CBL: Client $client.details is rejected by central-blocklist (score $spam_score)",
-                           log_data_integer("spam_score", spam_score));
-		if (take_action(client, cfg.ban_action, cfg.ban_reason, cfg.ban_time, 0, NULL) <= BAN_ACT_WARN)
-			goto cbl_failure; /* only warn/report/set/stop = allow client through */
+		if (spam_score >= action->score)
+		{
+			unreal_log(ULOG_INFO, "central-blocklist", "CBL_REJECTED_USER", client,
+				   "CBL: Client $client.details is rejected by central-blocklist (score $spam_score)",
+				   log_data_integer("spam_score", spam_score));
+			if (take_action(client, action->ban_action, action->ban_reason, action->ban_time, 0, NULL) <= BAN_ACT_WARN)
+				goto cbl_failure; /* only warn/report/set/stop = allow client through */
+			return;
+		}
 	}
+	unreal_log(ULOG_DEBUG, "central-blocklist", "DEBUG_CENTRAL_BLOCKLIST", client,
+		   "CBL: Client $client.details is allowed (score $spam_score)",
+		   log_data_integer("spam_score", spam_score));
+	cbl_allow(client);
 	return;
 
 cbl_failure:
