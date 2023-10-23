@@ -25,9 +25,9 @@ module
 #define MTAG_POLITE "+draft/polite" // can be changed at a later date
 
 ModuleHeader MOD_HEADER = {
-	"third/polite",
+	"third/polite-tag",
 	"1.0",
-	"+draft/polite",
+	"+draft/polite tag - Lets a user mark their message as polite (don't highlight)",
 	"Valware",
 	"unrealircd-6",
 };
