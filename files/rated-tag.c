@@ -25,9 +25,9 @@ module
 #define MTAG_RATED "+draft/rated" // can be changed at a later date
 
 ModuleHeader MOD_HEADER = {
-	"third/rated",
+	"third/rated-tag",
 	"1.0",
-	"+draft/rated",
+	"+draft/rated tag, allowing clients to implement ratings on their message",
 	"Valware",
 	"unrealircd-6",
 };
@@ -65,7 +65,7 @@ MOD_UNLOAD()
 int rated_mtag_is_ok(Client *client, const char *name, const char *value)
 {
 	if (strlen(value) && strlen(value) >= 100) // allow null values but cap long values to 100 chars.
-        return 0;
+		return 0;
 	return 1;
 }
 
