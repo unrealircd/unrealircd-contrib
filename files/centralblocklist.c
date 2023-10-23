@@ -40,7 +40,7 @@ module
 ModuleHeader MOD_HEADER
   = {
 	"third/centralblocklist",
-	"0.9.10",
+	"0.9.11",
 	"Check users at central blocklist",
 	"UnrealIRCd Team",
 	"unrealircd-6",
@@ -690,6 +690,16 @@ CMD_OVERRIDE_FUNC(cbl_override)
 			json_object_set_new(cbl, "pong_received", json_string_unreal(timebuf));
 		}
 	}
+#if UNREAL_VERSION < 0x06010300
+	/* Meh... bug in UnrealIRCd <6.1.3 */
+	else if (!strcmp(ovr->command->cmd, "CAP") && (parc > 1) && !strcasecmp(parv[1], "END") && !IsUser(client))
+	{
+		ClearCapability(client, "cap");
+		if (is_handshake_finished(client))
+			register_user(client);
+		return; // we handled it
+	}
+#endif
 	CALL_NEXT_COMMAND_OVERRIDE();
 	if (isnick && !IsDead(client) && (nospoof != client->local->nospoof))
 	{
