@@ -27,14 +27,20 @@ module
 */
 
 #include "unrealircd.h"
-#ifndef _WIN32
+
+/* Code for 6.1.2.x, not needed in 6.1.3+ anymore: */
+#if (UNREAL_VERSION_TIME < 202343) && defined(__linux__) && defined(TCP_INFO) && defined(SOL_TCP)
+ #define HAVE_TCP_INFO 1
+#endif
+
+#ifdef HAVE_TCP_INFO
 #include <netinet/tcp.h>
 #endif
 
 ModuleHeader MOD_HEADER
   = {
 	"third/centralblocklist",
-	"0.9.9",
+	"0.9.10",
 	"Check users at central blocklist",
 	"UnrealIRCd Team",
 	"unrealircd-6",
@@ -610,11 +616,7 @@ void cbl_add_client_info(Client *client)
 			json_object_set_new(tls, "sni_servername", json_string_unreal(client->local->sni_servername));
 	}
 
-	/* Linux only? Or on FreeBSD as well?
-	 * Are all these fields safe or does it require a minimum version?
-	 * This should probably be behind an autoconf test, but we are a 3rd party mod atm :(
-	 */
-#if defined(__linux__) && defined(TCP_INFO) && defined(SOL_TCP)
+#ifdef HAVE_TCP_INFO
 	if (client->local->fd >= 0)
 	{
 		socklen_t optlen = sizeof(struct tcp_info);
