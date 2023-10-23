@@ -45,7 +45,7 @@ ModuleHeader MOD_HEADER
   = {
 	"third/filehost",
 	"1.0",
-	"draft/FILEHOST support",
+	"IRCv3 draft/FILEHOST - Provides users with an ISUPPORT token about your file upload service",
 	"Valware",
 	"unrealircd-6",
 };
