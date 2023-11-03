@@ -33,7 +33,7 @@ module
 ModuleHeader MOD_HEADER
   = {
 	"third/central-api",
-	"1.0.0",
+	"1.0.1",
 	"Acquire and set API key for unrealircd.org services",
 	"UnrealIRCd Team",
 	"unrealircd-6",
@@ -230,10 +230,30 @@ CMD_FUNC(cmd_centralapisrv)
 	{
 		if (cfg.request_key_challenge && !strcmp(parv[2], cfg.request_key_challenge))
 		{
+			json_t *j;
+			char *json_serialized;
+
 			unreal_log(ULOG_INFO, "central-api", "CENTRALAPI_HANDSHAKE", client,
 			           "Received central-api key request handshake from $client.details");
+
+			j = json_object();
+			json_object_set_new(j, "response", json_string_unreal(cfg.request_key_response));
+			json_object_set_new(j, "network", json_string_unreal(iConf.network_name_005));
+			json_object_set_new(j, "lusers", json_integer(irccounts.me_clients));
+			json_object_set_new(j, "gusers", json_integer(irccounts.clients));
+			json_object_set_new(j, "servers", json_integer(irccounts.servers));
+			json_serialized = json_dumps(j, JSON_COMPACT);
+			if (!json_serialized)
+			{
+				unreal_log(ULOG_ERROR, "central-api", "CENTRALAPI_JSON_OUTPUT_ERROR", client,
+				           "Error writing JSON response!?");
+				json_decref(j);
+				return;
+			}
 			sendto_one(client, NULL, ":%s CENTRALAPISRV REQUEST_RESPONSE :%s",
-			           me.name, cfg.request_key_response);
+			           me.name, json_serialized);
+			safe_free(json_serialized);
+			json_decref(j);
 			return;
 		}
 	}
