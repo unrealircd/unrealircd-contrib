@@ -28,8 +28,12 @@ module
 
 #include "unrealircd.h"
 
+#ifndef HOOKTYPE_GET_CENTRAL_API_KEY
+ #define HOOKTYPE_GET_CENTRAL_API_KEY 199
+#endif
+
 /* Code for 6.1.2.x, not needed in 6.1.3+ anymore: */
-#if (UNREAL_VERSION_TIME < 202343) && defined(__linux__) && defined(TCP_INFO) && defined(SOL_TCP)
+#if (UNREAL_VERSION_TIME < 202343) && (defined(__linux__) || defined(__FreeBSD__)) && defined(TCP_INFO) && defined(SOL_TCP)
  #define HAVE_TCP_INFO 1
 #endif
 
@@ -40,7 +44,7 @@ module
 ModuleHeader MOD_HEADER
   = {
 	"third/centralblocklist",
-	"0.9.11",
+	"1.0.0",
 	"Check users at central blocklist",
 	"UnrealIRCd Team",
 	"unrealircd-6",
@@ -49,16 +53,25 @@ ModuleHeader MOD_HEADER
 ModDataInfo *centralblocklist_md = NULL;
 Module *cbl_module = NULL;
 
-#define CBL_URL	 "https://centralblocklist.unrealircd.org/api/v0"
+#define CBL_URL	 "https://centralblocklist.unrealircd.org/api/v1"
 #define CBL_TRANSFER_TIMEOUT 10
+
+typedef struct CBLUser CBLUser;
+struct CBLUser
+{
+	json_t *handshake;
+	time_t request_sent;
+	char request_pending;
+	char allowed_in;
+};
 
 /* For tracking current HTTPS requests */
 typedef struct CBLTransfer CBLTransfer;
 struct CBLTransfer
 {
 	CBLTransfer *prev, *next;
-	char id[IDLEN+1];
 	time_t started;
+	NameList *clients;
 };
 
 typedef struct ScoreAction ScoreAction;
@@ -81,9 +94,7 @@ struct cfgstruct {
 static struct cfgstruct cfg;
 
 struct reqstruct {
-	char api_key;
-	char old_style;
-	char new_style;
+	char custom_score_blocks;
 };
 static struct reqstruct req;
 
@@ -99,17 +110,24 @@ int cbl_is_handshake_finished(Client *client);
 void cbl_download_complete(const char *url, const char *file, const char *memory, int memory_len, const char *errorbuf, int cached, void *rs_key);
 void cbl_mdata_free(ModData *m);
 int cbl_start_request(Client *client);
-void cbl_retry_canceled_requests(void);
 void cbl_cancel_all_transfers(void);
+EVENT(centralblocklist_bundle_requests);
 EVENT(centralblocklist_timeout_evt);
 void cbl_allow(Client *client);
+void send_request_for_pending_clients(void);
+const char *get_api_key(void);
+void set_tag(Client *client, const char *tag, int value);
 
-#define CBLRAW(x)	(moddata_local_client(x, centralblocklist_md).ptr)
-#define CBL(x)		((json_t *)(moddata_local_client(x, centralblocklist_md).ptr))
+#define CBLRAW(x)		(moddata_local_client(x, centralblocklist_md).ptr)
+#define CBL(x)			((CBLUser *)(moddata_local_client(x, centralblocklist_md).ptr))
 
 #define alloc_cbl_if_needed(x)	do { \
 					if (!moddata_local_client(x, centralblocklist_md).ptr) \
-						moddata_local_client(x, centralblocklist_md).ptr = json_object(); \
+					{ \
+						CBLUser *u = safe_alloc(sizeof(CBLUser)); \
+						u->handshake = json_object(); \
+						moddata_local_client(x, centralblocklist_md).ptr = u; \
+					} \
 				   } while(0)
 
 #define AddScoreAction(item,list) do { item->priority = 0 - item->score; AddListItemPrio(item, list, item->priority); } while(0)
@@ -129,7 +147,7 @@ static void init_config(void)
 	memset(&cfg, 0, sizeof(cfg));
 	cfg.max_downloads = 100;
 	// default action
-	if (!req.new_style)
+	if (!req.custom_score_blocks)
 	{
 		ScoreAction *action;
 		/* score 5+ */
@@ -197,7 +215,7 @@ MOD_INIT()
 	init_config();
 
 	memset(&mreq, 0, sizeof(mreq));
-	mreq.name = "central-blocklist";
+	mreq.name = "central-blocklist-user";
 	mreq.type = MODDATATYPE_LOCAL_CLIENT;
 	mreq.free = cbl_mdata_free;
 	centralblocklist_md = ModDataAdd(modinfo->handle, mreq);
@@ -230,9 +248,22 @@ void do_command_overrides(ModuleInfo *modinfo)
 
 MOD_LOAD()
 {
+	const char *central_api_key;
+
+	central_api_key = get_api_key();
+	if (!central_api_key)
+	{
+		config_warn("The centralblocklist module is inactive because the central api key is not set. "
+		            "Acquire a key via https://www.unrealircd.org/central-api/ and then "
+		            "make sure the third/central-api-key module is loaded and set::central-api::api-key set.");
+		return MOD_SUCCESS;
+	} else {
+		safe_strdup(cfg.api_key, central_api_key);
+	}
+
 	do_command_overrides(modinfo);
-	cbl_retry_canceled_requests();
 	EventAdd(modinfo->handle, "centralblocklist_timeout_evt", centralblocklist_timeout_evt, NULL, 1000, 0);
+	EventAdd(modinfo->handle, "centralblocklist_bundle_requests", centralblocklist_bundle_requests, NULL, 1000, 0);
 	return MOD_SUCCESS;
 }
 
@@ -260,7 +291,11 @@ int cbl_config_test(ConfigFile *cf, ConfigEntry *ce, int type, int *errs)
 	{
 		if (!strcmp(cep->name, "api-key"))
 		{
-			req.api_key = 1;
+			config_error("%s:%i: the api-key is no longer configured at this place. "
+			             "Remove set::central-blocklist::api-key, load the "
+			             "third/central-api module and put the key in set::central-api::api-key",
+			             cep->file->filename, cep->line_number);
+			errors++;
 		} else
 		if (!strcmp(cep->name, "except"))
 		{
@@ -277,7 +312,7 @@ int cbl_config_test(ConfigFile *cf, ConfigEntry *ce, int type, int *errs)
 			}
 			if (cep->items)
 			{
-				req.new_style = 1;
+				req.custom_score_blocks = 1;
 				for (cepp = cep->items; cepp; cepp = cepp->next)
 				{
 					if (!strcmp(cepp->name, "ban-action"))
@@ -315,18 +350,13 @@ int cbl_config_test(ConfigFile *cf, ConfigEntry *ce, int type, int *errs)
 				errors++;
 			}
 		} else
-		if (!strcmp(cep->name, "ban-action"))
+		if (!strcmp(cep->name, "ban-action") || !strcmp(cep->name, "ban-reason") || !strcmp(cep->name, "ban-time"))
 		{
-			req.old_style = 1;
-			errors += test_ban_action_config(cep);
-		} else
-		if (!strcmp(cep->name, "ban-reason"))
-		{
-			req.old_style = 1;
-		} else
-		if (!strcmp(cep->name, "ban-time"))
-		{
-			req.old_style = 1;
+			config_error("%s:%i: set::central-blocklist: you cannot use ban-action/ban-reason/ban-time here. "
+			             "There are now multiple score blocks. "
+			             "See https://www.unrealircd.org/docs/Central_Blocklist#Configuration",
+			             cep->file->filename, cep->line_number);
+			errors++;
 		} else
 		{
 			config_error("%s:%i: unknown directive set::central-blocklist::%s",
@@ -344,23 +374,6 @@ int cbl_config_posttest(int *errs)
 {
 	int errors = 0;
 
-	if (!req.api_key)
-	{
-		config_error("set::central-blocklist::api-key missing");
-		errors++;
-	}
-
-	if (req.old_style && req.new_style)
-	{
-		config_error("set::central-blocklist: you cannot mix OLD style ban-action/ban-time/ban-reason with NEW style score X { } blocks.");
-		errors++;
-	} else
-	if (req.old_style)
-	{
-		config_warn("set::central-blocklist: we now support and use multiple score actions via score X { } blocks. "
-		            "Please update your config file. "
-		            "See https://www.unrealircd.org/docs/Central_Blocklist#Configuration");
-	}
 	*errs = errors;
 	return errors ? -1 : 1;
 }
@@ -441,11 +454,11 @@ int cbl_config_run(ConfigFile *cf, ConfigEntry *ce, int type)
 	return 1;
 }
 
-CBLTransfer *add_cbl_transfer(Client *client)
+CBLTransfer *add_cbl_transfer(NameList *clients)
 {
 	CBLTransfer *c = safe_alloc(sizeof(CBLTransfer));
-	strlcpy(c->id, client->id, sizeof(c->id));
 	c->started = TStime();
+	c->clients = clients;
 	AddListItem(c, cbltransfers);
 	return c;
 }
@@ -459,82 +472,55 @@ void del_cbl_transfer(CBLTransfer *c)
 void cbl_cancel_all_transfers(void)
 {
 	CBLTransfer *c, *c_next;
-	Client *client;
+	Client *client, *client_next;
 
 	for (c = cbltransfers; c; c = c_next)
 	{
 		json_t *cbl;
 		c_next = c->next;
-
-		/* Mark for retry in next module (re)load */
-		client = find_client(c->id, NULL);
-		if (client && (cbl = CBL(client)))
-		{
-			if (json_object_get(cbl, "request_sent"))
-			{
-				json_object_del(cbl, "request_sent"); /* no longer marked as sent */
-				json_object_set_new(cbl, "request_need_retry", json_integer(1)); /* marked for retry */
-			}
-		}
-
-		/* Cancel the request (this is what matters most) */
 		url_cancel_handle_by_callback_data(c);
-
 		safe_free(c);
 	}
 	cbltransfers = NULL;
-}
 
-void cbl_retry_canceled_requests(void)
-{
-	Client *client, *next = NULL;
-
-	list_for_each_entry_safe(client, next, &unknown_list, lclient_node)
+	list_for_each_entry_safe(client, client_next, &unknown_list, lclient_node)
 	{
-		json_t *cbl = CBL(client);
-		if (cbl && json_object_get(cbl, "request_need_retry"))
+		CBLUser *cbl = CBL(client);
+
+		if (cbl && cbl->request_sent)
 		{
-			json_object_del(cbl, "request_need_retry");
-			cbl_start_request(client);
+			cbl->request_sent = 0;
+			cbl->request_pending = 1;
 		}
 	}
 }
 
 EVENT(centralblocklist_timeout_evt)
 {
-	CBLTransfer *c, *c_next;
-	Client *client;
+	Client *client, *client_next;
 
-	for (c = cbltransfers; c; c = c_next)
+	list_for_each_entry_safe(client, client_next, &unknown_list, lclient_node)
 	{
-		json_t *cbl;
-		c_next = c->next;
+		CBLUser *cbl = CBL(client);
 
-		if (TStime() - c->started > CBL_TRANSFER_TIMEOUT)
+		if (cbl && cbl->request_sent && (TStime() - cbl->request_sent > CBL_TRANSFER_TIMEOUT))
 		{
-			client = find_client(c->id, NULL);
-			if (client && (cbl = CBL(client)))
-			{
-				// TODO: throttle this warning
-				unreal_log(ULOG_WARNING, "central-blocklist", "CENTRAL_BLOCKLIST_TIMEOUT", client, 
-					   "Central blocklist too slow to respond. "
-					   "Possible problem with infrastructure at unrealircd.org. "
-					   "Allowing user $client.details in unchecked.");
-				*c->id = '\0';
-				cbl_allow(client);
-			}
-
-			url_cancel_handle_by_callback_data(c);
-			DelListItem(c, cbltransfers);
-			safe_free(c);
+			unreal_log(ULOG_WARNING, "central-blocklist", "CENTRAL_BLOCKLIST_TIMEOUT", client,
+				   "Central blocklist too slow to respond. "
+				   "Possible problem with infrastructure at unrealircd.org. "
+				   "Allowing user $client.details in unchecked.");
+			cbl_allow(client);
 		}
 	}
+	/* NOTE: We did not cancel the HTTPS request, so the result may come in later
+	 * when the user is already allowed in.
+	 */
 }
 
 void show_client_json(Client *client)
 {
 	char *json_serialized;
-	json_serialized = json_dumps(CBL(client), JSON_COMPACT);
+	json_serialized = json_dumps(CBL(client)->handshake, JSON_COMPACT);
 
 	unreal_log(ULOG_DEBUG, "central-blocklist", "DEBUG_CENTRAL_BLOCKLIST", client,
 		   "OUT: $data",
@@ -545,12 +531,9 @@ void show_client_json(Client *client)
 void cbl_add_client_info(Client *client)
 {
 	char buf[BUFSIZE+1];
-	json_t *cbl = CBL(client);
+	json_t *cbl = CBL(client)->handshake;
 	json_t *child = json_object();
 	const char *str;
-
-	json_object_set_new(cbl, "server", json_string_unreal(me.name));
-	json_object_set_new(cbl, "module_version", json_string_unreal(cbl_module->header->version));
 
 	json_object_set_new(cbl, "client", child);
 
@@ -629,7 +612,11 @@ void cbl_add_client_info(Client *client)
 			json_object_set_new(child, "tcp_info", j);
 			json_object_set_new(j, "rtt", json_integer(MAX(tcp_info.tcpi_rtt,1)/1000));
 			json_object_set_new(j, "rtt_var", json_integer(MAX(tcp_info.tcpi_rttvar,1)/1000));
+#if defined(__FreeBSD__)
+			json_object_set_new(j, "pmtu", json_integer(tcp_info.__tcpi_pmtu));
+#else
 			json_object_set_new(j, "pmtu", json_integer(tcp_info.tcpi_pmtu));
+#endif
 			json_object_set_new(j, "snd_cwnd", json_integer(tcp_info.tcpi_snd_cwnd));
 			json_object_set_new(j, "snd_mss", json_integer(tcp_info.tcpi_snd_mss));
 			json_object_set_new(j, "rcv_mss", json_integer(tcp_info.tcpi_rcv_mss));
@@ -641,6 +628,7 @@ void cbl_add_client_info(Client *client)
 CMD_OVERRIDE_FUNC(cbl_override)
 {
 	json_t *cbl;
+	json_t *handshake;
 	json_t *cmds;
 	json_t *item;
 	char timebuf[64];
@@ -658,13 +646,21 @@ CMD_OVERRIDE_FUNC(cbl_override)
 	}
 
 	alloc_cbl_if_needed(client);
-	cbl = CBL(client);
+	cbl = CBL(client)->handshake;
 
-	cmds = json_object_get(cbl, "commands");
+	/* Create "handshake" if it does not exist yet */
+	handshake = json_object_get(cbl, "handshake");
+	if (!handshake)
+	{
+		handshake = json_object();
+		json_object_set_new(cbl, "handshake", handshake);
+	}
+	/* Create handshake->commands if it does not exist yet */
+	cmds = json_object_get(handshake, "commands");
 	if (!cmds)
 	{
 		cmds = json_object();
-		json_object_set_new(cbl, "commands", cmds);
+		json_object_set_new(handshake, "commands", cmds);
 	}
 
 	strlcpy(timebuf, timestamp_iso8601_now(), sizeof(timebuf));
@@ -686,8 +682,8 @@ CMD_OVERRIDE_FUNC(cbl_override)
 		unsigned long result = strtoul(parv[1], NULL, 16);
 		if (client->local->nospoof && (client->local->nospoof == result))
 		{
-			json_object_del(cbl, "pong_received");
-			json_object_set_new(cbl, "pong_received", json_string_unreal(timebuf));
+			json_object_del(handshake, "pong_received");
+			json_object_set_new(handshake, "pong_received", json_string_unreal(timebuf));
 		}
 	}
 #if UNREAL_VERSION < 0x06010300
@@ -703,59 +699,33 @@ CMD_OVERRIDE_FUNC(cbl_override)
 	CALL_NEXT_COMMAND_OVERRIDE();
 	if (isnick && !IsDead(client) && (nospoof != client->local->nospoof))
 	{
-		json_object_del(cbl, "ping_sent");
-		json_object_set_new(cbl, "ping_sent", json_string_unreal(timebuf));
+		json_object_del(handshake, "ping_sent");
+		json_object_set_new(handshake, "ping_sent", json_string_unreal(timebuf));
 	}
 }
 
 int cbl_start_request(Client *client)
 {
-	int num;
-	char *json_serialized;
-	NameValuePrioList *headers = NULL;
-	CBLTransfer *c;
-	json_t *cbl = CBL(client);
+	CBLUser *cbl = CBL(client);
 
-	if (json_object_get(cbl, "request_sent"))
+	if (cbl->request_sent || cbl->request_pending)
 		return 0; /* Handshake is NOT finished yet, HTTP request already in progress */
 
-	num = downloads_in_progress();
-	if (num > cfg.max_downloads)
-	{
-		unreal_log(ULOG_WARNING, "central-blocklist", "CENTRAL_BLOCKLIST_TOO_MANY_CONCURRENT_REQUESTS", client,
-			   "Already $num_requests HTTP(S) requests in progress, not checking user $client.details",
-			   log_data_integer("num_requests", num));
-		return 1; // Let user in -sigh-
-	}
-
-	if (!json_object_get(cbl, "client"))
+	if (!json_object_get(cbl->handshake, "client"))
 		cbl_add_client_info(client);
+
+	cbl->request_pending = 1;
+
 #ifdef DEBUGMODE
 	show_client_json(client);
 #endif
-	json_object_set_new(cbl, "request_sent", json_string_unreal(timestamp_iso8601_now()));
 
-	json_serialized = json_dumps(cbl, JSON_COMPACT);
-	if (!json_serialized)
-	{
-		unreal_log(ULOG_WARNING, "central-blocklist", "CENTRAL_BLOCKLIST_BUG_SERIALIZE", client,
-			   "Unable to serialize JSON request. Weird.");
-		return 1; // wtf?
-	}
-
-	add_nvplist(&headers, 0, "Content-Type", "application/json; charset=utf-8");
-	add_nvplist(&headers, 0, "X-API-Key", cfg.api_key);
-	c = add_cbl_transfer(client);
-	url_start_async(CBL_URL, HTTP_METHOD_POST, json_serialized, headers, 0, 0, cbl_download_complete, c, CBL_URL, 1);
-	safe_free(json_serialized);
-	safe_free_nvplist(headers);
-
-	return 0; /* Handshake is NOT finished yet, HTTPS request initiated */
+	return 0; /* Handshake is NOT finished yet, request will be sent to server */
 }
 
 int cbl_is_handshake_finished(Client *client)
 {
-	if (!CBL(client))
+	if (!CBL(client) || CBL(client)->allowed_in)
 		return 1; // something went wrong or we are finished with this, let the user through
 
 	/* Missing something, pretend we are finished and don't handle */
@@ -772,69 +742,46 @@ int cbl_is_handshake_finished(Client *client)
 void cbl_allow(Client *client)
 {
 	if (CBL(client))
-	{
-		json_decref(CBL(client));
-		CBLRAW(client) = NULL;
-	}
+		CBL(client)->allowed_in = 1;
 
 	if (is_handshake_finished(client))
 		register_user(client);
 }
 
-void cbl_download_complete(const char *url, const char *file, const char *memory, int memory_len, const char *errorbuf, int cached, void *rs_key)
+void set_tag(Client *client, const char *name, int value)
 {
-	ConfigFile *cfptr;
-	int errors;
-	int num_rules, active_rules;
-	CBLTransfer *transfer;
-	char buf[8192];
-	json_t *response = NULL; // complete JSON response
+	Tag *tag = find_tag(client, name);
+	if (tag)
+		tag->value = value;
+	else
+		add_tag(client, name, value);
+}
+
+void cbl_handle_response(Client *client, json_t *response)
+{
 	int spam_score = 0; // spam score, can be negative too
 	json_error_t jerr;
-	Client *client;
 	Tag *tag;
 	ScoreAction *action;
+	json_t *j, *obj;
 
-	transfer = (CBLTransfer *)rs_key;
-	client = find_client(transfer->id, NULL); // can be NULL
-	del_cbl_transfer(transfer);
+	spam_score = json_object_get_integer(response, "score", 0);
+	set_tag(client, "CBL_SCORE", spam_score);
 
-	if (!client)
-		return; /* Nothing to do anymore, client already left */
-
-	if (errorbuf || !memory)
+	obj = json_object_get(response, "set-variables");
+	if (obj)
 	{
-		unreal_log(ULOG_DEBUG, "central-blocklist", "DEBUG_CENTRAL_BLOCKLIST", client,
-		           "CBL ERROR: $error",
-		           log_data_string("error", errorbuf ? errorbuf : "No data returned"));
-		goto cbl_failure;
+		const char *key;
+		json_t *value;
+		json_object_foreach(obj, key, value)
+		{
+			if (!key || !value || !json_is_integer(value))
+				continue;
+			if (!strcmp(key, "REPUTATION"))
+				continue; // reserved variable name (FIXME: not hardcoded)
+			set_tag(client, key, json_integer_value(value));
+		}
 	}
-
-	strlncpy(buf, memory, sizeof(buf), memory_len);
-
-#ifdef DEBUGMODE
-	unreal_log(ULOG_DEBUG, "central-blocklist", "DEBUG_CENTRAL_BLOCKLIST", client,
-	           "CBL Got response for $client: $buf",
-	           log_data_string("buf", buf));
-#endif
-
-	// NOTE: if we didn't have that debug from above, we could avoid the strlncpy and use json_loadb here
-	response = json_loads(buf, JSON_REJECT_DUPLICATES, &jerr);
-	if (!response)
-	{
-		unreal_log(ULOG_DEBUG, "central-blocklist", "DEBUG_CENTRAL_BLOCKLIST", client,
-		           "CBL ERROR: JSON parse error");
-		goto cbl_failure;
-	}
-
-	spam_score = json_object_get_integer(response, "spam_score", 0);
-	safe_json_decref(response);
-
-	tag = find_tag(client, "CBL_SCORE");
-	if (tag)
-		tag->value = spam_score;
-	else
-		add_tag(client, "CBL_SCORE", spam_score);
 
 	for (action = cfg.actions; action; action = action->next)
 	{
@@ -851,7 +798,7 @@ void cbl_download_complete(const char *url, const char *file, const char *memory
 					   log_data_integer("spam_score", spam_score));
 			}
 			if (take_action(client, action->ban_action, action->ban_reason, action->ban_time, 0, NULL) <= BAN_ACT_WARN)
-				goto cbl_failure; /* only warn/report/set/stop = allow client through */
+				cbl_allow(client);
 			return;
 		}
 	}
@@ -859,21 +806,213 @@ void cbl_download_complete(const char *url, const char *file, const char *memory
 		   "CBL: Client $client.details is allowed (score $spam_score)",
 		   log_data_integer("spam_score", spam_score));
 	cbl_allow(client);
-	return;
+}
 
-cbl_failure:
-	if (response)
-		json_decref(response);
-	cbl_allow(client);
+void cbl_error_response(CBLTransfer *transfer, const char *error)
+{
+	NameList *n;
+	Client *client;
+	int num = 0;
+
+	for (n = transfer->clients; n; n = n->next)
+	{
+		client = hash_find_id(n->name, NULL);
+		if (!client)
+			continue; /* Client disconnected already */
+		unreal_log(ULOG_DEBUG, "central-blocklist", "DEBUG_CENTRAL_BLOCKLIST_ERROR", client,
+			   "CBL: Client $client.details allowed in due to CBL error: $error",
+			   log_data_string("error", error));
+		cbl_allow(client);
+		num++;
+	}
+	if (num > 0)
+	{
+		unreal_log(ULOG_INFO, "central-blocklist", "CENTRAL_BLOCKLIST_ERROR", client,
+			   "CBL: Allowed $num_clients client(s) in due to CBL error: $error",
+			   log_data_integer("num_clients", num),
+			   log_data_string("error", error));
+	}
+	del_cbl_transfer(transfer);
+}
+
+void cbl_download_complete(const char *url, const char *file, const char *memory, int memory_len, const char *errorbuf, int cached, void *rs_key)
+{
+	CBLTransfer *transfer;
+	json_t *result; // complete JSON result
+	json_t *responses; // result->responses
+	json_error_t jerr;
+	const char *str;
+	const char *key;
+	json_t *value;
+
+	transfer = (CBLTransfer *)rs_key;
+
+	// !!!!! IMPORTANT !!!!!
+	//
+	// Do NOT 'return' without calling cbl_error_response(transfer)
+	//
+	// !!!!! IMPORTANT !!!!!
+
+	if (errorbuf || !memory)
+	{
+		unreal_log(ULOG_DEBUG, "central-blocklist", "DEBUG_CENTRAL_BLOCKLIST", NULL,
+		           "CBL ERROR: $error",
+		           log_data_string("error", errorbuf ? errorbuf : "No data returned"));
+		cbl_error_response(transfer, "error contacting CBL");
+		return;
+	}
+
+#ifdef DEBUGMODE
+	unreal_log(ULOG_DEBUG, "central-blocklist", "DEBUG_CENTRAL_BLOCKLIST", NULL,
+	           "CBL Got result: $buf",
+	           log_data_string("buf", memory));
+#endif
+
+	// NOTE: if we didn't have that debug from above, we could avoid the strlncpy and use json_loadb here
+	result = json_loads(memory, JSON_REJECT_DUPLICATES, &jerr);
+	if (!result)
+	{
+		unreal_log(ULOG_DEBUG, "central-blocklist", "DEBUG_CENTRAL_BLOCKLIST", NULL,
+		           "CBL ERROR: JSON parse error");
+		cbl_error_response(transfer, "invalid CBL response (JSON parse error)");
+		return;
+	}
+
+	/* Errors are fatal, we display, allow clients in and stop */
+	if ((str = json_object_get_string(result, "error")))
+	{
+		cbl_error_response(transfer, str);
+		return;
+	}
+
+	/* Warnings are non-fatal, we display it and continue.
+	 * These could be used, for example for deprecation warnings
+	 * (eg: ancient module version) before we make it a hard
+	 * error weeks/months later.
+	 */
+	if ((str = json_object_get_string(result, "warning")))
+	{
+		unreal_log(ULOG_WARNING, "central-blocklist", "CENTRAL_BLOCKLIST_WARNING", NULL,
+		           "CBL Server gave a warning: $warning",
+		           log_data_string("warning", str));
+	}
+
+	responses = json_object_get(result, "responses");
+	if (!responses)
+	{
+		json_decref(result);
+		cbl_error_response(transfer, "no spam scores calculated for users");
+		return; /* Nothing to do */
+	}
+
+	/* Now iterate through each */
+	json_object_foreach(responses, key, value)
+	{
+		Client *client;
+		if (!key)
+			continue; /* Is this even possible? */
+		client = hash_find_id(key, NULL);
+		if (!client)
+			continue; /* Client disconnected already */
+		cbl_handle_response(client, value);
+	}
+
+	json_decref(result);
+	del_cbl_transfer(transfer);
 }
 
 void cbl_mdata_free(ModData *m)
 {
-	json_t *j = (json_t *)m->ptr;
+	CBLUser *cbl = (CBLUser *)m->ptr;
 
-	if (j)
+	if (cbl)
 	{
-		json_decref(j);
+		json_decref(cbl->handshake);
+		safe_free(cbl);
 		m->ptr = NULL;
 	}
+}
+
+void send_request_for_pending_clients(void)
+{
+	Client *client, *next;
+	json_t *j, *requests;
+	NameValuePrioList *headers = NULL;
+	int num;
+	char *json_serialized;
+	CBLTransfer *c;
+	NameList *clientlist = NULL;
+
+	num = downloads_in_progress();
+	if (num > cfg.max_downloads)
+	{
+		unreal_log(ULOG_WARNING, "central-blocklist", "CENTRAL_BLOCKLIST_TOO_MANY_CONCURRENT_REQUESTS", NULL,
+			   "Already $num_requests HTTP(S) requests in progress.",
+			   log_data_integer("num_requests", num));
+		return;
+	}
+
+	j = json_object();
+	json_object_set_new(j, "server", json_string_unreal(me.name));
+	json_object_set_new(j, "module_version", json_string_unreal(cbl_module->header->version));
+	requests = json_object();
+	json_object_set_new(j, "requests", requests);
+
+	list_for_each_entry_safe(client, next, &unknown_list, lclient_node)
+	{
+		CBLUser *cbl = CBL(client);
+		if (cbl && cbl->request_pending)
+		{
+			// requests[clientid] => ["client"=>["nick"=>"xyz"...etc...
+			json_object_set_new(requests, client->id, json_copy(cbl->handshake));
+
+			cbl->request_pending = 0;
+			cbl->request_sent = TStime();
+			add_name_list(clientlist, client->id);
+		}
+	}
+
+	json_serialized = json_dumps(j, JSON_COMPACT);
+	if (!json_serialized)
+	{
+		unreal_log(ULOG_WARNING, "central-blocklist", "CENTRAL_BLOCKLIST_BUG_SERIALIZE", client,
+			   "Unable to serialize JSON request. Weird.");
+		json_decref(j);
+		free_entire_name_list(clientlist);
+		return;
+	}
+
+	add_nvplist(&headers, 0, "Content-Type", "application/json; charset=utf-8");
+	add_nvplist(&headers, 0, "X-API-Key", cfg.api_key);
+	c = add_cbl_transfer(clientlist);
+	url_start_async(CBL_URL, HTTP_METHOD_POST, json_serialized, headers, 0, 0, cbl_download_complete, c, CBL_URL, 1);
+	safe_free(json_serialized);
+	safe_free_nvplist(headers);
+}
+
+int cbl_any_pending_clients(void)
+{
+	Client *client, *next;
+
+	list_for_each_entry_safe(client, next, &unknown_list, lclient_node)
+	{
+		CBLUser *cbl = CBL(client);
+		if (cbl && cbl->request_pending)
+			return 1;
+	}
+	return 0;
+}
+
+EVENT(centralblocklist_bundle_requests)
+{
+	if (cbl_any_pending_clients())
+		send_request_for_pending_clients();
+}
+
+const char *get_api_key(void)
+{
+	Hook *h;
+	for (h = Hooks[HOOKTYPE_GET_CENTRAL_API_KEY]; h; h = h->next)
+		return h->func.conststringfunc();
+	return NULL;
 }
