@@ -44,7 +44,7 @@ module
 ModuleHeader MOD_HEADER
   = {
 	"third/centralblocklist",
-	"1.0.0",
+	"1.0.1",
 	"Check users at central blocklist",
 	"UnrealIRCd Team",
 	"unrealircd-6",
@@ -53,7 +53,7 @@ ModuleHeader MOD_HEADER
 ModDataInfo *centralblocklist_md = NULL;
 Module *cbl_module = NULL;
 
-#define CBL_URL	 "https://centralblocklist.unrealircd.org/api/v1"
+#define CBL_URL	 "https://centralblocklist.unrealircd-api.org/api/v1"
 #define CBL_TRANSFER_TIMEOUT 10
 
 typedef struct CBLUser CBLUser;
