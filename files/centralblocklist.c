@@ -45,7 +45,7 @@ module
 ModuleHeader MOD_HEADER
   = {
 	"third/centralblocklist",
-	"1.0.2",
+	"1.0.3",
 	"Check users at central blocklist",
 	"UnrealIRCd Team",
 	"unrealircd-6",
@@ -650,6 +650,7 @@ CMD_OVERRIDE_FUNC(cbl_override)
 	if (!MyConnect(client) ||
 	    !IsUnknown(client) ||
 	    !strcmp(ovr->command->cmd, "PASS") ||
+	    !strcmp(ovr->command->cmd, "WEBIRC") ||
 	    !strcmp(ovr->command->cmd, "AUTHENTICATE"))
 	{
 		CALL_NEXT_COMMAND_OVERRIDE();
