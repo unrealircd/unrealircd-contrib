@@ -33,18 +33,19 @@ module
 #endif
 
 /* Code for 6.1.2.x, not needed in 6.1.3+ anymore: */
-#if (UNREAL_VERSION_TIME < 202343) && (defined(__linux__) || defined(__FreeBSD__)) && defined(TCP_INFO) && defined(SOL_TCP)
- #define HAVE_TCP_INFO 1
-#endif
-
-#ifdef HAVE_TCP_INFO
-#include <netinet/tcp.h>
+#if (UNREAL_VERSION_TIME < 202343) && (defined(__linux__) || defined(__FreeBSD__))
+ #include <netinet/tcp.h>
+ #if defined(TCP_INFO) && defined(SOL_TCP)
+  #define HAVE_TCP_INFO 1
+ #endif
+#elif defined(HAVE_TCP_INFO)
+ #include <netinet/tcp.h>
 #endif
 
 ModuleHeader MOD_HEADER
   = {
 	"third/centralblocklist",
-	"1.0.1",
+	"1.0.2",
 	"Check users at central blocklist",
 	"UnrealIRCd Team",
 	"unrealircd-6",
@@ -85,6 +86,7 @@ struct ScoreAction {
 };
 
 struct cfgstruct {
+	char *url;
 	char *api_key;
 	int max_downloads;
 	SecurityGroup *except;
@@ -145,6 +147,7 @@ static void set_default_score_action(ScoreAction *action)
 static void init_config(void)
 {
 	memset(&cfg, 0, sizeof(cfg));
+	safe_strdup(cfg.url, CBL_URL);
 	cfg.max_downloads = 100;
 	// default action
 	if (!req.custom_score_blocks)
@@ -193,6 +196,7 @@ static void free_config(void)
 	cfg.actions = NULL;
 
 	free_security_group(cfg.except);
+	safe_free(cfg.url);
 	safe_free(cfg.api_key);
 	memset(&cfg, 0, sizeof(cfg)); /* needed! */
 }
@@ -340,6 +344,9 @@ int cbl_config_test(ConfigFile *cf, ConfigEntry *ce, int type, int *errs)
 				cep->file->filename, cep->line_number, cep->name);
 			errors++;
 		} else
+		if (!strcmp(cep->name, "url"))
+		{
+		} else
 		if (!strcmp(cep->name, "max-downloads"))
 		{
 			int v = atoi(cep->value);
@@ -424,6 +431,10 @@ int cbl_config_run(ConfigFile *cf, ConfigEntry *ce, int type)
 					}
 				}
 			}
+		} else
+		if (!strcmp(cep->name, "url"))
+		{
+			safe_strdup(cfg.url, cep->value);
 		} else
 		if (!strcmp(cep->name, "max-downloads"))
 		{
@@ -985,7 +996,7 @@ void send_request_for_pending_clients(void)
 	add_nvplist(&headers, 0, "Content-Type", "application/json; charset=utf-8");
 	add_nvplist(&headers, 0, "X-API-Key", cfg.api_key);
 	c = add_cbl_transfer(clientlist);
-	url_start_async(CBL_URL, HTTP_METHOD_POST, json_serialized, headers, 0, 0, cbl_download_complete, c, CBL_URL, 1);
+	url_start_async(cfg.url, HTTP_METHOD_POST, json_serialized, headers, 0, 0, cbl_download_complete, c, cfg.url, 1);
 	safe_free(json_serialized);
 	safe_free_nvplist(headers);
 }
