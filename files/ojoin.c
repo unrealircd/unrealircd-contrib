@@ -140,7 +140,7 @@ CMD_FUNC(ojoin)
 		sendnumeric(client, ERR_CANNOTDOCOMMAND, CMD_OJOIN, "Permission denied!");
 		return;
 	}
-	if (parc < 1)
+	if (parc < 2)
 	{
 		sendnumeric(client, ERR_NEEDMOREPARAMS, CMD_OJOIN);
 		return;
