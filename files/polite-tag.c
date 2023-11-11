@@ -7,13 +7,13 @@
 /*** <<<MODULE MANAGER START>>>
 module
 {
-		documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/polite/README.md";
+		documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/polite-tag/README.md";
 		troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 		min-unrealircd-version "6.*";
 		max-unrealircd-version "6.*";
 		post-install-text {
 				"The module is installed. Now all you need to do is add a loadmodule line:";
-				"loadmodule \"third/polite\";";
+				"loadmodule \"third/polite-tag\";";
 				"The module does not need any other configuration.";
 		}
 }
