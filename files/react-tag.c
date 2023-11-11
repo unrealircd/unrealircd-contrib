@@ -26,8 +26,7 @@ module
 		post-install-text {
 				"The module is installed. Now all you need to do is add a loadmodule line:";
 				"loadmodule \"third/react-tag\";";
-				"You need to restart your server for this to show up in CLIENTTAGDENY";
-				"Please see the README for configuration syntax";
+				"And then rehash your server";
 		}
 }
 *** <<<MODULE MANAGER END>>>
