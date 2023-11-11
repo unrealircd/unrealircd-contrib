@@ -24,7 +24,8 @@ module
 		min-unrealircd-version "6.*";
 		max-unrealircd-version "6.*";
 		post-install-text {
-				"The module is installed. Now all you need to do is add a loadmodule line:";
+				"The module is installed. Now all you need to do";
+    				"is configure it (see README) and add a loadmodule line:";
 				"loadmodule \"third/react-tag\";";
 				"And then rehash your server";
 		}
