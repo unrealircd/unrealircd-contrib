@@ -19,13 +19,13 @@
 /*** <<<MODULE MANAGER START>>>
 module
 {
-		documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/react/README.md";
+		documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/react-tag/README.md";
 		troubleshooting "v.a.pond@outlook.com";
 		min-unrealircd-version "6.*";
 		max-unrealircd-version "6.*";
 		post-install-text {
 				"The module is installed. Now all you need to do is add a loadmodule line:";
-				"loadmodule \"third/react\";";
+				"loadmodule \"third/react-tag\";";
 				"You need to restart your server for this to show up in CLIENTTAGDENY";
 				"Please see the README for configuration syntax";
 		}
