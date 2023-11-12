@@ -45,7 +45,7 @@ module
 ModuleHeader MOD_HEADER
   = {
 	"third/centralblocklist",
-	"1.0.3",
+	"1.0.4",
 	"Check users at central blocklist",
 	"UnrealIRCd Team",
 	"unrealircd-6",
@@ -55,7 +55,9 @@ ModDataInfo *centralblocklist_md = NULL;
 Module *cbl_module = NULL;
 
 #define CBL_URL	 "https://centralblocklist.unrealircd-api.org/api/v1"
+#define SPAMREPORT_URL	"https://spamreport.unrealircd-api.org/api/spamreport-v1"
 #define CBL_TRANSFER_TIMEOUT 10
+#define SPAMREPORT_NUM_REMEMBERED_CMDS 10
 
 typedef struct CBLUser CBLUser;
 struct CBLUser
@@ -64,6 +66,8 @@ struct CBLUser
 	time_t request_sent;
 	char request_pending;
 	char allowed_in;
+	int last_cmds_slot;
+	char *last_cmds[SPAMREPORT_NUM_REMEMBERED_CMDS];
 };
 
 /* For tracking current HTTPS requests */
@@ -87,8 +91,10 @@ struct ScoreAction {
 
 struct cfgstruct {
 	char *url;
+	char *spamreport_url;
 	char *api_key;
 	int max_downloads;
+	int spamreport;
 	SecurityGroup *except;
 	ScoreAction *actions;
 };
@@ -135,6 +141,8 @@ void set_tag(Client *client, const char *tag, int value);
 #define AddScoreAction(item,list) do { item->priority = 0 - item->score; AddListItemPrio(item, list, item->priority); } while(0)
 
 CMD_OVERRIDE_FUNC(cbl_override);
+CMD_OVERRIDE_FUNC(cbl_override_spamreport_gather);
+CMD_OVERRIDE_FUNC(cbl_override_spamreport_cmd);
 
 static void set_default_score_action(ScoreAction *action)
 {
@@ -148,6 +156,7 @@ static void init_config(void)
 {
 	memset(&cfg, 0, sizeof(cfg));
 	safe_strdup(cfg.url, CBL_URL);
+	safe_strdup(cfg.spamreport_url, SPAMREPORT_URL);
 	cfg.max_downloads = 100;
 	// default action
 	if (!req.custom_score_blocks)
@@ -197,6 +206,7 @@ static void free_config(void)
 
 	free_security_group(cfg.except);
 	safe_free(cfg.url);
+	safe_free(cfg.spamreport_url);
 	safe_free(cfg.api_key);
 	memset(&cfg, 0, sizeof(cfg)); /* needed! */
 }
@@ -266,6 +276,20 @@ MOD_LOAD()
 	}
 
 	do_command_overrides(modinfo);
+
+	/* Enable gathering of "last 10 lines" for SPAMREPORT, only if SPAMREPORT is enabled: */
+	if (cfg.spamreport)
+	{
+		CommandOverrideAdd(modinfo->handle, "NICK", -2, cbl_override_spamreport_gather);
+		CommandOverrideAdd(modinfo->handle, "PRIVMSG", -2, cbl_override_spamreport_gather);
+		CommandOverrideAdd(modinfo->handle, "NOTICE", -2, cbl_override_spamreport_gather);
+		CommandOverrideAdd(modinfo->handle, "PART", -2, cbl_override_spamreport_gather);
+		CommandOverrideAdd(modinfo->handle, "INVITE", -2, cbl_override_spamreport_gather);
+		CommandOverrideAdd(modinfo->handle, "KNOCK", -2, cbl_override_spamreport_gather);
+	}
+
+	CommandOverrideAdd(modinfo->handle, "SPAMREPORT", -2, cbl_override_spamreport_cmd);
+
 	EventAdd(modinfo->handle, "centralblocklist_timeout_evt", centralblocklist_timeout_evt, NULL, 1000, 0);
 	EventAdd(modinfo->handle, "centralblocklist_bundle_requests", centralblocklist_bundle_requests, NULL, 1000, 0);
 	return MOD_SUCCESS;
@@ -345,6 +369,12 @@ int cbl_config_test(ConfigFile *cf, ConfigEntry *ce, int type, int *errs)
 			errors++;
 		} else
 		if (!strcmp(cep->name, "url"))
+		{
+		} else
+		if (!strcmp(cep->name, "spamreport"))
+		{
+		} else
+		if (!strcmp(cep->name, "spamreport-url"))
 		{
 		} else
 		if (!strcmp(cep->name, "max-downloads"))
@@ -436,6 +466,14 @@ int cbl_config_run(ConfigFile *cf, ConfigEntry *ce, int type)
 		{
 			safe_strdup(cfg.url, cep->value);
 		} else
+		if (!strcmp(cep->name, "spamreport"))
+		{
+			cfg.spamreport = config_checkval(cep->value, CFG_YESNO);
+		} else
+		if (!strcmp(cep->name, "spamreport-url"))
+		{
+			safe_strdup(cfg.spamreport_url, cep->value);
+		} else
 		if (!strcmp(cep->name, "max-downloads"))
 		{
 			cfg.max_downloads = atoi(cep->value);
@@ -476,6 +514,7 @@ CBLTransfer *add_cbl_transfer(NameList *clients)
 
 void del_cbl_transfer(CBLTransfer *c)
 {
+	free_entire_name_list(c->clients);
 	DelListItem(c, cbltransfers);
 	safe_free(c);
 }
@@ -754,7 +793,7 @@ int cbl_is_handshake_finished(Client *client)
 void cbl_allow(Client *client)
 {
 	if (CBL(client))
-		CBL(client)->allowed_in = 1;
+		CBL(client)->allowed_in = 2;
 
 	if (is_handshake_finished(client))
 		register_user(client);
@@ -940,6 +979,12 @@ void cbl_mdata_free(ModData *m)
 	if (cbl)
 	{
 		json_decref(cbl->handshake);
+		if (cbl->allowed_in == 2)
+		{
+			int i;
+			for (i = 0; i < SPAMREPORT_NUM_REMEMBERED_CMDS; i++)
+				safe_free(cbl->last_cmds[i]);
+		}
 		safe_free(cbl);
 		m->ptr = NULL;
 	}
@@ -976,7 +1021,7 @@ void send_request_for_pending_clients(void)
 		if (cbl && cbl->request_pending)
 		{
 			// requests[clientid] => ["client"=>["nick"=>"xyz"...etc...
-			json_object_set_new(requests, client->id, json_copy(cbl->handshake));
+			json_object_set_new(requests, client->id, json_deep_copy(cbl->handshake));
 
 			cbl->request_pending = 0;
 			cbl->request_sent = TStime();
@@ -993,6 +1038,7 @@ void send_request_for_pending_clients(void)
 		free_entire_name_list(clientlist);
 		return;
 	}
+	json_decref(j);
 
 	add_nvplist(&headers, 0, "Content-Type", "application/json; charset=utf-8");
 	add_nvplist(&headers, 0, "X-API-Key", cfg.api_key);
@@ -1027,4 +1073,158 @@ const char *get_api_key(void)
 	for (h = Hooks[HOOKTYPE_GET_CENTRAL_API_KEY]; h; h = h->next)
 		return h->func.conststringfunc();
 	return NULL;
+}
+
+/** Remember last # commands for SPAMREPORT */
+CMD_OVERRIDE_FUNC(cbl_override_spamreport_gather)
+{
+	if (MyUser(client) && CBL(client) && (CBL(client)->allowed_in == 2))
+	{
+		char record_cmd = 1;
+
+		if ((!strcmp(ovr->command->cmd, "PRIVMSG") || !strcmp(ovr->command->cmd, "NOTICE")) &&
+		    (parc > 2) && !strchr(parv[1], '#'))
+		{
+			/* This is a private PRIVMSG/NOTICE */
+			record_cmd = 0;
+		}
+		if (record_cmd)
+		{
+			safe_strdup(CBL(client)->last_cmds[CBL(client)->last_cmds_slot], backupbuf);
+			CBL(client)->last_cmds_slot++;
+			if (CBL(client)->last_cmds_slot >= SPAMREPORT_NUM_REMEMBERED_CMDS)
+				CBL(client)->last_cmds_slot = 0;
+		}
+	}
+
+	CALL_NEXT_COMMAND_OVERRIDE();
+}
+
+void cbl_spamreport(Client *from, Client *client)
+{
+	json_t *j, *requests, *data, *cmds, *item;
+	NameValuePrioList *headers = NULL;
+	int num;
+	char *json_serialized;
+	int i, start;
+	char number[16];
+	int cnt = 0;
+
+	if (!MyUser(client) || !CBL(client))
+		return; /* Only possible if hot-loading */
+
+	num = downloads_in_progress();
+	if (num > cfg.max_downloads)
+	{
+		unreal_log(ULOG_WARNING, "central-blocklist", "CENTRAL_BLOCKLIST_TOO_MANY_CONCURRENT_REQUESTS", NULL,
+			   "Already $num_requests HTTP(S) requests in progress.",
+			   log_data_integer("num_requests", num));
+		return;
+	}
+
+	j = json_object();
+	json_object_set_new(j, "server", json_string_unreal(me.name));
+	json_object_set_new(j, "module_version", json_string_unreal(cbl_module->header->version));
+	requests = json_object();
+	json_object_set_new(j, "reports", requests);
+
+	data = json_deep_copy(CBL(client)->handshake); /* .. deep copy. */
+	json_object_set_new(requests, client->id, data); /* ..and steal reference */
+	cmds = json_object();
+	json_object_set_new(data, "commands", cmds);
+	start = CBL(client)->last_cmds_slot;
+	for (i = start; i < SPAMREPORT_NUM_REMEMBERED_CMDS; i++)
+	{
+		if (CBL(client)->last_cmds[i])
+		{
+			snprintf(number, sizeof(number), "%d", ++cnt);
+			item = json_object();
+			json_object_set_new(item, "raw", json_string_unreal(CBL(client)->last_cmds[i]));
+			json_object_set_new(cmds, number, item);
+		}
+	}
+	for (i = 0; i < start; i++)
+	{
+		if (CBL(client)->last_cmds[i])
+		{
+			snprintf(number, sizeof(number), "%d", ++cnt);
+			item = json_object();
+			json_object_set_new(item, "raw", json_string_unreal(CBL(client)->last_cmds[i]));
+			json_object_set_new(cmds, number, item);
+		}
+	}
+
+	json_serialized = json_dumps(j, JSON_COMPACT);
+	if (!json_serialized)
+	{
+		unreal_log(ULOG_WARNING, "central-blocklist", "CENTRAL_BLOCKLIST_BUG_SERIALIZE", client,
+			   "Unable to serialize JSON request. Weird.");
+		json_decref(j);
+		return;
+	}
+
+	json_decref(j);
+	add_nvplist(&headers, 0, "Content-Type", "application/json; charset=utf-8");
+	add_nvplist(&headers, 0, "X-API-Key", cfg.api_key);
+	url_start_async(cfg.spamreport_url, HTTP_METHOD_POST, json_serialized, headers, 0, 0, download_complete_dontcare, NULL, cfg.spamreport_url, 1);
+	safe_free(json_serialized);
+	safe_free_nvplist(headers);
+}
+
+CMD_OVERRIDE_FUNC(cbl_override_spamreport_cmd)
+{
+	if (ValidatePermissionsForPath("server-ban:spamreport",client,NULL,NULL,NULL) &&
+	    (parc > 1) &&
+	    !((parc > 2) && strcasecmp(parv[2], "unrealircd"))
+	    )
+	{
+		Client *target = find_user(parv[1], NULL);
+		if (target)
+		{
+			if (!MyUser(target))
+			{
+				/* Forward it to other server */
+				if (parc > 2)
+				{
+					sendto_one(target, NULL, ":%s SPAMREPORT %s %s",
+					           client->id, parv[1], parv[2]);
+				} else {
+					sendto_one(target, NULL, ":%s SPAMREPORT %s",
+					           client->id, parv[1]);
+				}
+				return;
+			} else {
+				/* My client. */
+				int n;
+
+				if (!cfg.spamreport)
+				{
+					if ((parc > 2) && !strcasecmp(parv[2], "unrealircd"))
+					{
+						sendnotice(client, "Spamreporting to UnrealIRCd is not enabled on this server. "
+						                   "To enable, add: set { central-blocklist { spamreport yes; } }");
+						return;
+					}
+					CALL_NEXT_COMMAND_OVERRIDE();
+				}
+
+				/* Report to UnrealIRCd first... */
+				sendnotice(client, "Sending spam report to UnrealIRCd...");
+				cbl_spamreport(client, target);
+				if ((parc > 2) && !strcasecmp(parv[2], "unrealircd"))
+				{
+					sendnotice(client, "Sending spam report to %d target(s)", 1);
+					return; /* We are done */
+				}
+
+				/* There may be more spamreport blocks: */
+				n = spamreport(target, target->ip, NULL, NULL);
+				if (n < 0)
+					n = 0;
+				sendnotice(client, "Sending spam report to %d target(s)", n + 1); /* +1 for unrealircd :D */
+				return;
+			}
+		}
+	}
+	CALL_NEXT_COMMAND_OVERRIDE();
 }
