@@ -1,5 +1,9 @@
 This is the unrealircd-contrib repository. It contains 3rd party modules for UnrealIRCd 5.
 
+**UnrealIRCd 5 is End Of Life, see https://www.unrealircd.org/docs/UnrealIRCd_5_EOL**
+
+This branch is no longer receiving any updates and is locked.
+
 ## Use at your own risk
 
 These third party modules are **not** written by the UnrealIRCd team and not tested by us.
