@@ -1,5 +1,4 @@
-This is the unrealircd-contrib repository. It contains 3rd party modules for UnrealIRCd.
-Note that by default you are on the *unreal6* branch, there is also a *unreal5* branch.
+This is the unrealircd-contrib repository. It contains 3rd party modules for UnrealIRCd 6.
 
 ## Use at your own risk
 
