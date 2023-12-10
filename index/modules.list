@@ -105,9 +105,9 @@ module "third/central-api"
 	documentation "https://www.unrealircd.org/docs/Central_API";
 	troubleshooting "Please report at https://bugs.unrealircd.org/ if this module fails to compile";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/central-api.c";
-	sha256sum "92f4d62479cc2515008cd0a9f44417e65e5a9c392a953ac39cb666a8c6ee7b92";
+	sha256sum "527183d6f596f5d4e1a05c2761d76c3cf6e575b0b610817f471ef528da7e2bd9";
 	min-unrealircd-version "6.1.2";
-	max-unrealircd-version "6.*";
+	max-unrealircd-version "6.1.2.3";
 	post-install-text
 	{
 		"The module is installed. See https://www.unrealircd.org/docs/Central_API";
@@ -1197,9 +1197,9 @@ module "third/centralblocklist"
 	documentation "https://www.unrealircd.org/docs/Central_Blocklist";
 	troubleshooting "Please report at https://bugs.unrealircd.org/ if this module fails to compile";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/centralblocklist.c";
-	sha256sum "0a0f233727cdc5aca749e1e6889335af0c1191b86cbe0934aa599beb32da4f04";
+	sha256sum "e3096b456795d277ede0b6293ddc7e7a52e28d3652237e9ce2541a99db5adcfe";
 	min-unrealircd-version "6.1.2";
-	max-unrealircd-version "6.*";
+	max-unrealircd-version "6.1.2.3";
 	post-install-text
 	{
 		"The module is installed. See https://www.unrealircd.org/docs/Central_Blocklist";
