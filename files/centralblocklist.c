@@ -14,8 +14,8 @@ module
 	// Minimum version necessary for this module to work:
 	min-unrealircd-version "6.1.2";
 
-	// Maximum version
-	max-unrealircd-version "6.*";
+	// Maximum version - after this it ended up in UnrealIRCd itself
+	max-unrealircd-version "6.1.2.3";
 
 	post-install-text {
 		"The module is installed. See https://www.unrealircd.org/docs/Central_Blocklist";
