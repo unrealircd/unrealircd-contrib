@@ -751,7 +751,7 @@ module "third/nicklock"
 	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/nicklock/README.md";
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/nicklock.c";
-	sha256sum "2ebe0ece9de6542940f97f31634fbea82605735690bfb3ac81bddadf4eb1a65f";
+	sha256sum "d9b4e11a6b00d1bc533bbcc791c392b73022f7eb20c72c0b42b24f1419806952";
 	min-unrealircd-version "6.1.*";
 	max-unrealircd-version "6.*";
 	post-install-text
