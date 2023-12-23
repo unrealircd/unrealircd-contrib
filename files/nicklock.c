@@ -251,7 +251,11 @@ CMD_FUNC(NICKUNLOCK)
 CMD_OVERRIDE_FUNC(nick_override)
 {
 	if (!IsNickLock(client))
+	{
 		CallCommandOverride(ovr, client, recv_mtags, parc, parv);
+		return;
+	}
+	sendnumeric(client, ERR_CANNOTDOCOMMAND, "NICK", "You have been blocked from changing nicks by an administrator.");
 	return;
 }
 
