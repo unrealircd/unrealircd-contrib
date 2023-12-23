@@ -1361,6 +1361,26 @@ module "third/extwarn"
 	}
 }
 
+module "third/upgrade-notify"
+{
+	description "Sends out a message to opers when there is an upgrade available for UnrealIRCd";
+	version "2.0";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/upgrade-notify/README.md";
+	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/upgrade-notify.c";
+	sha256sum "23aa1ed43cd16811d888ad11a20b529eccff67a38198d7d1d3b01dc00879f43e";
+	min-unrealircd-version "6.1.3";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/upgrade-notify\";";
+		"And /REHASH the IRCd.";
+		"The module does not need any other configuration.";
+	}
+}
+
 module "third/fixhop"
 {
 	description "The +h access mode seems to be a little borked/limited, this module implements some tweaks for it";
