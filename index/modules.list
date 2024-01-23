@@ -919,6 +919,26 @@ module "third/kiwiirc-tags"
 	}
 }
 
+module "third/incredibly-lazy-ops"
+{
+	description "Provides some easy commands for using extbans for lazy chanops who can't be bothered to learn extbans";
+	version "1.0";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/incredibly-lazy-ops/README.md";
+	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/incredibly-lazy-ops.c";
+	sha256sum "00108385f13581f92334d0d3b12566674e7a792de13805f6061603956501470d";
+	min-unrealircd-version "6.*";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/incredibly-lazy-ops\";";
+		"And /REHASH the IRCd.";
+		"The module does not need any other configuration.";
+	}
+}
+
 module "third/modmanager_irc"
 {
 	description "Control Unreal's module manager through IRC";
