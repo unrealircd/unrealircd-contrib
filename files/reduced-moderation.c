@@ -1,6 +1,6 @@
 /*
   Licence: GPLv3
-  Copyright Ⓒ 2022 Valerie Pond
+  Copyright Ⓒ 2022-2025 Valerie Pond
   
   Permissions: By using this module, you agree that it is Free, and you are allowed to make copies
   and redistrubite this at your own free will, so long as in doing so, the original author and license remain in-tact. 
@@ -32,7 +32,7 @@ module
 ModuleHeader MOD_HEADER
   = {
 	"third/reduced-moderation",
-	"1.0",
+	"1.1",
 	"Reduced Moderation mode (+x)",
 	"Valware",
 	"unrealircd-6",
@@ -93,10 +93,16 @@ int redmod_can_send_to_channel(Client *client, Channel *channel, Membership *m, 
 				break;
 		}
 
+		if (sendtype == SEND_TYPE_TAGMSG)
+			return HOOK_DENY; // DENY all tagmsg for now
+
 		int notice = (sendtype == SEND_TYPE_NOTICE);
 
 		new_message(client, NULL, &mtags);
-		sendto_channel(channel, client, client, "oaq", 0, SEND_ALL, mtags, ":%s %s %s :%s", client->name, (notice ? "NOTICE" : "PRIVMSG"), channel->name, *text);
+		sendto_channel(channel, client, NULL, "oaq", 0, SEND_ALL, mtags, ":%s %s %s :%s", client->name, (notice ? "NOTICE" : "PRIVMSG"), channel->name, *text);
+		if (HasCapability(client, "echo-message"))
+			sendto_one(client, mtags, ":%s %s %s :%s", client->name, (notice ? "NOTICE" : "PRIVMSG"), channel->name, *text);
+		
 		free_message_tags(mtags);
 		*text = NULL;
 
@@ -111,4 +117,3 @@ const char *redmod_pre_local_part(Client *client, Channel *channel, const char *
 		return NULL;
 	return text;
 }
-
