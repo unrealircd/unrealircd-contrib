@@ -886,12 +886,12 @@ module "third/textshun"
 module "third/reduced-moderation"
 {
 	description "Reduced Moderation mode (+x)";
-	version "1.0";
+	version "1.1";
 	author "Valware";
 	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/reduced-moderation/README.md";
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/reduced-moderation.c";
-	sha256sum "2b2bcebb35fa45a2559bf9e5f15626332f2f0942e5b9f0d0287905ad9b27b745";
+	sha256sum "2b7e4d7ca1cb570db9a911e51eedb822da179baf7dfafcbdc0ffca482679c4d4";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
