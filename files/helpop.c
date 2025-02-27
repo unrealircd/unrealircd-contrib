@@ -178,9 +178,9 @@ int helpchan_join_op_presence_check(Client *client, Channel *channel, MessageTag
 	
 			new_message(member->client, NULL, &mtags);
 			sendto_channel(channel, &me, NULL, 0, 0, SEND_LOCAL, mtags,
-						":%s MODE %s %s %s",
-						me.name, channel->name, "+o", client->name);
-			sendto_server(NULL, 0, 0, mtags, ":%s MODE %s %s %s%s", me.id, channel->name, "+o", client->name, IsServer(member->client)?" 0":"");
+						":%s MODE %s %s %s %ld",
+						me.name, channel->name, "+o", client->name, TStime());
+			sendto_server(NULL, 0, 0, mtags, ":%s MODE %s %s %s %ld", me.id, channel->name, "+o", client->name, TStime());
 			free_message_tags(mtags);
 			add_member_mode_fast(member, mb, 'o');
 			found = 1;
