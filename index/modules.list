@@ -566,12 +566,12 @@ module "third/anti_amsg"
 module "third/helpop"
 {
 	description "HelpOp - Provides usermode h (HelpOp) and swhois line, channelmode g (HelpOp-only room), and command /HELPOPS";
-	version "1.4";
+	version "1.5";
 	author "Valware";
 	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/helpop/README.md";
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/helpop.c";
-	sha256sum "e5ba8c347e06d99ab0f1e430610c9fafe1ee4537cf451825536dfed16be65f2b";
+	sha256sum "5e1d216ad530771acf1c7dde81f3c0e9a121ff167344447372ff53697accb929";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
