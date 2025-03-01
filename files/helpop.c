@@ -1,6 +1,6 @@
 /*
   Licence: GPLv3
-  Copyright Ⓒ 2022 Valerie Pond
+  Copyright Ⓒ 2022-2025 Valerie Pond
   
   Helpop
   usermode h (helpop) (settable by IRCops only)
@@ -50,7 +50,7 @@ CMD_FUNC(REPORT);
 
 ModuleHeader MOD_HEADER = {
 	"third/helpop", // Module name
-	"1.4", // Module Version
+	"1.5", // Module Version
 	"HelpOp - Provides usermode h (HelpOp) and swhois line, channelmode g (HelpOp-only room), and command /HELPOPS", // Description
 	"Valware", // Author
 	"unrealircd-6", // Unreal Version
@@ -178,9 +178,9 @@ int helpchan_join_op_presence_check(Client *client, Channel *channel, MessageTag
 	
 			new_message(member->client, NULL, &mtags);
 			sendto_channel(channel, &me, NULL, 0, 0, SEND_LOCAL, mtags,
-						":%s MODE %s %s %s",
-						me.name, channel->name, "+o", client->name);
-			sendto_server(NULL, 0, 0, mtags, ":%s MODE %s %s %s%s", me.id, channel->name, "+o", client->name, IsServer(member->client)?" 0":"");
+						":%s MODE %s %s %s %ld",
+						me.name, channel->name, "+o", client->name, TStime());
+			sendto_server(NULL, 0, 0, mtags, ":%s MODE %s %s %s %ld", me.id, channel->name, "+o", client->name, TStime());
 			free_message_tags(mtags);
 			add_member_mode_fast(member, mb, 'o');
 			found = 1;
