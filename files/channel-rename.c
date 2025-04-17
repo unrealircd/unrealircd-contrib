@@ -287,8 +287,10 @@ CMD_FUNC(channel_rename)
             // RENAME happened, so we have to destroy the new channel
             close_channel(to);
         }
-        sendto_one(client, NULL, "FAIL RENAME CHANNEL_NAME_IN_USE %s %s :Cannot rename channel: That channel name is already in use.", from->name, to->name);
-        return;
+        else {
+            sendto_one(client, NULL, "FAIL RENAME CHANNEL_NAME_IN_USE %s %s :Cannot rename channel: That channel name is already in use.", from->name, to->name);
+            return;
+        }
     }
 
     history_destroy(from->name);
