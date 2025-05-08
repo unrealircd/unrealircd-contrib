@@ -533,7 +533,7 @@ module "third/autovhost"
 	documentation "https://gottem.nl/unreal/man/autovhost";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/autovhost.c";
-	sha256sum "fdca4b33180dc5b4b3bb115c1f1fe20e1a265024922f6c515ce0fa395308abaf";
+	sha256sum "6342ad461999c3ed5078f0c897904b637da727802052656f6d679b509283c169";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
