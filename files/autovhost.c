@@ -267,7 +267,7 @@ int autovhost_connect(Client *client) {
 		}
 
 		if(strstr(newhost, "$ident")) {
-			newhost_ident = replaceem(newhost, "$ident", (client->user->username ? client->user->username : "unknown"));
+			newhost_ident = replaceem(newhost, "$ident", client->user->username);
 			snprintf(newhost, sizeof(newhost), "%s", newhost_ident);
 			safe_free(newhost_ident);
 		}
