@@ -98,6 +98,26 @@ module "third/qline"
 	}
 }
 
+module "third/channel-rename"
+{
+	description "Adds draft/channel-rename functionality (IRCv3)";
+	version "1.0.0";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/channel-rename/README.md";
+	troubleshooting "In case of problems, check the documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/channel-rename.c";
+	sha256sum "7948b7f8494e18a862c8ddb92a1deadd79f48ea47ed7a88dfd2e675ab2d515f1";
+	min-unrealircd-version "6.1.0";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/channel-rename\";";
+		"The module needs no other configuration.";
+		"Once you're good to go, you can finally type in your shell: ./unrealircd rehash";
+	}
+}
+
 module "third/joinmute"
 {
 	description "Adds +J chmode: Mute newly joined people for +J X seconds";
