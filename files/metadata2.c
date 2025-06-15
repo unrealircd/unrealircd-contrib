@@ -1315,10 +1315,17 @@ CMD_FUNC(cmd_metadata_remote)
 
 CMD_FUNC(cmd_metadata)
 {
+#if (UNREAL_VERSION_GENERATION == 6 && UNREAL_VERSION_MAJOR >= 2)
 	if (client != &me && MyConnect(client) && !IsServer(client))
 		cmd_metadata_local(clictx, client, recv_mtags, parc, parv);
 	else
 		cmd_metadata_remote(clictx, client, recv_mtags, parc, parv);
+#else
+	if (client != &me && MyConnect(client) && !IsServer(client))
+		cmd_metadata_local(client, recv_mtags, parc, parv);
+	else
+		cmd_metadata_remote(client, recv_mtags, parc, parv);
+#endif
 }
 
 int metadata_server_sync(Client *client)
