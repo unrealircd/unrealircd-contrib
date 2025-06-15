@@ -1316,9 +1316,9 @@ CMD_FUNC(cmd_metadata_remote)
 CMD_FUNC(cmd_metadata)
 {
 	if (client != &me && MyConnect(client) && !IsServer(client))
-		cmd_metadata_local(client, recv_mtags, parc, parv);
+		cmd_metadata_local(clictx, client, recv_mtags, parc, parv);
 	else
-		cmd_metadata_remote(client, recv_mtags, parc, parv);
+		cmd_metadata_remote(clictx, client, recv_mtags, parc, parv);
 }
 
 int metadata_server_sync(Client *client)
