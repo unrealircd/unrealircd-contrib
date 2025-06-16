@@ -255,6 +255,26 @@ module "third/redact"
 	}
 }
 
+module "third/relaymsg"
+{
+	description "Implements draft/relaymsg";
+	version "1.0.0";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/relaymsg/README.md";
+	troubleshooting "In case of problems, check the documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/relaymsg.c";
+	sha256sum "72a052b60866cab7f41e88b3003a1f2092dc420278077ef7c436dbb221beb2f8";
+	min-unrealircd-version "6.1.0";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/relaymsg\";";
+		"The module needs no other configuration.";
+		"Once you're good to go, you can finally type in your shell: ./unrealircd rehash";
+	}
+}
+
 module "third/restrict-chans"
 {
 	description "Restrict channel creation to logged-in users";
