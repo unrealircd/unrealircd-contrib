@@ -15,7 +15,7 @@ module
 {
         documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/elmer/README.md";
 		troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
-        min-unrealircd-version "6.*";
+        min-unrealircd-version "6.2";
         max-unrealircd-version "6.*";
         post-install-text {
                 "The module is installed. Now all you need to do is add a loadmodule line:";
@@ -31,7 +31,7 @@ module
 
 ModuleHeader MOD_HEADER = {
 	"third/elmer",
-	"2.2",
+	"2.3",
 	"Make people talk like Elmer",
 	"Valware",
 	"unrealircd-6",
@@ -54,8 +54,8 @@ void elmer_unserialize(const char *str, ModData *m);
 
 static char *convert_to_elmer(char *line);
 
-int elmer_chanmsg(Client *client, Channel *channel, Membership *lp, const char **msg, const char **errmsg, SendType sendtype);
-int elmer_usermsg(Client *client, Client *target, const char **msg, const char **errmsg, SendType sendtype);
+int elmer_chanmsg(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
+int elmer_usermsg(Client *client, Client *target, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
 
 static void dumpit(Client *client, char **p);
 
@@ -268,24 +268,24 @@ CMD_FUNC(DELELMER)
 	return;
 }
 
-int elmer_chanmsg(Client *client, Channel *channel, Membership *lp, const char **msg, const char **errmsg, SendType sendtype)
+int elmer_chanmsg(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
 {
 	static char retbuf[512];
 	if (IsElmer(client))
 	{
-		strlcpy(retbuf, *msg, sizeof(retbuf));
-		*msg = convert_to_elmer(retbuf);
+		strlcpy(retbuf, *text, sizeof(retbuf));
+		*text = convert_to_elmer(retbuf);
 	}
 	return 0;
 }
 
-int elmer_usermsg(Client *client, Client *target, const char **msg, const char **errmsg, SendType sendtype)
+int elmer_usermsg(Client *client, Client *target, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
 {
 	static char retbuf[512];
 	if (IsElmer(client) && !IsULine(target))
 	{
-		strlcpy(retbuf, *msg, sizeof(retbuf));
-		*msg = convert_to_elmer(retbuf);
+		strlcpy(retbuf, *text, sizeof(retbuf));
+		*text = convert_to_elmer(retbuf);
 	}
 	return 0;
 }

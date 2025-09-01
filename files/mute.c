@@ -9,7 +9,7 @@ module
 {
 		documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/mute/README.md";
 		troubleshooting "In case of problems, please check the README or email me at v.a.pond@outlook.com";
-		min-unrealircd-version "6.*";
+		min-unrealircd-version "6.2";
 		max-unrealircd-version "6.*";
 		post-install-text {
 				"The module is installed. Now all you need to do is add a loadmodule line:";
@@ -25,7 +25,7 @@ module
 ModuleHeader MOD_HEADER
   = {
 	"third/mute",
-	"1.5",
+	"1.6",
 	"Globally mute a user", 
 	"Valware",
 	"unrealircd-6",
@@ -62,8 +62,8 @@ const char *mute_serialize(ModData *m);
 void mute_unserialize(const char *str, ModData *m);
 void setconf(void);
 void freeconf(void);
-int mutecheck_chmsg(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype);
-int mutecheck_usermsg(Client *client, Client *target, const char **text, const char **errmsg, SendType sendtype);
+int mutecheck_chmsg(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
+int mutecheck_usermsg(Client *client, Client *target, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
 int mute_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int mute_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
 int who_the_hell_be_muted_lol(Client *client, Client *target, NameValuePrioList **list);
@@ -346,7 +346,7 @@ CMD_FUNC(CMD_UNMUTE)
 					log_data_client("target", target));
 }
 
-int mutecheck_chmsg(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype)
+int mutecheck_chmsg(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
 {
 	if (IsMuted(client) && strcasecmp(iConf.helpchan, channel->name))
 	{
@@ -360,7 +360,7 @@ int mutecheck_chmsg(Client *client, Channel *channel, Membership *member, const 
 	}
 	return HOOK_CONTINUE;
 }
-int mutecheck_usermsg(Client *client, Client *target, const char **text, const char **errmsg, SendType sendtype)
+int mutecheck_usermsg(Client *client, Client *target, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
 {
 	if (IsMuted(client) && (!IsOper(target) || IsULine(target)))
 	{
