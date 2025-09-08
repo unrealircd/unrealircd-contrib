@@ -39,6 +39,7 @@ struct configstruct
 	char *show_to;
 	
 	unsigned short int got_entry_message;
+	unsigned short int got_show_entry_message;
 	unsigned short int got_show_to;
 };
 static struct configstruct conf;
@@ -340,6 +341,20 @@ int ojoin_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs)
 				config_error("%s:%i: %s::%s cannot be empty", cep->file->filename, cep->line_number, "ojoin", cep->name);
 				errors++;
 			}
+			continue;
+		}
+
+
+		if(!strcmp(cep->name, "show-entry-message"))
+		{
+			if(conf.got_show_entry_message)
+			{
+				config_error("%s:%i: duplicate %s::%s directive", cep->file->filename, cep->line_number, "ojoin", cep->name);
+				errors++;
+				continue;
+			}
+
+			conf.got_show_entry_message = config_checkval(cep->value, CFG_YESNO);
 			continue;
 		}
 
