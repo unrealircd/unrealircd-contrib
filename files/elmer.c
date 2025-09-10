@@ -1,6 +1,6 @@
 /*
   Licence: GPLv3
-  Copyright Ⓒ 2022 Valerie Pond
+  Copyright Ⓒ 2022-2025 Valerie Pond
   Elmer
 
   Force a user to speak like Elmer Fudd
@@ -15,7 +15,7 @@ module
 {
         documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/elmer/README.md";
 		troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
-        min-unrealircd-version "6.2";
+        min-unrealircd-version "6.*";
         max-unrealircd-version "6.*";
         post-install-text {
                 "The module is installed. Now all you need to do is add a loadmodule line:";
@@ -28,6 +28,8 @@ module
 */
 
 #include "unrealircd.h"
+
+ModDataInfo *elmer_md;
 
 ModuleHeader MOD_HEADER = {
 	"third/elmer",
@@ -54,8 +56,53 @@ void elmer_unserialize(const char *str, ModData *m);
 
 static char *convert_to_elmer(char *line);
 
-int elmer_chanmsg(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
-int elmer_usermsg(Client *client, Client *target, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
+#if UNREAL_VERSION >= 0x06020000
+int elmer_chanmsg(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
+{
+	static char retbuf[512];
+	if (IsElmer(client))
+	{
+		strlcpy(retbuf, *text, sizeof(retbuf));
+		*text = convert_to_elmer(retbuf);
+	}
+	return 0;
+}
+
+int elmer_usermsg(Client *client, Client *target, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
+{
+	static char retbuf[512];
+	if (IsElmer(client) && !IsULine(target))
+	{
+		strlcpy(retbuf, *text, sizeof(retbuf));
+		*text = convert_to_elmer(retbuf);
+	}
+	return 0;
+}
+#else
+int elmer_chanmsg(Client *client, Channel *channel, Membership *lp, const char **msg, const char **errmsg, SendType sendtype)
+{
+	static char retbuf[512];
+	if (IsElmer(client))
+	{
+		strlcpy(retbuf, *msg, sizeof(retbuf));
+		*msg = convert_to_elmer(retbuf);
+	}
+	return 0;
+}
+
+int elmer_usermsg(Client *client, Client *target, const char **msg, const char **errmsg, SendType sendtype)
+{
+	static char retbuf[512];
+	if (IsElmer(client) && !IsULine(target))
+	{
+		strlcpy(retbuf, *msg, sizeof(retbuf));
+		*msg = convert_to_elmer(retbuf);
+	}
+	return 0;
+}
+#endif
+
+
 
 static void dumpit(Client *client, char **p);
 
@@ -85,7 +132,6 @@ static char *help_elmer[] = {
 	"-",
 	NULL
 };
-ModDataInfo *elmer_md;
 
 
 
@@ -267,29 +313,6 @@ CMD_FUNC(DELELMER)
 	ClearElmer(target);
 	return;
 }
-
-int elmer_chanmsg(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
-{
-	static char retbuf[512];
-	if (IsElmer(client))
-	{
-		strlcpy(retbuf, *text, sizeof(retbuf));
-		*text = convert_to_elmer(retbuf);
-	}
-	return 0;
-}
-
-int elmer_usermsg(Client *client, Client *target, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
-{
-	static char retbuf[512];
-	if (IsElmer(client) && !IsULine(target))
-	{
-		strlcpy(retbuf, *text, sizeof(retbuf));
-		*text = convert_to_elmer(retbuf);
-	}
-	return 0;
-}
-
 
 static char *convert_to_elmer(char *line)
 {

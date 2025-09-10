@@ -1,6 +1,6 @@
 /*
   Licence: GPLv3
-  Copyright Ⓒ 2022 Valerie Pond
+  Copyright Ⓒ 2022-2025 Valerie Pond
   NickLock
   
   Changes the user's nick to the new nick, and forces
@@ -16,7 +16,7 @@ module
 {
         documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/nicklock/README.md";
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
-        min-unrealircd-version "6.2";
+        min-unrealircd-version "6.*";
         max-unrealircd-version "6.*";
         post-install-text {
                 "The module is installed. Now all you need to do is add a loadmodule line:";
@@ -252,7 +252,7 @@ CMD_OVERRIDE_FUNC(nick_override)
 {
 	if (!IsNickLock(client))
 	{
-		CallCommandOverride(ovr, clictx, client, recv_mtags, parc, parv);
+		CALL_NEXT_COMMAND_OVERRIDE();
 		return;
 	}
 	sendnumeric(client, ERR_CANNOTDOCOMMAND, "NICK", "You have been blocked from changing nicks by an administrator.");

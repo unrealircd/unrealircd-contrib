@@ -14,7 +14,7 @@ module
 {
 		documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/reduced-moderation/README.md";
 		troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
-		min-unrealircd-version "6.2";
+		min-unrealircd-version "6.*";
 		max-unrealircd-version "6.*";
 		post-install-text {
 				"The module is installed. Now all you need to do is add a loadmodule line:";
@@ -42,7 +42,11 @@ ModuleHeader MOD_HEADER
 Cmode_t EXTCMODE_REDMOD;
 
 /* Forward declarations */
+#if UNREAL_VERSION >= 0x06020000
 int redmod_can_send_to_channel(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
+#else
+int redmod_can_send_to_channel(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype);
+#endif
 const char *redmod_pre_local_part(Client *client, Channel *channel, const char *text);
 
 /* Macros */
@@ -77,7 +81,11 @@ MOD_UNLOAD()
 }
 
 /* Overrides for +m also will override +x */
-int redmod_can_send_to_channel(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
+#if UNREAL_VERSION >= 0x06020000
+int redmod_can_send_to_channel(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
+#else
+int redmod_can_send_to_channel(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype);
+#endif
 {
 	MessageTag *mtags = NULL;
 	if (IsRedMod(channel) && (!member || !check_channel_access_membership(member, "vhoaq")) &&
