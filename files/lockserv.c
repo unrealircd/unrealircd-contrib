@@ -1,6 +1,6 @@
 /*
   Licence: GPLv3 or later
-  Copyright Ⓒ 2022 Valerie Pond
+  Copyright Ⓒ 2022-2025 Valerie Pond
   LockServ
   
   Locks a server (stops incoming connections)
@@ -24,11 +24,9 @@ module
 
 #include "unrealircd.h"
 
-
-
 ModuleHeader MOD_HEADER = {
 	"third/lockserv",
-	"1.1",
+	"1.2",
 	"Adds the /lockserv command which allows privileged server operators to prevent connections to a particular server.",
 	"Valware",
 	"unrealircd-6",
@@ -394,5 +392,5 @@ CMD_OVERRIDE_FUNC(lockserv_cap_ovr)
 	if (IsServerLocked(server) && !find_tkl_exception(TKL_ZAP, client) && !IsRegistered(client))
 		return;
 
-	CallCommandOverride(ovr, client, recv_mtags, parc, parv);
+	CALL_NEXT_COMMAND_OVERRIDE();
 }

@@ -32,7 +32,7 @@ module
 ModuleHeader MOD_HEADER
   = {
 	"third/reduced-moderation",
-	"1.1",
+	"1.2",
 	"Reduced Moderation mode (+x)",
 	"Valware",
 	"unrealircd-6",
@@ -42,7 +42,11 @@ ModuleHeader MOD_HEADER
 Cmode_t EXTCMODE_REDMOD;
 
 /* Forward declarations */
-int redmod_can_send_to_channel(Client *client, Channel *channel, Membership *lp, const char **msg, const char **errmsg, SendType sendtype);
+#if UNREAL_VERSION >= 0x06020000
+int redmod_can_send_to_channel(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
+#else
+int redmod_can_send_to_channel(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype);
+#endif
 const char *redmod_pre_local_part(Client *client, Channel *channel, const char *text);
 
 /* Macros */
@@ -77,10 +81,14 @@ MOD_UNLOAD()
 }
 
 /* Overrides for +m also will override +x */
-int redmod_can_send_to_channel(Client *client, Channel *channel, Membership *m, const char **text, const char **errmsg, SendType sendtype)
+#if UNREAL_VERSION >= 0x06020000
+int redmod_can_send_to_channel(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
+#else
+int redmod_can_send_to_channel(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype);
+#endif
 {
 	MessageTag *mtags = NULL;
-	if (IsRedMod(channel) && (!m || !check_channel_access_membership(m, "vhoaq")) &&
+	if (IsRedMod(channel) && (!member || !check_channel_access_membership(member, "vhoaq")) &&
 		!op_can_override("channel:override:message:moderated",client,channel,NULL))
 	{
 		Hook *h;
