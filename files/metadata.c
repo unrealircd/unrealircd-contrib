@@ -1243,6 +1243,15 @@ CMD_FUNC(cmd_metadata_remote)
 	}
 }
 
+#if UNREAL_VERSION >= 0x06020000
+CMD_FUNC(cmd_metadata)
+{
+	if (client != &me && MyConnect(client) && !IsServer(client))
+		cmd_metadata_local(clictx, client, recv_mtags, parc, parv);
+	else
+		cmd_metadata_remote(clictx, client, recv_mtags, parc, parv);
+}
+#else
 CMD_FUNC(cmd_metadata)
 {
 	if (client != &me && MyConnect(client) && !IsServer(client))
@@ -1250,6 +1259,7 @@ CMD_FUNC(cmd_metadata)
 	else
 		cmd_metadata_remote(client, recv_mtags, parc, parv);
 }
+#endif /* UNREAL_VERSION */
 
 int metadata_server_sync(Client *client)
 { /* we send all our data to the server that was just linked */
