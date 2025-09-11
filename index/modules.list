@@ -650,7 +650,7 @@ module "third/metadata"
 	documentation "https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md#metadata";
 	troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/metadata.c";
-	sha256sum "979a5b7212dca1274a46ce64bf005c85cc5046834b348098809c67268884aa56";
+	sha256sum "50c3d4f6da4417305ad61aa332ddd318c68377a3e4def80878d274d7c3017d48";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
