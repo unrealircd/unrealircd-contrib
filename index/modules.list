@@ -1606,12 +1606,12 @@ module "third/account-registration"
 module "third/ojoin"
 {
 	description "/OJOIN Command and Channel Mode +Y (Server Operator)";
-	version "1.1";
+	version "2.0";
 	author "Valware";
 	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/ojoin/README.md";
 	troubleshooting "In case of problems, email me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/ojoin.c";
-	sha256sum "3facfff023645e649660941c6a06118e9994bd22c46338a5eb99649dc8837b6f";
+	sha256sum "b97cf1b8784a0ec8347c51fd966f209537d609e1dac2a4f36afac332cbb017b5";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
