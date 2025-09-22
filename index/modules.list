@@ -24,12 +24,12 @@ module "third/metadata-db"
 module "third/uline_nickhost"
 {
 	description "Requires people to address services like NickServ@services.my.net";
-	version "2.1.0";
+	version "2.1.1";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/uline_nickhost";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/uline_nickhost.c";
-	sha256sum "a87688da3a4bc34d6a20db5c59097092534485bd751a84c312f0c862af4b9bb3";
+	sha256sum "f8ab402737926f4ae9a6abe3d7ed73d3eda474009c29dd1c99466309bb79b113";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -121,12 +121,12 @@ module "third/channel-rename"
 module "third/joinmute"
 {
 	description "Adds +J chmode: Mute newly joined people for +J X seconds";
-	version "2.2.1";
+	version "2.2.2";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/joinmute";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/joinmute.c";
-	sha256sum "de69b8e8225096c9ecfe55ac4a75b8dbc51a6f553ebeeb4b314a4c50eecbe7ce";
+	sha256sum "d702c4c78546996e17e24c6d4d470a08a48291f389bb166d4f5e6b2409eff342";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -298,12 +298,12 @@ module "third/restrict-chans"
 module "third/rtkl"
 {
 	description "Allows privileged opers to remove remote servers' local K/Z-Lines";
-	version "2.1.0";
+	version "2.1.1";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/rtkl";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/rtkl.c";
-	sha256sum "88e74f44b5f3e6fb956ef4f76ebaff537f0bb57b2d20b2606220c2fb6b932d3a";
+	sha256sum "c35b3bcd69c6c1943a8f7080de1919edb2a6f2ff4bc59f4cb69adfce16df9211";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -317,12 +317,12 @@ module "third/rtkl"
 module "third/clearlist"
 {
 	description "Adds CLEARLIST command to clear out banlists in bulk";
-	version "2.1.0";
+	version "2.1.1";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/clearlist";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/clearlist.c";
-	sha256sum "7622082ecc990f959b770cc609dd4c7304b0660501efc7c5a9e2df2bbb0b293a";
+	sha256sum "5ab246f38ddb0df9af56783c6f8e24c63de624695311c10e821c7920e278d7df";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -414,12 +414,12 @@ module "third/webirconly"
 module "third/operpasswd"
 {
 	description "Kill users with too many failed OPER attempts";
-	version "2.1.0";
+	version "2.1.1";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/operpasswd";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/operpasswd.c";
-	sha256sum "dc382d0c79394a916fb4e3f11fff19650cfaef8a767d35422d32fbdf7f9228da";
+	sha256sum "bdb5e87fe42e631a516d12dea681f8b27b853d725528481074bf2fca59f81025";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -433,12 +433,12 @@ module "third/operpasswd"
 module "third/message_commonchans"
 {
 	description "Adds umode +c to prevent people who aren't sharing a channel with you from messaging you";
-	version "2.1.0";
+	version "2.1.1";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/message_commonchans";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/message_commonchans.c";
-	sha256sum "1cbec4b19b2c2a08fe8e820cf9416ba5bab929c919d0f0f9bd031ee16167a7d1";
+	sha256sum "c7768d90501dca182635e7893727f1351a7b6a8cacdea76ec40c28596e8168c4";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -452,12 +452,12 @@ module "third/message_commonchans"
 module "third/banfix_voice"
 {
 	description "Correct some odd behaviour in regards to banned-but-voiced users";
-	version "2.1.0";
+	version "2.1.1";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/banfix_voice";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/banfix_voice.c";
-	sha256sum "93e4647d712bbc92df72c9b47afbed748be923b9ab03d95c6f01b98dbd64fc53";
+	sha256sum "4c7229517db8e31a8e7cf77780f65183d701c3f5cc7f5d6996555adf712fde20";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -530,12 +530,12 @@ module "third/autojoin_byport"
 module "third/block_masshighlight"
 {
 	description "Prevent mass highlights network-wide";
-	version "2.2.1";
+	version "2.2.2";
 	author "Gottem / k4be";
 	documentation "https://gottem.nl/unreal/man/block_masshighlight";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/block_masshighlight.c";
-	sha256sum "104976819b11fc3308dcc41b4d7e2e63ce0c21e65c847635a775deab640ab69d";
+	sha256sum "787b9c276de765c7f22902abb4a8a810cba12632a936399d8c9e91dda2337690";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -549,12 +549,12 @@ module "third/block_masshighlight"
 module "third/websocket_restrict"
 {
 	description "Impose restrictions on websocket connections";
-	version "2.1.0";
+	version "2.1.1";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/websocket_restrict";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/websocket_restrict.c";
-	sha256sum "7464cd034807dd72c4ba717de4758f3ae70eb896928e0e831fd2d3083be2a6d8";
+	sha256sum "97aba2afc9aa4380c0dad762c16be2245e6d75916ddc229f80a9cb0ba7f7a39c";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -587,12 +587,12 @@ module "third/autovhost"
 module "third/anti_amsg"
 {
 	description "Drop messages originating from /amsg";
-	version "2.1.0";
+	version "2.1.1";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/anti_amsg";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/anti_amsg.c";
-	sha256sum "626a792bf2c90dbfa878ed1e62245ab31a0d1cc30a2db60111eb1ad2cd9518e3";
+	sha256sum "d4a6aaff56438ce1b4b70bc5aaacc2e5c5df80ec2296ec6f88d255519c7adccf";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -666,12 +666,12 @@ module "third/metadata"
 module "third/kickjoindelay"
 {
 	description "Chanmode +j to prevent people from rejoining too fast after a kick";
-	version "2.2.1";
+	version "2.2.2";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/kickjoindelay";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/kickjoindelay.c";
-	sha256sum "55e902f54d4b287333c5e3819ae149b7ee6df0672694b390fb0ced5e9c4991a8";
+	sha256sum "718a72d8c31f405deb747100eddbcb50c8574d9d3015ca4347a6d1e222640b90";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -685,12 +685,12 @@ module "third/kickjoindelay"
 module "third/anticaps"
 {
 	description "Block/lowercase messages that contain a configurable amount of capital letters";
-	version "2.1.0";
+	version "2.1.1";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/anticaps";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/anticaps.c";
-	sha256sum "d8dcad4a729b967d6a33a84088be23e8ee20a75e57811bc76bf8884089ec8757";
+	sha256sum "1d0aac986514dfe53e034e8e76881a042675a810599fdd0c5aef1b32d714f63d";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -724,12 +724,12 @@ module "third/filehost"
 module "third/denyban"
 {
 	description "Deny specific ban masks network-wide";
-	version "2.1.4";
+	version "2.1.5";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/denyban";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/denyban.c";
-	sha256sum "4417651e19540eebdb27d0d7e51dd0ddee39f7564e47e3774d92ba68082d32ee";
+	sha256sum "c136346eddf8d06f30aaa6360fe5b15af60870d6412cb50bf19734284c371118";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -789,12 +789,12 @@ module "third/wwwstats"
 module "third/listrestrict"
 {
 	description "Impose certain restrictions on /LIST usage";
-	version "2.2.1";
+	version "2.2.2";
 	author "Gottem / k4be";
 	documentation "https://gottem.nl/unreal/man/listrestrict";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/listrestrict.c";
-	sha256sum "cfd9bd5e983c2605b00bde7491299133a4b682f6315c91beab467cb4fb13d797";
+	sha256sum "1e38463f44ca93d0a0ad9215c92941d8d6ecf96eedf828139d798d9e1f9a52e1";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -828,12 +828,12 @@ module "third/irccloud-tags"
 module "third/bancheck_access"
 {
 	description "Prevents people who have +o or higher from getting banned, unless done by people with +a/+q or opers";
-	version "2.1.3";
+	version "2.1.4";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/bancheck_access";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/bancheck_access.c";
-	sha256sum "786efdb4ac108e2d547fd6612b08d0de9a33ccfc13a9ed4ea86ca296e3fe4bb4";
+	sha256sum "96aa69ac9d432380d3139ab3e44652d5a42b09a3075c0ce9218602ffc4eb04af";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -907,12 +907,12 @@ module "third/smtp-email"
 module "third/textshun"
 {
 	description "Drop messages based on nick and body";
-	version "2.1.1";
+	version "2.1.2";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/textshun";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/textshun.c";
-	sha256sum "03f11425d20b9e0add053041e11af67badb2fb70a6396a5c6a3a88b57d1a1b4b";
+	sha256sum "092b23f1d222c38031b44a03283e0c0612d318f024193ea1d5f4ad240f323481";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -987,12 +987,12 @@ module "third/showwebirc"
 module "third/debug"
 {
 	description "Allows privileged opers to easily view internal (configuration) data";
-	version "2.1.1";
+	version "2.1.2";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/debug";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/debug.c";
-	sha256sum "f2f1f68eb503aee3ffce7a64a481ef9ba01d339b91dcaa3b31785962c0a9cc84";
+	sha256sum "406b372b842202137cf4a909b8c38ee25056f5e0996112c9ba9698da0df3065f";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1006,12 +1006,12 @@ module "third/debug"
 module "third/pubnetinfo"
 {
 	description "Display public network/server information such as SSL/TLS links";
-	version "2.1.0";
+	version "2.1.1";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/pubnetinfo";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/pubnetinfo.c";
-	sha256sum "009bbde2c461923b7b5019fa6f6645cfbe650cc83ea252abd2bf8ae259a40667";
+	sha256sum "5e46e98429fa09cac22ab7d76a58c20be1c1021bcf5210712c1cee2f3bd25a89";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1064,12 +1064,12 @@ module "third/incredibly-lazy-ops"
 module "third/modmanager_irc"
 {
 	description "Control Unreal's module manager through IRC";
-	version "1.1.0";
+	version "1.1.1";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/modmanager_irc";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/modmanager_irc.c";
-	sha256sum "d6862a5d593779b2afb1045deed2db7bf15ded4a3c19bd33608fcea00f27d57c";
+	sha256sum "6fedb20bcac488a7b376f0e8468cc5b052e0602a155f1cd6c61fcc23b6329f46";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1083,12 +1083,12 @@ module "third/modmanager_irc"
 module "third/sacmds"
 {
 	description "Implements SA* commands for privileged opers";
-	version "2.2.2";
+	version "2.2.3";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/sacmds";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/sacmds.c";
-	sha256sum "5d95f8d0ab5148fdf5ef90d007609f672d4991b9419bd03e4b70a98235ee78e9";
+	sha256sum "b8493c633701faf841aefd04a12289ba25834984b14f4439a5645bf04b9ce090";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1102,12 +1102,12 @@ module "third/sacmds"
 module "third/block_no_tls"
 {
 	description "Allows privileged opers to temporarily block new, non-TLS (SSL) user connections";
-	version "2.1.0";
+	version "2.1.1";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/block_no_tls";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/block_no_tls.c";
-	sha256sum "129b294802553e0c7a81d23e53960ec5b664331d5ec4e16f18484d16238f060a";
+	sha256sum "53b870571967487c19027d4f3279e93b87a5e68c99fcc9993b402611fd81486f";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1200,12 +1200,12 @@ module "third/logged-in-from"
 module "third/plainusers"
 {
 	description "Allows opers to list all users NOT connected over SSL/TLS";
-	version "2.1.0";
+	version "2.1.1";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/plainusers";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/plainusers.c";
-	sha256sum "10c1fbaccd69879bdd42913b712412041c1f0764893f1815ec2f18621763abde";
+	sha256sum "849f002d5d6c4c4025190cc9309cb98833b3c512b1e60d0db3ab67bd35b355a2";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1276,12 +1276,12 @@ module "third/operoverride_ext"
 module "third/gecos_replace"
 {
 	description "Enables replacing text in the gecos field on-connect";
-	version "1.1.1";
+	version "1.1.2";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/gecos_replace";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/gecos_replace.c";
-	sha256sum "e670c3c9833f5f9007f6a311edb88203c9c1227fba40a5a4b619eb283a02e6a8";
+	sha256sum "02b7b0760cdc319bae01ab36868bdbfaa78d5666505fbdefe38776e4f0f28298";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1413,12 +1413,12 @@ module "third/lockserv"
 module "third/nopmchannel"
 {
 	description "Prevents users sharing a channel from privately messaging each other";
-	version "2.1.0";
+	version "2.1.1";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/nopmchannel";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/nopmchannel.c";
-	sha256sum "25d363fc83485a294d7e72a55e5ff1ffde0d1a4659c84273d23bf5a9f9246097";
+	sha256sum "e284fd792e72e74a6b9572eebd11406fdddc9568eedee072ad2cee4c302fe58d";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1432,12 +1432,12 @@ module "third/nopmchannel"
 module "third/report"
 {
 	description "For reporting bad stuff to the assigned IRC operators";
-	version "1.1.1";
+	version "1.1.2";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/report";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/report.c";
-	sha256sum "51e2c90bcab49fe28ffa5704eb2844dec82866b0d2b87b11ce9e3b3fddb9b3c6";
+	sha256sum "ec336eb25bf5c6bb27e5ecef93776535bca28016af4ce2f3a843947e5aaf1fe1";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1451,12 +1451,12 @@ module "third/report"
 module "third/pmlist"
 {
 	description "Implements umode +P to allow only certain people to privately message you";
-	version "2.1.1";
+	version "2.1.2";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/pmlist";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/pmlist.c";
-	sha256sum "3a58dfe6fe1fb3f488e8ba93e37d90d167c556c4d4755ccad43b1959142c2658";
+	sha256sum "c4cb9f6ee24f0c73f22789fa13d2ec6824421e7f69281a637a2377e4b143aed3";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1470,12 +1470,12 @@ module "third/pmlist"
 module "third/auditorium"
 {
 	description "Channel mode +u to show channel events/messages to/from people with +o/+a/+q only";
-	version "2.1.1";
+	version "2.1.2";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/auditorium";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/auditorium.c";
-	sha256sum "9b80203a598d67ae0e7fb424d1eefc8352e829bfcd6f94f3f9cea70edf5c8091";
+	sha256sum "535e1d34a4af8306f666f8e9889397f7e8901b6b3351376b9c5619bc81045c45";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1489,12 +1489,12 @@ module "third/auditorium"
 module "third/nicksuffix"
 {
 	description "Restrict /nick usage to suffixing your base nick";
-	version "2.1.0";
+	version "2.1.1";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/nicksuffix";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/nicksuffix.c";
-	sha256sum "c341e11e065ddc85d14463b8d559996482d03a4052be0694a49cece648984dfd";
+	sha256sum "2bac1b58142f3c5a40b8f4fb14eb4bf5d5e25877f7c05c54be41c71c13707b7e";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1567,12 +1567,12 @@ module "third/upgrade-notify"
 module "third/fixhop"
 {
 	description "The +h access mode seems to be a little borked/limited, this module implements some tweaks for it";
-	version "2.3.3";
+	version "2.3.4";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/fixhop";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/fixhop.c";
-	sha256sum "d2e4bdefe7e68def202492f9f081889ba8cfa56bdfcd6adc0a61a20d9680d8a8";
+	sha256sum "542f3d1dc8e65ec7f4393ae912d72d8e57e9d2eb3051028d0e79f7642683ba47";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1626,12 +1626,12 @@ module "third/ojoin"
 module "third/repeatprot"
 {
 	description "G(Z)-Line/kill users (or block their messages) who spam through CTCP, INVITE, NOTICE and/or PRIVMSG";
-	version "2.1.0";
+	version "2.1.1";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/repeatprot";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/repeatprot.c";
-	sha256sum "23b0c1cb469311e6db04b0de76cc9bbaede0b0b9066ae813e2a23ec968c8412c";
+	sha256sum "0d4b51f4325588e1183baeb510b0b19f54238ba26077ccba5c462144deac08f0";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1703,12 +1703,12 @@ module "third/clones"
 module "third/signore"
 {
 	description "Implements an I-Line for adding server-side ignores";
-	version "2.1.1";
+	version "2.1.2";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/signore";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/signore.c";
-	sha256sum "06a852724467e7ea3d5564b6c99785436cc0c0b0e85c263f48ccced6e46852f6";
+	sha256sum "87fbab0ee0df00f927d63812bdaea0958f1e4263e5ec7161add0044cbc7a8f99";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1722,12 +1722,12 @@ module "third/signore"
 module "third/commandsno"
 {
 	description "Lets IRC operators see command usages";
-	version "2.1.0";
+	version "2.1.1";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/commandsno";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/commandsno.c";
-	sha256sum "3ccdcec33b0b237b403004a00856275e4561f57dcc9f2c5b58bdf45b49567038";
+	sha256sum "391e2c91c13a01d6e470a3baf0868a1fc59210fc0701f6b466282b604865c0d8";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
