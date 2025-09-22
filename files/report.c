@@ -118,7 +118,7 @@ ModDataInfo *reportMDI; // To store the rep0ts as a local variable lol (so we do
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/report", // Module name
-	"1.1.1", // Version
+	"1.1.2", // Version
 	"For reporting bad stuff to the assigned IRC operators", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -434,16 +434,7 @@ int report_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 }
 
 CMD_FUNC(report) {
-	/* Gets args: Client *client, MessageTag *recv_mtags, int parc, char *parv[]
-	**
-	** client: Pointer to user executing command
-	** recv_mtags: Received/incoming message tags (IRCv3 stuff)
-	** parc: Amount of arguments (also includes the command in the count)
-	** parv: Contains the actual args, first one starts at parv[1]
-	**
-	** So "REPORT test" would result in parc = 2 and parv[1] = "test"
-	** Also, parv[0] seems to always be NULL, so better not rely on it fam
-	*/
+	// Gets args: ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	Report *reportItem;
 	const char *msg;
 	char reporturd[NICKLEN + USERLEN + HOSTLEN + 4]; // +4 in order to account for the chars : ! @ \0

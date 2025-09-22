@@ -41,6 +41,12 @@ module {
 		} \
 	} while(0)
 
+#if UNREAL_VERSION >= 0x06020000
+	#define CallCommandOverrideCompatU06020000(_parc, _parv) (CallCommandOverride(ovr, clictx, client, recv_mtags, _parc, _parv))
+#else
+	#define CallCommandOverrideCompatU06020000(_parc, _parv) (CallCommandOverride(ovr, client, recv_mtags, _parc, _parv))
+#endif
+
 // Quality fowod declarations
 int fixhop_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int fixhop_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
@@ -65,7 +71,7 @@ int chmodeNotif = 0; // Notification to go wit it
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/fixhop", // Module name
-	"2.3.3", // Version
+	"2.3.4", // Version
 	"The +h access mode seems to be a little borked/limited, this module implements some tweaks for it", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -253,7 +259,7 @@ int is_chmode_denied(char mode, char direction) {
 // This function is simply ripped from src/modules/invite.c with a little adjustment
 // Seems to be necessary to make this module werk pr0perly
 CMD_OVERRIDE_FUNC(fixhop_inviteoverride) {
-	// Gets args: CommandOverride *ovr, Client *client, MessageTag *recv_mtags, int parc, char *parv[]
+	// Gets args: CommandOverride *ovr, ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	Client *target;
 	Channel *channel;
 	int override = 0;
@@ -262,23 +268,23 @@ CMD_OVERRIDE_FUNC(fixhop_inviteoverride) {
 
 	// Don't even bother if fixhop::allow_invite isn't even set
 	if(!allowInvite) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+		CallCommandOverrideCompatU06020000(parc, parv); // Run original function yo
 		return;
 	}
 
 	// Mabe just pass the command back to invite.c =]
 	if(parc < 3 || *parv[1] == '\0' || !(target = find_user(parv[1], NULL))) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv);
+		CallCommandOverrideCompatU06020000(parc, parv);
 		return ;
 	}
 
 	if(MyConnect(client) && !valid_channelname(parv[2])) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv);
+		CallCommandOverrideCompatU06020000(parc, parv);
 		return;
 	}
 
 	if(!(channel = find_channel(parv[2]))) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv);
+		CallCommandOverrideCompatU06020000(parc, parv);
 		return;
 	}
 
@@ -424,19 +430,19 @@ CMD_OVERRIDE_FUNC(fixhop_modeoverride) {
 
 	// May not be anything to do =]
 	if(parc < 3 || (!denyWidemasks && !denyChmodes) || (!IsULine(client) && (!MyUser(client) || IsOper(client)))) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv);
+		CallCommandOverrideCompatU06020000(parc, parv);
 		return;
 	}
 
 	// You need to have hops on a channel for this to kicc in obv (or U-Line, to prevent bypassing this module with '/cs mode')
 	if(!(channel = find_channel(parv[1])) || (!IsULine(client) && !check_channel_access(client, channel, "h"))) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv);
+		CallCommandOverrideCompatU06020000(parc, parv);
 		return;
 	}
 
 	// Allow human +o/+a/+q users anyway (since we target hops specifically, anyone with more privileges should be exempt), but U-Lines will always be subject to restrictions because we have no way to tell who originally executed it
 	if(!IsULine(client) && check_channel_access(client, channel, "oaq")) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv);
+		CallCommandOverrideCompatU06020000(parc, parv);
 		return;
 	}
 
@@ -496,11 +502,11 @@ CMD_OVERRIDE_FUNC(fixhop_modeoverride) {
 					break;
 
 				// Turn "+b *" into "+b *!*@*" so we can easily check bel0w =]
-			#if (UNREAL_VERSION_MAJOR < 1 || (UNREAL_VERSION_MAJOR == 1 && UNREAL_VERSION_MINOR < 8))
-				mask = clean_ban_mask(parv[j], (curdir == '-' ? MODE_DEL : MODE_ADD), client, 0);
-			#else
-				mask = clean_ban_mask(parv[j], (curdir == '-' ? MODE_DEL : MODE_ADD), EXBTYPE_BAN, client, channel, 0);
-			#endif
+				#if UNREAL_VERSION <= 0x06010700
+					mask = clean_ban_mask(parv[j], (curdir == '-' ? MODE_DEL : MODE_ADD), client, 0);
+				#else
+					mask = clean_ban_mask(parv[j], (curdir == '-' ? MODE_DEL : MODE_ADD), EXBTYPE_BAN, client, channel, 0);
+				#endif
 
 				if(!mask)
 					break;
@@ -616,7 +622,7 @@ CMD_OVERRIDE_FUNC(fixhop_modeoverride) {
 		newparv[newparc] = NULL;
 	else
 		newparv[MAXPARA] = NULL;
-	CallCommandOverride(ovr, client, recv_mtags, newparc, newparv);
+	CallCommandOverrideCompatU06020000(newparc, newparv);
 }
 
 void add_invite(Client *from, Client *to, Channel *channel, MessageTag *mtags) {

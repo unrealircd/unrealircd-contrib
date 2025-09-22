@@ -35,13 +35,19 @@ module {
 		} \
 	} while(0)
 
+#if UNREAL_VERSION >= 0x06020000
+	#define CallCommandOverrideCompatU06020000() (CallCommandOverride(ovr, clictx, client, recv_mtags, parc, parv))
+#else
+	#define CallCommandOverrideCompatU06020000() (CallCommandOverride(ovr, client, recv_mtags, parc, parv))
+#endif
+
 // Quality fowod declarations
 CMD_OVERRIDE_FUNC(uline_nickhost_override);
 
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/uline_nickhost", // Module name
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Requires people to address services like NickServ@services.my.net", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -67,13 +73,13 @@ MOD_UNLOAD() {
 
 // Now for the actual override
 CMD_OVERRIDE_FUNC(uline_nickhost_override) {
-	// Gets args: CommandOverride *ovr, Client *client, MessageTag *recv_mtags, int parc, char *parv[]
+	// Gets args: CommandOverride *ovr, ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	Client *acptr; // Pointer to target client
 	char nickhost[NICKLEN + HOSTLEN + 2]; // Full nick@server mask thingy, HOSTLEN is the limit for server names anyways so ;]
 
 	// Check argument sanity and see if we can find a target pointer (and if that's a U-Line as well)
 	if(BadPtr(parv[1]) || !(acptr = find_user(parv[1], NULL)) || !IsULine(acptr)) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+		CallCommandOverrideCompatU06020000(); // Run original function yo
 		return;
 	}
 
@@ -82,5 +88,5 @@ CMD_OVERRIDE_FUNC(uline_nickhost_override) {
 		sendnotice(client, "*** Please use %s when addressing services bots", nickhost); // Notice lol
 		return;
 	}
-	CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+	CallCommandOverrideCompatU06020000();
 }

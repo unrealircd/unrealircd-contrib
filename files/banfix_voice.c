@@ -30,12 +30,18 @@ module {
 		} \
 	} while(0)
 
+#if UNREAL_VERSION >= 0x06020000
+	#define CallCommandOverrideCompatU06020000() (CallCommandOverride(ovr, clictx, client, recv_mtags, parc, parv))
+#else
+	#define CallCommandOverrideCompatU06020000() (CallCommandOverride(ovr, client, recv_mtags, parc, parv))
+#endif
+
 CMD_OVERRIDE_FUNC(check_banned_butvoiced);
 
 // Mod header obv fam =]
 ModuleHeader MOD_HEADER = {
 	"third/banfix_voice",
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Correct some odd behaviour in regards to banned-but-voiced users",
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -69,7 +75,7 @@ CMD_OVERRIDE_FUNC(check_banned_butvoiced) {
 	if(MyUser(client) && !IsULine(client) && !IsOper(client) && !BadPtr(parv[1])) {
 		target = parv[1];
 		if(target[0] != '#') { // If first character of target isn't even #, bans don't apply at all, so...
-			CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+			CallCommandOverrideCompatU06020000(); // Run original function yo
 			return;
 		}
 
@@ -86,5 +92,5 @@ CMD_OVERRIDE_FUNC(check_banned_butvoiced) {
 		}
 	}
 
-	CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+	CallCommandOverrideCompatU06020000();
 }

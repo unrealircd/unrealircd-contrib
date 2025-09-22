@@ -51,7 +51,12 @@ void masshighlight_md_free(ModData *md);
 void masshighlight_client_md_free(ModData *md);
 int masshighlight_get_client_moddata(Client *client, Channel *channel);
 void masshighlight_set_client_moddata(Client *client, Channel *channel, int hl_count);
-int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype);
+
+#if UNREAL_VERSION >= 0x06020000
+	int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
+#else
+	int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype);
+#endif
 
 extern MODVAR int spamf_ugly_vchanoverride; // For viruschan shit =]
 ModDataInfo *massHLMDI; // To store some shit with the channel ;]
@@ -96,7 +101,7 @@ struct user_highlight {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/block_masshighlight", // Module name
-	"2.2.1", // Version
+	"2.2.2", // Version
 	"Prevent mass highlights network-wide", // Description
 	"Gottem / k4be", // Author
 	"unrealircd-6", // Modversion
@@ -207,7 +212,13 @@ void doXLine(char flag, Client *client) {
 			muhcfg.reason
 		};
 
-		cmd_tkl(&me, NULL, 9, tkllayer); // Ban 'em
+		// Ban 'em
+		#if UNREAL_VERSION >= 0x06020000
+			cmd_tkl(NULL, &me, NULL, 9, tkllayer);
+		#else
+			cmd_tkl(&me, NULL, 9, tkllayer);
+		#endif
+
 		safe_free(tkltype); // Free that shit lol
 	}
 }
@@ -621,7 +632,12 @@ void masshighlight_set_client_moddata(Client *client, Channel *channel, int hl_c
 		prev_hl->next = hl; // Append to list
 }
 
-int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype) {
+#if UNREAL_VERSION >= 0x06020000
+	int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
+#else
+	int masshighlight_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype)
+#endif
+{
 	if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
 		return HOOK_CONTINUE;
 	if(!text || !*text)

@@ -42,7 +42,7 @@ int is_loopback_ip(char *ip);
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/pubnetinfo", // Module name
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Display public network/server information such as SSL/TLS links", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -80,7 +80,7 @@ int is_loopback_ip(char *ip) {
 }
 
 CMD_FUNC(pubnetinfo) {
-	// Gets args: Client *client, MessageTag *recv_mtags, int parc, char *parv[]
+	// Gets args: ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	Client *acptr, *from;
 	int tls, localhost;
 	const char *serv;
@@ -117,8 +117,13 @@ CMD_FUNC(pubnetinfo) {
 		localhost = -1;
 
 		// Checkem link config
-		if(acptr->server->conf)
-			tls = ((acptr->server->conf->outgoing.options & CONNECT_TLS) ? 1 : 0);
+		if(acptr->server->conf) {
+			#if UNREAL_VERSION >= 0x06020000
+				tls = (acptr->server->conf->outgoing.options & CONNECT_OUTGOING_TLS) ? 1 : 0;
+			#else
+				tls = (acptr->server->conf->outgoing.options & CONNECT_TLS) ? 1 : 0;
+			#endif
+		}
 
 		// Checkem IP
 		if(acptr->ip)

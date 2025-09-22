@@ -34,14 +34,18 @@ module {
 	} while(0)
 
 // Quality fowod declarations
-int commchans_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype);
+#if UNREAL_VERSION >= 0x06020000
+	int commchans_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
+#else
+	int commchans_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype);
+#endif
 
 long extumode_commonchans = 0; // Store bitwise value latur
 
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/message_commonchans", // Module name
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Adds umode +c to prevent people who aren't sharing a channel with you from messaging you", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -70,7 +74,12 @@ MOD_UNLOAD() {
 }
 
 // Actual hewk function m8
-int commchans_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype) {
+#if UNREAL_VERSION >= 0x06020000
+	int commchans_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
+#else
+	int commchans_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype)
+#endif
+{
 	if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
 		return HOOK_CONTINUE;
 	if(!text || !*text)

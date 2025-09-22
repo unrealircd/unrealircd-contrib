@@ -38,6 +38,12 @@ module {
 		} \
 	} while(0)
 
+#if UNREAL_VERSION >= 0x06020000
+	#define CallCommandOverrideCompatU06020000() (CallCommandOverride(ovr, clictx, client, recv_mtags, parc, parv))
+#else
+	#define CallCommandOverrideCompatU06020000() (CallCommandOverride(ovr, client, recv_mtags, parc, parv))
+#endif
+
 // Quality fowod declarations
 EVENT(nicksuffix_init);
 void nicksuffix_md_free(ModData *md);
@@ -66,7 +72,7 @@ struct {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/nicksuffix", // Module name
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Restrict /nick usage to suffixing your base nick", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -257,7 +263,7 @@ int nicksuffix_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 
 // Now for the actual override
 CMD_OVERRIDE_FUNC(nicksuffix_override) {
-	// Gets args: CommandOverride *ovr, Client *client, MessageTag *recv_mtags, int parc, char *parv[]
+	// Gets args: CommandOverride *ovr, ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	// Checkem conditions =]
 	char nsfx[NICKLEN + 1];
 	char *orig;
@@ -275,7 +281,7 @@ CMD_OVERRIDE_FUNC(nicksuffix_override) {
 		}
 	}
 
-	CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+	CallCommandOverrideCompatU06020000(); // Run original function yo
 }
 
 int nicksuffix_hook_prelocalconnect(Client *client) {

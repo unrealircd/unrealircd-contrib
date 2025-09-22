@@ -51,7 +51,7 @@ int gecosCount = 0; // Counter yo
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/gecos_replace", // Module name
-	"1.1.1", // Version
+	"1.1.2", // Version
 	"Enables replacing text in the gecos field on-connect", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -136,7 +136,7 @@ int gecos_replace_hook_prelocalconnect(Client *client) {
 	if(IsULine(client))
 		return HOOK_CONTINUE;
 
-	if(!client || !client->info) {
+	if(!client) {
 		unreal_log(ULOG_ERROR, "gecos_replace", "GECOS_REPLACE_BUG", client, "[BUG?] $entity == NULL",
 			log_data_string("entity", (client ? "Gecos" : "Client"))
 		);

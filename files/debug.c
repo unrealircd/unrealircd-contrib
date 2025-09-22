@@ -74,7 +74,7 @@ static char *debughelp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/debug", // Module name
-	"2.1.1", // Version
+	"2.1.2", // Version
 	"Allows privileged opers to easily view internal (configuration) data", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -111,7 +111,7 @@ static void dumpit(Client *client, char **p) {
 }
 
 CMD_FUNC(cmd_debug) {
-	// Gets args: Client *client, MessageTag *recv_mtags, int parc, char *parv[]
+	// Gets args: ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	if(IsUser(client) && !ValidatePermissionsForPath("debug", client, NULL, NULL, NULL)) { // Only check operprivs for persons =]
 		sendnumeric(client, ERR_NOPRIVILEGES);
 		return;

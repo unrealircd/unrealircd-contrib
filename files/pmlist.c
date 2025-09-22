@@ -67,7 +67,12 @@ void free_pmentry(pmEntry *pm);
 int pmlist_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int pmlist_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
 int pmlist_rehash(void);
-int pmlist_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype);
+
+#if UNREAL_VERSION >= 0x06020000
+	int pmlist_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
+#else
+	int pmlist_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype);
+#endif
 
 long extumode_pmlist = 0L; // Store bitwise value latur
 ModDataInfo *pmlistMDI, *noticeMDI; // To store some shit with the user's Client pointur ;]
@@ -115,7 +120,7 @@ static char *pmlistHalp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/pmlist", // Module name
-	"2.1.1", // Version
+	"2.1.2", // Version
 	"Implements umode +P to allow only certain people to privately message you", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -187,7 +192,12 @@ static void dumpit(Client *client, char **p) {
 		sendto_one(client, NULL, ":%s %03d %s :%s", me.name, RPL_TEXT, client->name, *p);
 }
 
-int pmlist_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype) {
+#if UNREAL_VERSION >= 0x06020000
+	int pmlist_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
+#else
+	int pmlist_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype)
+#endif
+{
 	if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
 		return HOOK_CONTINUE;
 	if(!text || !*text) // If there's no text then the message is already blocked :>
@@ -343,7 +353,7 @@ CMD_FUNC(cmd_pmhalp) {
 }
 
 CMD_FUNC(cmd_openpm) {
-	// Gets args: Client *client, MessageTag *recv_mtags, int parc, char *parv[]
+	// Gets args: ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	Client *acptr; // Who r u allowin?
 	pmEntry *pmList, *pm, *next; // Iterators imho tbh fambi
 	int gtfo; // Maybe won't need to add an entry ;]
@@ -371,11 +381,6 @@ CMD_FUNC(cmd_openpm) {
 
 	if(IsOper(acptr)) { // Checkem opers lol
 		sendnotice(client, "[pmlist] There's no need to whitelist IRC operators (%s)", acptr->name);
-		return;
-	}
-
-	if(!acptr->id) { // Sanity check lol
-		sendnotice(client, "[pmlist] Something went wrong getting %s's UID", acptr->name);
 		return;
 	}
 

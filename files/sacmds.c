@@ -82,7 +82,7 @@ static char *saumodehelp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/sacmds", // Module name
-	"2.2.2", // Version
+	"2.2.3", // Version
 	"Implements SA* commands for privileged opers", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -117,16 +117,17 @@ static void dumpit(Client *client, char **p) {
 
 // This is mostly copied from SVSNICK =]]
 CMD_FUNC(cmd_sanick) {
-	// Gets args: Client *client, MessageTag *recv_mtags, int parc, char *parv[]
+	// Gets args: ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	char oldnick[NICKLEN + 1], newnick[NICKLEN + 1];
 	Client *acptr; // "Orig" check
 	Client *ocptr; // "New" check
 	time_t tiem; // Nickchange timestamp etc
 	MessageTag *mtags;
-#if (UNREAL_VERSION_MAJOR < 1)
-	char descbuf[BUFSIZE];
-	unsigned char removemoder;
-#endif
+
+	#if UNREAL_VERSION < 0x06010000
+		char descbuf[BUFSIZE];
+		unsigned char removemoder;
+	#endif
 
 	// Prevent non-privileged opers from using this command
 	if(!ValidatePermissionsForPath("sanick", client, NULL, NULL, NULL) && !IsULine(client)) {
@@ -191,46 +192,46 @@ CMD_FUNC(cmd_sanick) {
 	mtags = NULL;
 	new_message(acptr, NULL, &mtags); // No recv_mtags here because we'll generate a new NICK event
 
-#if (UNREAL_VERSION_MAJOR < 1)
-	removemoder = ((acptr->umodes & UMODE_REGNICK) ? 1 : 0);
+	#if UNREAL_VERSION < 0x06010000
+		removemoder = ((acptr->umodes & UMODE_REGNICK) ? 1 : 0);
 
-	RunHook(HOOKTYPE_LOCAL_NICKCHANGE, acptr, mtags, newnick);
-	acptr->lastnick = tiem; // Set the timestamp of the last nick change for the target user to the current time
-	add_history(acptr, 1); // Add nick history for whowas etc
-	sendto_server(acptr, 0, 0, mtags, ":%s NICK %s %lld", acptr->id, newnick, (long long)acptr->lastnick); // Send to the rest of el netw0rkerin0 ;]
-	sendto_local_common_channels(acptr, acptr, 0, mtags, ":%s NICK :%s", oldnick, newnick); // And to local users in common channels
-	sendto_one(acptr, mtags, ":%s NICK :%s", oldnick, newnick); // And the user itself
-	free_message_tags(mtags);
+		RunHook(HOOKTYPE_LOCAL_NICKCHANGE, acptr, mtags, newnick);
+		acptr->lastnick = tiem; // Set the timestamp of the last nick change for the target user to the current time
+		add_history(acptr, 1); // Add nick history for whowas etc
+		sendto_server(acptr, 0, 0, mtags, ":%s NICK %s %lld", acptr->id, newnick, (long long)acptr->lastnick); // Send to the rest of el netw0rkerin0 ;]
+		sendto_local_common_channels(acptr, acptr, 0, mtags, ":%s NICK :%s", oldnick, newnick); // And to local users in common channels
+		sendto_one(acptr, mtags, ":%s NICK :%s", oldnick, newnick); // And the user itself
+		free_message_tags(mtags);
 
-	if(removemoder)
-		acptr->umodes &= ~UMODE_REGNICK; // Remove +r umode (registered nick)
+		if(removemoder)
+			acptr->umodes &= ~UMODE_REGNICK; // Remove +r umode (registered nick)
 
-	del_from_client_hash_table(oldnick, acptr); // Remove old name from lclient_list
-	strlcpy(acptr->name, newnick, sizeof(acptr->name)); // Actually change the nick the client is using here
-	add_to_client_hash_table(newnick, acptr); // Re-add to lclient_list
+		del_from_client_hash_table(oldnick, acptr); // Remove old name from lclient_list
+		strlcpy(acptr->name, newnick, sizeof(acptr->name)); // Actually change the nick the client is using here
+		add_to_client_hash_table(newnick, acptr); // Re-add to lclient_list
 
-	snprintf(descbuf, sizeof(descbuf), "Client: %s", newnick);
-	fd_desc(acptr->local->fd, descbuf);
-	if(removemoder)
-		sendto_one(acptr, NULL, ":%s MODE %s :-r", me.name, acptr->name);
+		snprintf(descbuf, sizeof(descbuf), "Client: %s", newnick);
+		fd_desc(acptr->local->fd, descbuf);
+		if(removemoder)
+			sendto_one(acptr, NULL, ":%s MODE %s :-r", me.name, acptr->name);
 
-	RunHook(HOOKTYPE_POST_LOCAL_NICKCHANGE, acptr, recv_mtags, oldnick);
-#else
-	mtag_add_issued_by(&mtags, client, recv_mtags);
-	RunHook(HOOKTYPE_LOCAL_NICKCHANGE, acptr, mtags, newnick);
-	sendto_local_common_channels(acptr, acptr, 0, mtags, ":%s NICK :%s", oldnick, newnick);
-	sendto_one(acptr, mtags, ":%s NICK :%s", oldnick, newnick);
-	sendto_server(NULL, 0, 0, mtags, ":%s NICK %s :%lld", acptr->id, newnick, (long long)tiem);
+		RunHook(HOOKTYPE_POST_LOCAL_NICKCHANGE, acptr, recv_mtags, oldnick);
+	#else
+		mtag_add_issued_by(&mtags, client, recv_mtags);
+		RunHook(HOOKTYPE_LOCAL_NICKCHANGE, acptr, mtags, newnick);
+		sendto_local_common_channels(acptr, acptr, 0, mtags, ":%s NICK :%s", oldnick, newnick);
+		sendto_one(acptr, mtags, ":%s NICK :%s", oldnick, newnick);
+		sendto_server(NULL, 0, 0, mtags, ":%s NICK %s :%lld", acptr->id, newnick, (long long)tiem);
 
-	add_history(acptr, 1, WHOWAS_EVENT_NICK_CHANGE);
-	acptr->lastnick = tiem; /* needs to be done AFTER add_history() */
-	del_from_client_hash_table(oldnick, acptr);
+		add_history(acptr, 1, WHOWAS_EVENT_NICK_CHANGE);
+		acptr->lastnick = tiem; /* needs to be done AFTER add_history() */
+		del_from_client_hash_table(oldnick, acptr);
 
-	strlcpy(acptr->name, newnick, sizeof(acptr->name));
-	add_to_client_hash_table(newnick, acptr);
-	RunHook(HOOKTYPE_POST_LOCAL_NICKCHANGE, acptr, mtags, oldnick);
-	free_message_tags(mtags);
-#endif
+		strlcpy(acptr->name, newnick, sizeof(acptr->name));
+		add_to_client_hash_table(newnick, acptr);
+		RunHook(HOOKTYPE_POST_LOCAL_NICKCHANGE, acptr, mtags, oldnick);
+		free_message_tags(mtags);
+	#endif
 }
 
 CMD_FUNC(cmd_saumode) {

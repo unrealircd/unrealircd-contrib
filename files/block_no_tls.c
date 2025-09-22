@@ -47,7 +47,7 @@ int blockem = 0;
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/block_no_tls", // Module name
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Allows privileged opers to temporarily block new, non-TLS (SSL) user connections", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -83,7 +83,7 @@ int block_notls_hook_prelocalconnect(Client *client) {
 }
 
 CMD_FUNC(cmd_block_notls) {
-	// Gets args: Client *client, MessageTag *recv_mtags, int parc, char *parv[]
+	// Gets args: ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	if(!IsUser(client)) // Double check imo
 		return;
 

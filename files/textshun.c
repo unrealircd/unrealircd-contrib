@@ -64,8 +64,14 @@ TLine *find_tline(const char *nickrgx, const char *bodyrgx);
 TLine *match_tline(Client *client, char *text);
 int _check_cansend(Client *client, const char **text);
 int textshun_hook_serversync(Client *client);
-int textshun_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype);
-int textshun_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype);
+
+#if UNREAL_VERSION >= 0x06020000
+	int textshun_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
+	int textshun_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
+#else
+	int textshun_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype);
+	int textshun_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype);
+#endif
 
 ModDataInfo *textshunMDI; // To store the T-Lines as a local variable lol (so we don't have to use a .db file or some shit)
 int TLC; // A counter for T-Lines so we can change the moddata back to NULL
@@ -105,7 +111,7 @@ static char *muhhalp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/textshun", // Module name
-	"2.1.1", // Version
+	"2.1.2", // Version
 	"Drop messages based on nick and body", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -397,13 +403,23 @@ int textshun_hook_serversync(Client *client) {
 }
 
 // Pre message hewks lol
-int textshun_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype) {
+#if UNREAL_VERSION >= 0x06020000
+	int textshun_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
+#else
+	int textshun_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype)
+#endif
+{
 	if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
 		return HOOK_CONTINUE;
 	return _check_cansend(client, text);
 }
 
-int textshun_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype) {
+#if UNREAL_VERSION >= 0x06020000
+	int textshun_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
+#else
+	int textshun_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype)
+#endif
+{
 	if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
 		return HOOK_CONTINUE;
 	return _check_cansend(client, text);
@@ -411,7 +427,7 @@ int textshun_hook_cansend_user(Client *client, Client *to, const char **text, co
 
 // Function for /TLINE etc
 CMD_FUNC(textshun) {
-	// Gets args: Client *client, MessageTag *recv_mtags, int parc, char *parv[]
+	// Gets args: ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	Match *exprNick, *exprBody; // For verifying the regexes
 	char *regexerr;
 	TLine *TLineList, *newtl, *tEntry; // Quality struct pointers

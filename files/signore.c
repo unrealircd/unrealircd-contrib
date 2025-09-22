@@ -62,7 +62,12 @@ ILine *get_ilines(void);
 ILine *find_iline(char *mask, char *other);
 ILine *match_iline(Client *client, Client *acptr);
 int signore_hook_serversync(Client *client);
-int signore_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype);
+
+#if UNREAL_VERSION >= 0x06020000
+	int signore_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
+#else
+	int signore_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype);
+#endif
 
 // Muh globals
 ModDataInfo *signoreMDI; // To store the I-Lines as a local variable lol (so we don't have to use a .db file or some shit)
@@ -100,7 +105,7 @@ static char *muhhalp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/signore", // Module name
-	"2.1.1", // Version
+	"2.1.2", // Version
 	"Implements an I-Line for adding server-side ignores", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -352,7 +357,12 @@ int signore_hook_serversync(Client *client) {
 }
 
 // Pre message hewk lol
-int signore_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype) {
+#if UNREAL_VERSION >= 0x06020000
+	int signore_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
+#else
+	int signore_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype)
+#endif
+{
 	static char errbuf[256];
 	if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
 		return HOOK_CONTINUE;
@@ -374,7 +384,7 @@ int signore_hook_cansend_user(Client *client, Client *to, const char **text, con
 
 // Function for /SIGNORE etc
 CMD_FUNC(signore) {
-	// Gets args: Client *client, MessageTag *recv_mtags, int parc, char *parv[]
+	// Gets args: ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	ILine *ILineList, *newsig, *sigEntry; // Quality struct pointers
 	char tmp[USERLEN + HOSTLEN + 2], mask[USERLEN + HOSTLEN + 2], other[USERLEN + HOSTLEN + 2];
 	char *mptr;

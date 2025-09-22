@@ -35,6 +35,12 @@ module {
 		} \
 	} while(0)
 
+#if UNREAL_VERSION >= 0x06020000
+	#define CallCommandOverrideCompatU06020000() (CallCommandOverride(ovr, clictx, client, recv_mtags, parc, parv))
+#else
+	#define CallCommandOverrideCompatU06020000() (CallCommandOverride(ovr, client, recv_mtags, parc, parv))
+#endif
+
 // Big hecks go here
 typedef struct t_amsgInfo amsgInfo;
 struct t_amsgInfo {
@@ -53,7 +59,7 @@ ModDataInfo *amsgMDI; // To store every user's last message with their client po
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/anti_amsg", // Module name
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Drop messages originating from /amsg", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -97,7 +103,7 @@ void anti_amsg_free(ModData *md) {
 
 // Now for the actual override
 CMD_OVERRIDE_FUNC(anti_amsg_override) {
-	// Gets args: CommandOverride *ovr, Client *client, MessageTag *recv_mtags, int parc, char *parv[]
+	// Gets args: CommandOverride *ovr, ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	char *last, *target, *body; // User's last message, accompanying target and stripped body (like colours and shit)
 	long ltime, tstiem;// Timestamps to go with it
 	amsgInfo *amsg; // st0re message inf0
@@ -106,7 +112,7 @@ CMD_OVERRIDE_FUNC(anti_amsg_override) {
 
 	// Inb4duplicate notices (also allow U-Lines obiously) =]
 	if(parc < 3 || !client || !MyUser(client) || IsULine(client)) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+		CallCommandOverrideCompatU06020000(); // Run original function yo
 		return;
 	}
 
@@ -120,7 +126,7 @@ CMD_OVERRIDE_FUNC(anti_amsg_override) {
 	if(!BadPtr(parv[2])) {
 		// Some shitty ass scripts may use different colours/markup across chans, so fuck that
 		if(!(body = (char *)StripControlCodes(parv[2]))) {
-			CallCommandOverride(ovr, client, recv_mtags, parc, parv);
+			CallCommandOverrideCompatU06020000();
 			return;
 		}
 
@@ -168,5 +174,5 @@ CMD_OVERRIDE_FUNC(anti_amsg_override) {
 	}
 
 	if(!bail)
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv);
+		CallCommandOverrideCompatU06020000();
 }

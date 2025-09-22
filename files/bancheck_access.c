@@ -36,6 +36,12 @@ module {
 		} \
 	} while(0)
 
+#if UNREAL_VERSION >= 0x06020000
+	#define CallCommandOverrideCompatU06020000(_parc, _parv) (CallCommandOverride(ovr, clictx, client, recv_mtags, _parc, _parv))
+#else
+	#define CallCommandOverrideCompatU06020000(_parc, _parv) (CallCommandOverride(ovr, client, recv_mtags, _parc, _parv))
+#endif
+
 // Quality fowod declarations
 int bancheck_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int bancheck_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
@@ -47,7 +53,7 @@ int showNotif = 0; // Display message in case of denied masks
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/bancheck_access", // Module name
-	"2.1.3", // Version
+	"2.1.4", // Version
 	"Prevents people who have +o or higher from getting banned, unless done by people with +a/+q or opers", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -133,7 +139,7 @@ int bancheck_rehash(void) {
 
 // Now for the actual override
 CMD_OVERRIDE_FUNC(bancheck_override) {
-	// Gets args: CommandOverride *ovr, Client *client, MessageTag *recv_mtags, int parc, char *parv[]
+	// Gets args: CommandOverride *ovr, ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	Channel *channel; // Channel pointer
 	Client *acptr; // Ban target
 	Member *memb = NULL; // Channel members thingy =]
@@ -155,19 +161,19 @@ CMD_OVERRIDE_FUNC(bancheck_override) {
 
 	// May not be anything to do =]
 	if(parc < 3 || (!IsULine(client) && (!MyUser(client) || IsOper(client)))) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+		CallCommandOverrideCompatU06020000(parc, parv); // Run original function yo
 		return;
 	}
 
 	// Need to be at least hops or higher on a channel for this to kicc in obv (or U-Line, to prevent bypassing this module with '/cs mode')
 	if(!(channel = find_channel(parv[1])) || (!IsULine(client) && !check_channel_access(client, channel, "ho"))) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv);
+		CallCommandOverrideCompatU06020000(parc, parv);
 		return;
 	}
 
 	// Allow human +a/+q users anyway, but U-Lines will always be subject to restrictions because we have no way to tell who originally executed it
 	if(!IsULine(client) && check_channel_access(client, channel, "aq")) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv);
+		CallCommandOverrideCompatU06020000(parc, parv);
 		return;
 	}
 
@@ -212,11 +218,11 @@ CMD_OVERRIDE_FUNC(bancheck_override) {
 					break;
 
 				// Ensure "+b *" is turned into shit like "+b *!*@*" so we can easily check bel0w =]
-			#if (UNREAL_VERSION_MAJOR < 1 || (UNREAL_VERSION_MAJOR == 1 && UNREAL_VERSION_MINOR < 8))
-				tmpmask = clean_ban_mask(parv[j], MODE_ADD, client, 0);
-			#else
-				tmpmask = clean_ban_mask(parv[j], MODE_ADD, EXBTYPE_BAN, client, channel, 0);
-			#endif
+				#if UNREAL_VERSION <= 0x06010700
+					tmpmask = clean_ban_mask(parv[j], MODE_ADD, client, 0);
+				#else
+					tmpmask = clean_ban_mask(parv[j], MODE_ADD, EXBTYPE_BAN, client, channel, 0);
+				#endif
 
 				if(!tmpmask)
 					break;
@@ -332,5 +338,5 @@ CMD_OVERRIDE_FUNC(bancheck_override) {
 		newparv[newparc] = NULL;
 	else
 		newparv[MAXPARA] = NULL;
-	CallCommandOverride(ovr, client, recv_mtags, newparc, newparv);
+	CallCommandOverrideCompatU06020000(newparc, newparv);
 }

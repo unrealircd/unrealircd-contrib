@@ -53,7 +53,7 @@ int chanCount = 0;
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/websocket_restrict", // Module name
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Impose restrictions on websocket connections", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -119,7 +119,13 @@ void doGZLine(Client *client, char *fullErr) {
 		setTime,
 		fullErr
 	};
-	cmd_tkl(&me, NULL, 9, tkllayer); // Ban 'em
+
+	// Ban 'em
+	#if UNREAL_VERSION >= 0x06020000
+		cmd_tkl(NULL, &me, NULL, 9, tkllayer);
+	#else
+		cmd_tkl(&me, NULL, 9, tkllayer);
+	#endif
 }
 
 // Check port restrictions for non-websocket users
@@ -147,7 +153,7 @@ int websocket_restrict_prelocalconnect(Client *client) {
 	if(ws_port) { // Regular user connecting to WS only p0t
 		// Since we kinda __have__ to GZ-Line WS users, let's be consistent for non-WS users too ;]
 		ircsnprintf(fullErr, sizeof(fullErr), "User is using a websocket-only port (%d)", client->local->listener->port); // Make error string
-		doGZLine(client, fullErr); // Ban 'em
+		doGZLine(client, fullErr);
 		exit_client(client, NULL, fullErr); // Kbye
 		return HOOK_DENY;
 	}
@@ -215,7 +221,7 @@ int websocket_restrict_packet_in(Client *client, const char *readbuf, int *lengt
 			if(client->ip) { // IP may or may not be resolved yet (seems to be a race condition of sorts =])
 				char fullErr[128];
 				ircsnprintf(fullErr, sizeof(fullErr), "Websocket client using illegal port (%d)", client->local->listener->port); // Make error string
-				doGZLine(client, fullErr); // Ban 'em
+				doGZLine(client, fullErr);
 			}
 			exit_client(client, NULL, "Illegal port used for websocket connections"); // Kbye
 			return -1; // Notify main loop of lost client

@@ -41,7 +41,7 @@ CMD_FUNC(plainusers); // Register command function
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/plainusers", // Module name
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Allows opers to list all users NOT connected over SSL/TLS", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -67,7 +67,7 @@ MOD_UNLOAD() {
 }
 
 CMD_FUNC(plainusers) {
-	// Gets args: Client *client, MessageTag *recv_mtags, int parc, char *parv[]
+	// Gets args: ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	char ubuf[224]; // For sending multiple nicks at once instead of spamming the fuck out of people
 	Client *acptr; // For iteration lol
 	int count; // Count em too yo

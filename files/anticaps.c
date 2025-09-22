@@ -38,6 +38,12 @@ module {
 		} \
 	} while(0)
 
+#if UNREAL_VERSION >= 0x06020000
+	#define CallCommandOverrideCompatU06020000() (CallCommandOverride(ovr, clictx, client, recv_mtags, parc, parv))
+#else
+	#define CallCommandOverrideCompatU06020000() (CallCommandOverride(ovr, client, recv_mtags, parc, parv))
+#endif
+
 // Quality fowod declarations
 int anticaps_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int anticaps_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
@@ -52,7 +58,7 @@ int lcIt = 0; // Lowercase 'em instead
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/anticaps", // Module name
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Block/lowercase messages that contain a configurable amount of capital letters", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -198,7 +204,7 @@ int anticaps_rehash(void) {
 
 // Now for the actual override
 CMD_OVERRIDE_FUNC(anticaps_override) {
-	// Gets args: CommandOverride *ovr, Client *client, MessageTag *recv_mtags, int parc, char *parv[]
+	// Gets args: CommandOverride *ovr, ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	char plaintext[BUFSIZE]; // Let's not modify parv[2] directly =]
 	char *tmpp; // We gonna fix up da string fam
 	int perc; // Store percentage etc
@@ -206,21 +212,21 @@ CMD_OVERRIDE_FUNC(anticaps_override) {
 	Client *acptr; // Check for sending to U-Lines =]
 
 	if(parc < 3 || BadPtr(parv[2]) || !MyUser(client) || IsULine(client) || IsOper(client) || strlen(parv[2]) < minLength) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+		CallCommandOverrideCompatU06020000(); // Run original function yo
 		return;
 	}
 
 	if(*parv[1] != '#') {
 		acptr = find_user(parv[1], NULL);
 		if(acptr && IsULine(acptr)) {
-			CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+			CallCommandOverrideCompatU06020000();
 			return;
 		}
 	}
 
 	// Some shitty ass scripts may use different colours/markup across chans, so fuck that
 	if(!(tmpp = (char *)StripControlCodes(parv[2]))) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+		CallCommandOverrideCompatU06020000();
 		return;
 	}
 
@@ -238,7 +244,7 @@ CMD_OVERRIDE_FUNC(anticaps_override) {
 	}
 
 	if(!caps || !len) { // Inb4division by zero lmao {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+		CallCommandOverrideCompatU06020000();
 		return;
 	}
 
@@ -253,7 +259,7 @@ CMD_OVERRIDE_FUNC(anticaps_override) {
 			caps = 0;
 
 		if(caps <= 0 || len <= 0) { // Correction may have reduced it to zero (never really _below_ zero but let's just anyways lel)
-			CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+			CallCommandOverrideCompatU06020000();
 			return;
 		}
 	}
@@ -274,5 +280,5 @@ CMD_OVERRIDE_FUNC(anticaps_override) {
 		parv[2] = plaintext;
 	}
 
-	CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+	CallCommandOverrideCompatU06020000();
 }

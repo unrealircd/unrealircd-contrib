@@ -36,6 +36,12 @@ module {
 		} \
 	} while(0)
 
+#if UNREAL_VERSION >= 0x06020000
+	#define CallCommandOverrideCompatU06020000() (CallCommandOverride(ovr, clictx, client, recv_mtags, parc, parv))
+#else
+	#define CallCommandOverrideCompatU06020000() (CallCommandOverride(ovr, client, recv_mtags, parc, parv))
+#endif
+
 typedef struct t_exception muhExcept;
 typedef struct t_msg muhMessage;
 struct t_exception {
@@ -82,7 +88,7 @@ struct {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/repeatprot", // Module name
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"G(Z)-Line/kill users (or block their messages) who spam through CTCP, INVITE, NOTICE and/or PRIVMSG", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -474,13 +480,19 @@ void doXLine(char flag, Client *client) {
 			setTime,
 			muhcfg.banmsg
 		};
-		cmd_tkl(&me, NULL, 9, tkllayer); // Ban 'em
+
+		// Ban 'em
+		#if UNREAL_VERSION >= 0x06020000
+			cmd_tkl(NULL, &me, NULL, 9, tkllayer);
+		#else
+			cmd_tkl(&me, NULL, 9, tkllayer);
+		#endif
 	}
 }
 
 // Now for the actual override
 CMD_OVERRIDE_FUNC(repeatprot_override) {
-	// Gets args: CommandOverride *ovr, Client *client, MessageTag *recv_mtags, int parc, char *parv[]
+	// Gets args: CommandOverride *ovr, ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	char *cmd; // One override function for multiple commands ftw
 	int invite, noticed, privmsg; // "Booleans"
 	int exempt; // Is exempted?
@@ -500,13 +512,13 @@ CMD_OVERRIDE_FUNC(repeatprot_override) {
 
 	// Lest we massively shit ourselves =]
 	if(!client || BadPtr(parv[1]) || BadPtr(parv[2]) || BadPtr(parv[parc - 1])) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+		CallCommandOverrideCompatU06020000(); // Run original function yo
 		return;
 	}
 
 	// Preemptively allow non-local users, non-users, U-Lines and 0pers
 	if(!MyUser(client) || IsULine(client) || IsOper(client)) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+		CallCommandOverrideCompatU06020000();
 		return;
 	}
 
@@ -532,14 +544,14 @@ CMD_OVERRIDE_FUNC(repeatprot_override) {
 		(privmsg && !muhcfg.trigPrivmsg) ||
 		(ctcp && !muhcfg.trigCTCP) ||
 		(invite && !muhcfg.trigInvite)) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+		CallCommandOverrideCompatU06020000();
 		return;
 	}
 
 	// Allow messages TO self and U-Lines ;3
 	acptr = find_user(parv[1], NULL); // Attempt to find message target
 	if(!acptr || acptr == client || IsULine(acptr)) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+		CallCommandOverrideCompatU06020000();
 		return;
 	}
 
@@ -611,7 +623,7 @@ CMD_OVERRIDE_FUNC(repeatprot_override) {
 		dropMessage(client, (ctcp ? "CTCP" : cmd), plaintext); // R E K T
 		return;
 	}
-	CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+	CallCommandOverrideCompatU06020000();
 }
 
 void repeatprot_free(ModData *md) {

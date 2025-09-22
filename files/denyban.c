@@ -38,6 +38,12 @@ module {
 		} \
 	} while(0)
 
+#if UNREAL_VERSION >= 0x06020000
+	#define CallCommandOverrideCompatU06020000(_parc, _parv) (CallCommandOverride(ovr, clictx, client, recv_mtags, _parc, _parv))
+#else
+	#define CallCommandOverrideCompatU06020000(_parc, _parv) (CallCommandOverride(ovr, client, recv_mtags, _parc, _parv))
+#endif
+
 // Big hecks go here
 typedef struct t_denyBan denyBan;
 struct t_denyBan {
@@ -65,7 +71,7 @@ char *denyReason = NULL; // What message to display
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/denyban", // Module name
-	"2.1.4", // Version
+	"2.1.5", // Version
 	"Deny specific ban masks network-wide", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -330,7 +336,7 @@ int denyban_rehash(void) {
 
 // Hecks
 CMD_OVERRIDE_FUNC(denyban_modeoverride) {
-	// Gets args: CommandOverride *ovr, Client *client, MessageTag *recv_mtags, int parc, char *parv[]
+	// Gets args: CommandOverride *ovr, ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	Channel *channel; // Channel pointer
 	int fc, mc, cc; // Flag count, mask count and char count respectively
 	int i, j; // Just s0em iterators fam
@@ -351,13 +357,13 @@ CMD_OVERRIDE_FUNC(denyban_modeoverride) {
 
 	// May not be anything to do =]
 	if(parc < 3 || (!IsULine(client) && (!MyUser(client) || (IsOper(client) && allowOpers)))) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+		CallCommandOverrideCompatU06020000(parc, parv); // Run original function yo
 		return;
 	}
 
 	// Need to be at least hops or higher on a channel for this to kicc in obv (or U-Line, to prevent bypassing this module with '/cs mode')
 	if(!(channel = find_channel(parv[1])) || (!IsULine(client) && !check_channel_access(client, channel, "hoaq"))) {
-		CallCommandOverride(ovr, client, recv_mtags, parc, parv);
+		CallCommandOverrideCompatU06020000(parc, parv);
 		return;
 	}
 
@@ -401,11 +407,11 @@ CMD_OVERRIDE_FUNC(denyban_modeoverride) {
 					break;
 
 				// Turn "+b *" into "+b *!*@*" so we can easily check bel0w =]
-			#if (UNREAL_VERSION_MAJOR < 1 || (UNREAL_VERSION_MAJOR == 1 && UNREAL_VERSION_MINOR < 8))
-				mask = clean_ban_mask(parv[j], MODE_ADD, client, 0);
-			#else
-				mask = clean_ban_mask(parv[j], MODE_ADD, EXBTYPE_BAN, client, channel, 0);
-			#endif
+				#if UNREAL_VERSION <= 0x06010700
+					mask = clean_ban_mask(parv[j], MODE_ADD, client, 0);
+				#else
+					mask = clean_ban_mask(parv[j], MODE_ADD, EXBTYPE_BAN, client, channel, 0);
+				#endif
 
 				if(!mask)
 					break;
@@ -520,5 +526,5 @@ CMD_OVERRIDE_FUNC(denyban_modeoverride) {
 		newparv[newparc] = NULL;
 	else
 		newparv[MAXPARA] = NULL;
-	CallCommandOverride(ovr, client, recv_mtags, newparc, newparv);
+	CallCommandOverrideCompatU06020000(newparc, newparv);
 }

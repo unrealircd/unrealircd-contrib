@@ -36,7 +36,12 @@ struct t_nopmchan {
 int nopmchannel_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int nopmchannel_configposttest(int *errs); // You may not need this
 int nopmchannel_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
-int nopmchannel_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype);
+
+#if UNREAL_VERSION >= 0x06020000
+	int nopmchannel_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
+#else
+	int nopmchannel_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype);
+#endif
 
 // Muh globals
 int noPMCount = 0;
@@ -45,7 +50,7 @@ noPMChan *noPMList = NULL;
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/nopmchannel", // Module name
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Prevents users sharing a channel from privately messaging each other", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -211,7 +216,12 @@ int nopmchannel_configrun(ConfigFile *cf, ConfigEntry *ce, int type) {
 }
 
 // Actual hewk function m8
-int nopmchannel_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype) {
+#if UNREAL_VERSION >= 0x06020000
+	int nopmchannel_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
+#else
+	int nopmchannel_hook_cansend_user(Client *client, Client *to, const char **text, const char **errmsg, SendType sendtype)
+#endif
+{
 	Channel *channel;
 	Membership *lp;
 	static char errbuf[256];

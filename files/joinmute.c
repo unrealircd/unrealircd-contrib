@@ -63,9 +63,14 @@ const char *modeJ_conv_param(const char *param, Client *client, Channel *channel
 const char *modeJ_get_param(void *lst);
 void *modeJ_dup_struct(void *src);
 int modeJ_sjoin_check(Channel *channel, void *ourx, void *theirx);
-int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype);
 
-#if (UNREAL_VERSION_MAJOR < 1)
+#if UNREAL_VERSION >= 0x06020000
+	int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
+#else
+	int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype);
+#endif
+
+#if UNREAL_VERSION < 0x06010000
 	void modeJ_free_param(void *lst);
 #else
 	int modeJ_free_param(void *lst, int soft);
@@ -76,7 +81,7 @@ Cmode_t extcmode_joinmute = 0L; // To store the bit flag latur
 
 ModuleHeader MOD_HEADER = {
 	"third/joinmute",
-	"2.2.1", // Version
+	"2.2.2", // Version
 	"Adds +J chmode: Mute newly joined people for +J X seconds",
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -181,7 +186,7 @@ const char *modeJ_conv_param(const char *param, Client *client, Channel *channel
 	return retbuf;
 }
 
-#if (UNREAL_VERSION_MAJOR < 1)
+#if UNREAL_VERSION < 0x06010000
 	void modeJ_free_param(void *lst)
 #else
 	int modeJ_free_param(void *lst, int soft)
@@ -189,9 +194,10 @@ const char *modeJ_conv_param(const char *param, Client *client, Channel *channel
 {
 	JoinMute *n = (JoinMute *)lst;
 	safe_free(n);
-#if (UNREAL_VERSION_MAJOR >= 1)
-	return 0;
-#endif
+
+	#if UNREAL_VERSION >= 0x06010000
+		return 0;
+	#endif
 }
 
 void *modeJ_dup_struct(void *src) {
@@ -277,7 +283,12 @@ UsersM *FindUserInMemory(Client *client, Channel *channel) {
 	return NULL;
 }
 
-int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype) {
+#if UNREAL_VERSION >= 0x06020000
+	int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
+#else
+	int joinmute_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype)
+#endif
+{
 	if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
 		return HOOK_CONTINUE;
 	if(!text || !*text)

@@ -79,7 +79,7 @@ static char *rtklhelp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/rtkl", // Module name
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Allows privileged opers to remove remote servers' local K/Z-Lines", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -119,7 +119,7 @@ static void dumpit(Client *client, char **p) {
 }
 
 CMD_FUNC(cmd_rkline) {
-	// Gets args: Client *client, MessageTag *recv_mtags, int parc, char *parv[]
+	// Gets args: ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	rtkl_main(client, parc, parv, MSG_RKLINE, "server-ban:kline:remove");
 }
 
@@ -210,7 +210,7 @@ int hook_tkl_main(Client *client, TKL *tkl, char flag) {
 
 	// Only respond to non-local clients and _local_ K/Z-Lines ;];]
 	tkltype = tkl_typetochar(tkl->type);
-	strncpy(setby, tkl->set_by, sizeof(setby));
+	strlcpy(setby, tkl->set_by, sizeof(setby));
 	nick = strtok(setby, "!");
 	if(!nick || !(setter = find_user(nick, NULL)) || MyUser(setter) || !strchr("kz", tkltype))
 		return HOOK_CONTINUE; // kbye

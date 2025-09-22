@@ -33,9 +33,14 @@ module {
 
 // Quality fowod declarations
 int auditorium_chmode_isok(Client *client, Channel *channel, char mode, const char *para, int checkt, int what);
-int auditorium_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype);
 
-#if (UNREAL_VERSION_MAJOR < 1 || (UNREAL_VERSION_MAJOR == 1 && UNREAL_VERSION_MINOR == 0))
+#if UNREAL_VERSION >= 0x06020000
+	int auditorium_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
+#else
+	int auditorium_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype);
+#endif
+
+#if UNREAL_VERSION <= 0x06010000
 	int auditorium_hook_visibleinchan(Client *target, Channel *channel);
 #else
 	int auditorium_hook_visibleinchan(Client *target, Channel *channel, Member *client_member);
@@ -50,7 +55,7 @@ Cmode_t extcmode_auditorium = 0L; // Store bitwise value latur
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/auditorium", // Module name
-	"2.1.1", // Version
+	"2.1.2", // Version
 	"Channel mode +u to show channel events/messages to/from people with +o/+a/+q only", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -116,7 +121,7 @@ int auditorium_chmode_isok(Client *client, Channel *channel, char mode, const ch
 	return EX_ALLOW; // Fallthrough, like when someone attempts +u 10 it'll simply do +u
 }
 
-#if (UNREAL_VERSION_MAJOR < 1 || (UNREAL_VERSION_MAJOR == 1 && UNREAL_VERSION_MINOR == 0))
+#if UNREAL_VERSION <= 0x06010000
 	int auditorium_hook_visibleinchan(Client *target, Channel *channel)
 #else
 	int auditorium_hook_visibleinchan(Client *target, Channel *channel, Member *client_member)
@@ -127,7 +132,12 @@ int auditorium_chmode_isok(Client *client, Channel *channel, char mode, const ch
 	return HOOK_CONTINUE;
 }
 
-int auditorium_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype) {
+#if UNREAL_VERSION >= 0x06020000
+	int auditorium_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
+#else
+	int auditorium_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype)
+#endif
+{
 	// Let's not act on TAGMSG for the time being :>
 	if(sendtype != SEND_TYPE_PRIVMSG && sendtype != SEND_TYPE_NOTICE)
 		return HOOK_CONTINUE;

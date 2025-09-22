@@ -41,6 +41,12 @@ struct _cmdovr {
 		} \
 	} while(0)
 
+#if UNREAL_VERSION >= 0x06020000
+	#define CallCommandOverrideCompatU06020000() (CallCommandOverride(ovr, clictx, client, recv_mtags, parc, parv))
+#else
+	#define CallCommandOverrideCompatU06020000() (CallCommandOverride(ovr, client, recv_mtags, parc, parv))
+#endif
+
 CMD_OVERRIDE_FUNC(commandsno_override_cmd);
 int commandsno_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs);
 int commandsno_configrun(ConfigFile *cf, ConfigEntry *ce, int type);
@@ -53,7 +59,7 @@ char *cmdlist;
 
 ModuleHeader MOD_HEADER = {
 	"third/commandsno",
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Lets IRC operators see command usages",
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -166,5 +172,5 @@ CMD_OVERRIDE_FUNC(commandsno_override_cmd) {
 		);
 	}
 
-	CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+	CallCommandOverrideCompatU06020000(); // Run original function yo
 }

@@ -79,7 +79,7 @@ static char *clearListhelp[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/clearlist",
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Adds CLEARLIST command to clear out banlists in bulk",
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -114,7 +114,7 @@ static void dumpit(Client *client, char **p) {
 }
 
 CMD_FUNC(clearlist) {
-	// Gets args: Client *client, MessageTag *recv_mtags, int parc, char *parv[]
+	// Gets args: ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	Ban *muhList, *ban, *bnext; // Pointer to em banlist, also pointers to ban entries
 	listType *ltype; // Pointer to our listType struct
 	char flag; // Store current flag/type for dat dere iteration fam

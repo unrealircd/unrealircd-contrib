@@ -112,7 +112,7 @@ static char *modmanager_irc_help[] = {
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/modmanager_irc", // Module name
-	"1.1.0", // Version
+	"1.1.1", // Version
 	"Control Unreal's module manager through IRC", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -301,18 +301,7 @@ void free_child(ChildInfo *child) {
 }
 
 CMD_FUNC(modmanager_irc) {
-	/* Gets args: Client *client, MessageTag *recv_mtags, int parc, char *parv[]
-	**
-	** client: Pointer to user executing command
-	** recv_mtags: Received/incoming message tags (IRCv3 stuff)
-	** parc: Amount of arguments (also includes the command in the count)
-	** parv: Contains the actual args, first one starts at parv[1]
-	**
-	** So "MODMGR test" would result in parc = 2 and parv[1] = "test"
-	** Also, parv[0] seems to always be NULL, so better not rely on it fam
-	**
-	** This function returns void, so simply return to stop processing
-	*/
+	// Gets args: ClientContext *clictx, Client *client, MessageTag *recv_mtags, int parc, const char *parv[]
 	Client *srv; // Pointer to server we need to forward to
 	const char *target; // Local/global/server name
 	const char *cmd; // Install/uninstall/upgrade

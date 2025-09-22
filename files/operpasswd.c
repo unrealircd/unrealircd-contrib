@@ -39,6 +39,12 @@ struct _fcount {
 		} \
 	} while(0)
 
+#if UNREAL_VERSION >= 0x06020000
+	#define CallCommandOverrideCompatU06020000() (CallCommandOverride(ovr, clictx, client, recv_mtags, parc, parv))
+#else
+	#define CallCommandOverrideCompatU06020000() (CallCommandOverride(ovr, client, recv_mtags, parc, parv))
+#endif
+
 static void InitConf(void);
 static void FreeConf(void);
 
@@ -62,7 +68,7 @@ struct {
 
 ModuleHeader MOD_HEADER = {
 	"third/operpasswd",
-	"2.1.0", // Version
+	"2.1.1", // Version
 	"Kill users with too many failed OPER attempts",
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -230,7 +236,7 @@ int operpasswd_hook_quit(Client *client, MessageTag *recv_mtags, const char *com
 CMD_OVERRIDE_FUNC(operpasswd_ovr_oper) {
 	FCount *f;
 
-	CallCommandOverride(ovr, client, recv_mtags, parc, parv); // Run original function yo
+	CallCommandOverrideCompatU06020000(); // Run original function yo
 
 	/* No need to check if '!MyConnect(client)'. */
 	if(!IsUser(client) || IsOper(client) || SVSNOOP || parc < 3)
