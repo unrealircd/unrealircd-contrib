@@ -8,6 +8,7 @@ module "third/metadata-db"
 	troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/metadata-db.c";
 	sha256sum "7592b32013c1e2236ffbc1f14dbe9bfa68e777da884b6c44815e8aacde685c08";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -30,6 +31,7 @@ module "third/uline_nickhost"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/uline_nickhost.c";
 	sha256sum "f8ab402737926f4ae9a6abe3d7ed73d3eda474009c29dd1c99466309bb79b113";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -49,6 +51,7 @@ module "third/hidebans"
 	troubleshooting "Contact syzop@unrealircd.org if this module fails to compile";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/hidebans.c";
 	sha256sum "3437f04199b5b1e535734932e282ec08ad667df21351b6aa10a061fb6a6a5403";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -68,6 +71,7 @@ module "third/google-recaptcha"
 	troubleshooting "In case of problems, check the documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/google-recaptcha.c";
 	sha256sum "21aa2ba3da7436fbe1038da0b53ba7aeb872b7a39b8b89905942933e17e9282d";
+	last-updated "2024-10-16T07:40:02.000Z";
 	min-unrealircd-version "6.1.8";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -88,6 +92,7 @@ module "third/qline"
 	troubleshooting "I go by Hex on the UnrealIRCd network, and can also be emailed at me@hexick.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/qline.c";
 	sha256sum "c612e9d85596b0563270af3db065b987c0afc4a6b0ae7e6e93cff507ae80c9c3";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -107,6 +112,7 @@ module "third/channel-rename"
 	troubleshooting "In case of problems, check the documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/channel-rename.c";
 	sha256sum "7948b7f8494e18a862c8ddb92a1deadd79f48ea47ed7a88dfd2e675ab2d515f1";
+	last-updated "2025-05-09T06:46:03.000Z";
 	min-unrealircd-version "6.1.0";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -127,6 +133,7 @@ module "third/joinmute"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/joinmute.c";
 	sha256sum "d702c4c78546996e17e24c6d4d470a08a48291f389bb166d4f5e6b2409eff342";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -146,6 +153,7 @@ module "third/block_notlsident"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/block_notlsident.c";
 	sha256sum "bac067c37dfd54438fce1bffed9fcffd5092670d3df8c7c8c2becbc9d804f2ec";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -165,6 +173,7 @@ module "third/queue"
 	troubleshooting "In case of problems, check the documentation or find me on IRC";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/queue.c";
 	sha256sum "25bfa1d64ce66f3759c5c804803e3af99d759535f41fc9f572d0436e2b7ed08f";
+	last-updated "2024-06-22T12:28:02.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -185,6 +194,7 @@ module "third/topicgreeting"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/topicgreeting.c";
 	sha256sum "14328151df4ec8f9762080f81768a0b34c74f1b25eee2c94ad6498af52cf3c22";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -204,6 +214,7 @@ module "third/unauthban"
 	troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/unauthban.c";
 	sha256sum "02f8807654ae90e11dda8dab7112dd26f0a2ddf6a3e6728bd60fae20f26b0310";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -224,6 +235,7 @@ module "third/mtag-extban"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/mtag-extban.c";
 	sha256sum "11201e0cc7980ab358a23060bab44c83eabd7eb1322cb955329c7384e991f12f";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.1.2";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -243,6 +255,7 @@ module "third/redact"
 	troubleshooting "In case of problems, contact val on irc.unrealircd.org.";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/redact.c";
 	sha256sum "58ff6ccbd5de73aba40e6784a905ebc0e97c0da8c7c4142784b3b78f56d2fff9";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.1.2";
 	post-install-text
 	{
@@ -264,6 +277,7 @@ module "third/relaymsg"
 	troubleshooting "In case of problems, check the documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/relaymsg.c";
 	sha256sum "72a052b60866cab7f41e88b3003a1f2092dc420278077ef7c436dbb221beb2f8";
+	last-updated "2025-06-16T15:10:02.000Z";
 	min-unrealircd-version "6.1.0";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -284,6 +298,7 @@ module "third/restrict-chans"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/restrict-chans.c";
 	sha256sum "fa1d882a92d430e1c19e1c9378d199b391a10ab71ce1796303bebc01affd4f06";
+	last-updated "2025-01-03T14:58:03.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.1.6";
 	post-install-text
@@ -304,6 +319,7 @@ module "third/rtkl"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/rtkl.c";
 	sha256sum "c35b3bcd69c6c1943a8f7080de1919edb2a6f2ff4bc59f4cb69adfce16df9211";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -323,6 +339,7 @@ module "third/clearlist"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/clearlist.c";
 	sha256sum "5ab246f38ddb0df9af56783c6f8e24c63de624695311c10e821c7920e278d7df";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -342,6 +359,7 @@ module "third/fantasy"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/fantasy.c";
 	sha256sum "77633c0c93dc5c953ba70f743c037f93412fbfe8edce766fbc81e33fbdf65706";
+	last-updated "2024-05-16T17:34:03.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -361,6 +379,7 @@ module "third/recover"
 	troubleshooting "In case of problems, check the documentation or e-mail me at valerie@valware.co.uk";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/recover.c";
 	sha256sum "ad46ab89fdb0bf088b63634d569b4d1c09357b9450df63e16254363a548d58df";
+	last-updated "2024-07-18T16:36:02.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -381,6 +400,7 @@ module "third/mute"
 	troubleshooting "In case of problems, please check the README or email me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/mute.c";
 	sha256sum "be88cd33f10d0cb50021b0c231907a9bb07af7757866f26b0fbb4e9dfd0c14ff";
+	last-updated "2025-09-10T13:22:03.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -400,6 +420,7 @@ module "third/webirconly"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/webirconly.c";
 	sha256sum "c1faf69caeb83827ffd32555fdab4c8354ef56f1094f0b328da791a82065b5e6";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -420,6 +441,7 @@ module "third/operpasswd"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/operpasswd.c";
 	sha256sum "bdb5e87fe42e631a516d12dea681f8b27b853d725528481074bf2fca59f81025";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -439,6 +461,7 @@ module "third/message_commonchans"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/message_commonchans.c";
 	sha256sum "c7768d90501dca182635e7893727f1351a7b6a8cacdea76ec40c28596e8168c4";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -458,6 +481,7 @@ module "third/banfix_voice"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/banfix_voice.c";
 	sha256sum "4c7229517db8e31a8e7cf77780f65183d701c3f5cc7f5d6996555adf712fde20";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -477,6 +501,7 @@ module "third/dumpcmds"
 	troubleshooting "Contact syzop@unrealircd.org if this module fails to compile";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/dumpcmds.c";
 	sha256sum "83ce70ce4d2ad7e02d12d92ac05186991149a27b1d1ed06460645ccd0b21a40b";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -497,6 +522,7 @@ module "third/react"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/react.c";
 	sha256sum "4e4ebea305e55520822815ea4618b8ce683db9fee5d4af911ea626c19c3bc268";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -517,6 +543,7 @@ module "third/autojoin_byport"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/autojoin_byport.c";
 	sha256sum "8cba5f15ac67de9877b02695fa9beb83b5e272cb347df520a107843eb36d8583";
+	last-updated "2024-05-16T17:34:03.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -536,6 +563,7 @@ module "third/block_masshighlight"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/block_masshighlight.c";
 	sha256sum "787b9c276de765c7f22902abb4a8a810cba12632a936399d8c9e91dda2337690";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -555,6 +583,7 @@ module "third/websocket_restrict"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/websocket_restrict.c";
 	sha256sum "97aba2afc9aa4380c0dad762c16be2245e6d75916ddc229f80a9cb0ba7f7a39c";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -574,6 +603,7 @@ module "third/autovhost"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/autovhost.c";
 	sha256sum "6342ad461999c3ed5078f0c897904b637da727802052656f6d679b509283c169";
+	last-updated "2025-05-08T16:58:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -593,6 +623,7 @@ module "third/anti_amsg"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/anti_amsg.c";
 	sha256sum "d4a6aaff56438ce1b4b70bc5aaacc2e5c5df80ec2296ec6f88d255519c7adccf";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -612,6 +643,7 @@ module "third/helpop"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/helpop.c";
 	sha256sum "5e1d216ad530771acf1c7dde81f3c0e9a121ff167344447372ff53697accb929";
+	last-updated "2025-03-01T16:38:02.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -632,6 +664,7 @@ module "third/findchmodes"
 	troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/findchmodes.c";
 	sha256sum "d9c0a8d0474abf822efa836f7aabf8def2564b59a6294c6055219eb9e9a5a122";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -651,6 +684,7 @@ module "third/metadata"
 	troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/metadata.c";
 	sha256sum "50c3d4f6da4417305ad61aa332ddd318c68377a3e4def80878d274d7c3017d48";
+	last-updated "2025-09-11T15:50:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -672,6 +706,7 @@ module "third/kickjoindelay"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/kickjoindelay.c";
 	sha256sum "718a72d8c31f405deb747100eddbcb50c8574d9d3015ca4347a6d1e222640b90";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -691,6 +726,7 @@ module "third/anticaps"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/anticaps.c";
 	sha256sum "1d0aac986514dfe53e034e8e76881a042675a810599fdd0c5aef1b32d714f63d";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -710,6 +746,7 @@ module "third/filehost"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/filehost.c";
 	sha256sum "833c84666cba99242a3bf27fd10685430d1bb3ad3c7203d1dc31f8760b975706";
+	last-updated "2025-01-03T15:02:02.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -730,6 +767,7 @@ module "third/denyban"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/denyban.c";
 	sha256sum "c136346eddf8d06f30aaa6360fe5b15af60870d6412cb50bf19734284c371118";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -749,6 +787,7 @@ module "third/portsifresi"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/portsifresi.c";
 	sha256sum "40ca2e6886b739bc1fd83cfa546ff779296f7a11315a67bc3339fdd9c99a55d6";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -768,6 +807,7 @@ module "third/wwwstats"
 	troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/wwwstats.c";
 	sha256sum "b557222a7037f48185af488aca19ea9e6f833749878a0d921f960de6ff071140";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -795,6 +835,7 @@ module "third/listrestrict"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/listrestrict.c";
 	sha256sum "1e38463f44ca93d0a0ad9215c92941d8d6ecf96eedf828139d798d9e1f9a52e1";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -814,6 +855,7 @@ module "third/irccloud-tags"
 	troubleshooting "In case of problems, documentation or e-mail us at team@irccloud.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/irccloud-tags.c";
 	sha256sum "2d02a93fa6c836bf9b972027be0295f7f064af7fe6a31f879893816be7aeec5c";
+	last-updated "2025-01-03T15:26:02.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -834,6 +876,7 @@ module "third/bancheck_access"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/bancheck_access.c";
 	sha256sum "96aa69ac9d432380d3139ab3e44652d5a42b09a3075c0ce9218602ffc4eb04af";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -853,6 +896,7 @@ module "third/nicklock"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/nicklock.c";
 	sha256sum "0baec74bd3506efb33a96bc3dccf85572dfa9769a2eb36c4bf01033d591ad312";
+	last-updated "2025-09-10T13:22:03.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -873,6 +917,7 @@ module "third/noghosts"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/noghosts.c";
 	sha256sum "9bddd5cf264b87d372a75d9b96ccc26e17997286d540799513a2a2acbfe51c22";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -892,6 +937,7 @@ module "third/smtp-email"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/smtp-email.c";
 	sha256sum "b9d45d7a0690d608cabfb29221fc282cdd7e1099a7c5a66745f944d9016526af";
+	last-updated "2025-01-03T15:06:03.000Z";
 	min-unrealircd-version "6.1.8.1";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -913,6 +959,7 @@ module "third/textshun"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/textshun.c";
 	sha256sum "092b23f1d222c38031b44a03283e0c0612d318f024193ea1d5f4ad240f323481";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -932,6 +979,7 @@ module "third/reduced-moderation"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/reduced-moderation.c";
 	sha256sum "942b1bbf2955c38244dc01cd068f6279d252abf2f70988c491b5d55cfa2804bb";
+	last-updated "2025-09-10T13:22:03.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -952,6 +1000,7 @@ module "third/chgswhois"
 	troubleshooting "In case of problems, check the README or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/chgswhois.c";
 	sha256sum "acfe50b532146b4952be8d2e67b9eeca3c68b809851a0aca6897b9699bf79d7d";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -971,6 +1020,7 @@ module "third/showwebirc"
 	troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/showwebirc.c";
 	sha256sum "997e12a3015fcdd0f72f224417c9f161e1848bb59439224afc9c4a0371be71e8";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -993,6 +1043,7 @@ module "third/debug"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/debug.c";
 	sha256sum "406b372b842202137cf4a909b8c38ee25056f5e0996112c9ba9698da0df3065f";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1012,6 +1063,7 @@ module "third/pubnetinfo"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/pubnetinfo.c";
 	sha256sum "5e46e98429fa09cac22ab7d76a58c20be1c1021bcf5210712c1cee2f3bd25a89";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1031,6 +1083,7 @@ module "third/kiwiirc-tags"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/kiwiirc-tags.c";
 	sha256sum "28bb69cbc9157b05863d63224386f2c2e49b66fe44585c6278aaffef4d980be5";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.0.7";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -1050,6 +1103,7 @@ module "third/incredibly-lazy-ops"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/incredibly-lazy-ops.c";
 	sha256sum "00108385f13581f92334d0d3b12566674e7a792de13805f6061603956501470d";
+	last-updated "2024-01-23T15:50:02.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -1070,6 +1124,7 @@ module "third/modmanager_irc"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/modmanager_irc.c";
 	sha256sum "6fedb20bcac488a7b376f0e8468cc5b052e0602a155f1cd6c61fcc23b6329f46";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1089,6 +1144,7 @@ module "third/sacmds"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/sacmds.c";
 	sha256sum "b8493c633701faf841aefd04a12289ba25834984b14f4439a5645bf04b9ce090";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1108,6 +1164,7 @@ module "third/block_no_tls"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/block_no_tls.c";
 	sha256sum "53b870571967487c19027d4f3279e93b87a5e68c99fcc9993b402611fd81486f";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1127,6 +1184,7 @@ module "third/dictionary"
 	troubleshooting "In case of problems, check the documentation or e-mail me at valerie@valware.co.uk";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/dictionary.c";
 	sha256sum "93541a2d7311e5fa7bcaccd1663daea4c3a93cd3d77f086508d0183702441c6a";
+	last-updated "2024-10-16T07:04:02.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -1147,6 +1205,7 @@ module "third/inchannelban-enforce"
 	troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/inchannelban-enforce.c";
 	sha256sum "763b7404077b9a215f145ba8a87b658085b28c8609bc8877ddcca9a10b7e128a";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1166,6 +1225,7 @@ module "third/cmdslist"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/cmdslist.c";
 	sha256sum "7a198482056be217ec73662b9947a240ffd37677c990f8f2110392a520c10550";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -1186,6 +1246,7 @@ module "third/logged-in-from"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/logged-in-from.c";
 	sha256sum "f76b1cec14d368cd7bc297d711a3a21200d1188d2d26b6c043d0d7451e36473d";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -1206,6 +1267,7 @@ module "third/plainusers"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/plainusers.c";
 	sha256sum "849f002d5d6c4c4025190cc9309cb98833b3c512b1e60d0db3ab67bd35b355a2";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1225,6 +1287,7 @@ module "third/polite-tag"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/polite-tag.c";
 	sha256sum "9cd8fddcf25b71b55c23c1292a068522ffb46a3a625f6c41cbf9b73a858c4822";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -1244,6 +1307,7 @@ module "third/rehashgem"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/rehashgem.c";
 	sha256sum "05acecc87bbabb08bcd3bfb0d3ee1203ed788b53a68d7c4c284f4957157e99c5";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1263,6 +1327,7 @@ module "third/operoverride_ext"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/operoverride_ext.c";
 	sha256sum "6983c0eec486713ec6603516e531d06416afb946d41e8d1f655826855d36fb58";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1282,6 +1347,7 @@ module "third/gecos_replace"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/gecos_replace.c";
 	sha256sum "02b7b0760cdc319bae01ab36868bdbfaa78d5666505fbdefe38776e4f0f28298";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1301,6 +1367,7 @@ module "third/noinvite"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/noinvite.c";
 	sha256sum "54ae593c09e5895d7b6d09b73a6e443e6dfd485cd937e5fda1f8194ee76e0e92";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1320,6 +1387,7 @@ module "third/elmer"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/elmer.c";
 	sha256sum "87fa4a15446f2b5b939f9fd98fa04254775832d0fdaac40cc801e34b5f27c7cd";
+	last-updated "2025-09-10T13:22:03.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -1340,6 +1408,7 @@ module "third/allsend"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/allsend.c";
 	sha256sum "78642407c84f63e7b4b9d10febef775686edd0de391794c35adf5e83911a8c7d";
+	last-updated "2024-05-11T14:36:02.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -1360,6 +1429,7 @@ module "third/sacycle"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/sacycle.c";
 	sha256sum "d07f28586855f8b2fb4c337fea1cc4761047648371f5ff7bb1032a2f7adfe68c";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -1380,6 +1450,7 @@ module "third/getlegitusers"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/getlegitusers.c";
 	sha256sum "1e3067ce53490012d693f300344284f119865cc5da01f8e3e1f155a8199bdfb2";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1399,6 +1470,7 @@ module "third/lockserv"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/lockserv.c";
 	sha256sum "948d4bcb2e46772c44341b7d47ceac7339c32c57f145024fdff781b404c5fbb8";
+	last-updated "2025-09-10T13:22:03.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -1419,6 +1491,7 @@ module "third/nopmchannel"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/nopmchannel.c";
 	sha256sum "e284fd792e72e74a6b9572eebd11406fdddc9568eedee072ad2cee4c302fe58d";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1438,6 +1511,7 @@ module "third/report"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/report.c";
 	sha256sum "ec336eb25bf5c6bb27e5ecef93776535bca28016af4ce2f3a843947e5aaf1fe1";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1457,6 +1531,7 @@ module "third/pmlist"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/pmlist.c";
 	sha256sum "c4cb9f6ee24f0c73f22789fa13d2ec6824421e7f69281a637a2377e4b143aed3";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1476,6 +1551,7 @@ module "third/auditorium"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/auditorium.c";
 	sha256sum "535e1d34a4af8306f666f8e9889397f7e8901b6b3351376b9c5619bc81045c45";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1495,6 +1571,7 @@ module "third/nicksuffix"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/nicksuffix.c";
 	sha256sum "2bac1b58142f3c5a40b8f4fb14eb4bf5d5e25877f7c05c54be41c71c13707b7e";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1514,6 +1591,7 @@ module "third/extwarn"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/extwarn.c";
 	sha256sum "0aac8de046d0fba7dc8e6d3a902d26320df6e6fd5759593316a2ed0019d60dc0";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1533,6 +1611,7 @@ module "third/welcomemessages"
 	troubleshooting "In case of problems, documentation or e-mail me at mike.chevronnet@gmail.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/welcomemessages.c";
 	sha256sum "b406031187c2e6fa4c674570331b16991826a1de6fc3a3d52507d38098a79f8c";
+	last-updated "2024-06-26T15:22:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1553,6 +1632,7 @@ module "third/upgrade-notify"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/upgrade-notify.c";
 	sha256sum "336bfe1a96425a79916bfb1eb3bafaee0190306fe142cd2900d03afc2c624699";
+	last-updated "2024-05-11T14:34:02.000Z";
 	min-unrealircd-version "6.1.3";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -1573,6 +1653,7 @@ module "third/fixhop"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/fixhop.c";
 	sha256sum "542f3d1dc8e65ec7f4393ae912d72d8e57e9d2eb3051028d0e79f7642683ba47";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1592,6 +1673,7 @@ module "third/account-registration"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/account-registration.c";
 	sha256sum "f85acf44b72be94d04a3e9521f9b612432d28f3345b9fc56e8f2e605c1099204";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -1612,6 +1694,7 @@ module "third/ojoin"
 	troubleshooting "In case of problems, email me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/ojoin.c";
 	sha256sum "b97cf1b8784a0ec8347c51fd966f209537d609e1dac2a4f36afac332cbb017b5";
+	last-updated "2025-09-12T10:08:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1632,6 +1715,7 @@ module "third/repeatprot"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/repeatprot.c";
 	sha256sum "0d4b51f4325588e1183baeb510b0b19f54238ba26077ccba5c462144deac08f0";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1651,6 +1735,7 @@ module "third/listsg"
 	troubleshooting "In case of problems, documentation or e-mail me at mike.chevronnet@gmail.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/listsg.c";
 	sha256sum "16697a331d8f66baa8a9225a6a7896f81ce1b17b533ff9ee375acd4601acce4a";
+	last-updated "2024-06-26T15:22:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1670,6 +1755,7 @@ module "third/display-name"
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/display-name.c";
 	sha256sum "e6ecc1dddbe699861f5ad048ed87ef96dd60114ecb7176e1552d66dbca1a1302";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
@@ -1690,6 +1776,7 @@ module "third/clones"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/clones.c";
 	sha256sum "dec7add503f12b8c6bd430c3504e336e843879f001ee4da05250a46d288b6034";
+	last-updated "2023-11-25T16:56:24.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1709,6 +1796,7 @@ module "third/signore"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/signore.c";
 	sha256sum "87fbab0ee0df00f927d63812bdaea0958f1e4263e5ec7161add0044cbc7a8f99";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
@@ -1728,6 +1816,7 @@ module "third/commandsno"
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/commandsno.c";
 	sha256sum "391e2c91c13a01d6e470a3baf0868a1fc59210fc0701f6b466282b604865c0d8";
+	last-updated "2025-09-22T21:12:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
