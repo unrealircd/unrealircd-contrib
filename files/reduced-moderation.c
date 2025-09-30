@@ -82,9 +82,9 @@ MOD_UNLOAD()
 
 /* Overrides for +m also will override +x */
 #if UNREAL_VERSION >= 0x06020000
-int redmod_can_send_to_channel(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
+int redmod_can_send_to_channel(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
 #else
-int redmod_can_send_to_channel(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype);
+int redmod_can_send_to_channel(Client *client, Channel *channel, Membership *member, const char **text, const char **errmsg, SendType sendtype)
 #endif
 {
 	MessageTag *mtags = NULL;
