@@ -978,8 +978,8 @@ module "third/reduced-moderation"
 	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/reduced-moderation/README.md";
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/reduced-moderation.c";
-	sha256sum "942b1bbf2955c38244dc01cd068f6279d252abf2f70988c491b5d55cfa2804bb";
-	last-updated "2025-09-10T13:22:03.000Z";
+	sha256sum "b34e30c0260b84f95cbe36c3a5d3f914dd81921433c5643d68220893f166a0d7";
+	last-updated "2025-09-30T04:46:03.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
