@@ -52,14 +52,14 @@ ModuleHeader MOD_HEADER
 
 MOD_TEST()
 {
-	setconf();
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGTEST, 0, filehost_configtest);
 	return MOD_SUCCESS;
 }
 
 MOD_INIT()
 {
-	setconf()
+	
+	setconf();
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGRUN, 0, filehost_configrun);
 	return MOD_SUCCESS;
 }
