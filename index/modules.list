@@ -740,13 +740,13 @@ module "third/anticaps"
 module "third/filehost"
 {
 	description "IRCv3 draft/FILEHOST - Provides users with an ISUPPORT token with a URL to your file upload service";
-	version "1.0";
+	version "1.1";
 	author "Valware";
 	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/filehost/README.md";
 	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/filehost.c";
-	sha256sum "833c84666cba99242a3bf27fd10685430d1bb3ad3c7203d1dc31f8760b975706";
-	last-updated "2025-01-03T15:02:02.000Z";
+	sha256sum "a4d1bdd3410d6498e85a71a438d4a70154ecb64cee5fe17c0fc822e36acff25b";
+	last-updated "2025-10-22T13:38:02.000Z";
 	min-unrealircd-version "6.*";
 	max-unrealircd-version "6.*";
 	post-install-text
