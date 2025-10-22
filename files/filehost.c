@@ -44,7 +44,7 @@ void freeconf(void);
 ModuleHeader MOD_HEADER
   = {
 	"third/filehost",
-	"1.0",
+	"1.1",
 	"IRCv3 draft/FILEHOST - Provides users with an ISUPPORT token with a URL to your file upload service",
 	"Valware",
 	"unrealircd-6",
@@ -52,14 +52,14 @@ ModuleHeader MOD_HEADER
 
 MOD_TEST()
 {
-	setconf();
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGTEST, 0, filehost_configtest);
 	return MOD_SUCCESS;
 }
 
 MOD_INIT()
 {
-	setconf()
+	
+	setconf();
 	HookAdd(modinfo->handle, HOOKTYPE_CONFIGRUN, 0, filehost_configrun);
 	return MOD_SUCCESS;
 }
