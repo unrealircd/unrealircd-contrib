@@ -83,26 +83,6 @@ module "third/google-recaptcha"
 	}
 }
 
-module "third/qline"
-{
-	description "/QLINE and /UNQLINE commands to allow opers to manually add Q-lines (global nick bans).";
-	version "1.0.0";
-	author "Hexick";
-	documentation "https://github.com/Hexsl/hex-unrealircd-modules/blob/main/modules/qline/README.md";
-	troubleshooting "I go by Hex on the UnrealIRCd network, and can also be emailed at me@hexick.com";
-	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/qline.c";
-	sha256sum "c612e9d85596b0563270af3db065b987c0afc4a6b0ae7e6e93cff507ae80c9c3";
-	last-updated "2023-11-25T16:56:24.000Z";
-	min-unrealircd-version "6.*";
-	max-unrealircd-version "6.*";
-	post-install-text
-	{
-		"The module is installed. Now all you need to do is add a loadmodule line:";
-		"loadmodule \"third/qline\";";
-		"And then /rehash";
-	}
-}
-
 module "third/channel-rename"
 {
 	description "Adds draft/channel-rename functionality (IRCv3)";
