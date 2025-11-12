@@ -40,6 +40,7 @@ int auditorium_chmode_isok(Client *client, Channel *channel, char mode, const ch
 	int auditorium_hook_visibleinchan(Client *target, Channel *channel, Member *client_member);
 #else
 	int auditorium_hook_join_data(Client *client, Channel *channel);
+	int auditorium_hook_chanmode(Client *client, Channel *channel, MessageTag *mtags, const char *modebuf, const char *parabuf, time_t sendts, int samode, int *destroy_channel);
 #endif
 
 #if UNREAL_VERSION >= 0x06020000
@@ -51,6 +52,7 @@ int auditorium_chmode_isok(Client *client, Channel *channel, char mode, const ch
 #define CHMODE_FLAG 'u' // Good ol' +u ;];]
 #define IsAudit(x) ((x) && has_channel_mode((x), CHMODE_FLAG))
 #define CanBeVisible(cl, ch) (check_channel_access(cl, ch, "oaq") || IsULine(cl))
+#define IsMemberInvisible(x) ((x)->memb_flags & MEMB_FLAG_INVISIBLE)
 
 // Muh globals
 Cmode_t extcmode_auditorium = 0L; // Store bitwise value latur
@@ -58,7 +60,7 @@ Cmode_t extcmode_auditorium = 0L; // Store bitwise value latur
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/auditorium", // Module name
-	"2.1.3", // Version
+	"2.1.4", // Version
 	"Channel mode +u to show channel events/messages to/from people with +o/+a/+q only", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -80,6 +82,8 @@ MOD_INIT() {
 		HookAdd(modinfo->handle, HOOKTYPE_VISIBLE_IN_CHANNEL, 0, auditorium_hook_visibleinchan);
 	#else
 		HookAdd(modinfo->handle, HOOKTYPE_JOIN_DATA, 0, auditorium_hook_join_data);
+		HookAdd(modinfo->handle, HOOKTYPE_LOCAL_CHANMODE, 0, auditorium_hook_chanmode);
+		HookAdd(modinfo->handle, HOOKTYPE_REMOTE_CHANMODE, 0, auditorium_hook_chanmode);
 	#endif
 
 	HookAdd(modinfo->handle, HOOKTYPE_CAN_SEND_TO_CHANNEL, 999, auditorium_hook_cansend_chan); // Low prio hook to make sure we go after everything else (like anticaps etc)
@@ -142,8 +146,61 @@ int auditorium_chmode_isok(Client *client, Channel *channel, char mode, const ch
 	}
 #else
 	int auditorium_hook_join_data(Client *client, Channel *channel) {
-		if(IsAudit(channel) && !CanBeVisible(client, channel)) // If channel has +u and the joining user doesn't have +o or higher...
+		if(IsAudit(channel) && !CanBeVisible(client, channel)) // If channel has +u and the joining user doesn't have +o or higher (in this case it's really only about being U-Lined or n0)...
 			set_user_invisible(client, channel, 1); // ...don't show in /names etc
+		return HOOK_CONTINUE;
+	}
+
+	int auditorium_hook_chanmode(Client *client, Channel *channel, MessageTag *mtags, const char *modebuf, const char *parabuf, time_t sendts, int samode, int *destroy_channel) {
+		ParseMode pm;
+		Client *target;
+		Member* mb;
+		int ret;
+		int mode_u_changed;
+
+		mode_u_changed = 0;
+		for(ret = parse_chanmode(&pm, modebuf, parabuf); ret; ret = parse_chanmode(&pm, NULL, NULL)) {
+			// Gotta adjust the visibility of all users when changing +u itself, but we'll do this outside the loop to ensure we change all the members only once
+			if(pm.modechar == CHMODE_FLAG) {
+				mode_u_changed = pm.what == MODE_DEL ? -1 : 1;
+				continue;
+			}
+
+			// We'll also adjust the visibility of users that get or lose +oaq while +u is in effect
+			if(!IsAudit(channel))
+				continue;
+			if(pm.modechar != 'o' && pm.modechar != 'a' && pm.modechar != 'q')
+				continue;
+
+			// Since this is a regular chanmode hook (i.e. not a PRE_* variant), the modes are actually already applied so we can keep it quite simple
+			// We don't use a check like IsMemberInvisible() here since there shouldn't be very many nicks in one /MODE anyway, so letting set_user_invisible() look up the membership link every time shouldn't be a real problem
+			target = find_client(pm.param, NULL);
+			if(target)
+				set_user_invisible(target, channel, !CanBeVisible(target, channel));
+		}
+
+		if(mode_u_changed == 0)
+			return HOOK_CONTINUE;
+
+		for(mb = channel->members; mb; mb = mb->next) {
+			// We'll need to make everyone visible when doing -u
+			// Here we do use IsMemberInvisible(), mostly to prevent having many pointless lookups of membership links (we already have members here, so we can just check the flag directly)
+			if(mode_u_changed == -1) {
+				if(IsMemberInvisible(mb))
+					set_user_invisible(mb->client, channel, 0);
+				continue;
+			}
+
+			// And when +u is set we'll need to unhide everyone with +oaq and hide the rest
+			if(CanBeVisible(mb->client, channel)) {
+				if(IsMemberInvisible(mb))
+					set_user_invisible(mb->client, channel, 0);
+			}
+			else if(!IsMemberInvisible(mb)) {
+				set_user_invisible(mb->client, channel, 1);
+			}
+		}
+
 		return HOOK_CONTINUE;
 	}
 #endif
@@ -175,5 +232,6 @@ int auditorium_chmode_isok(Client *client, Channel *channel, char mode, const ch
 		free_message_tags(mtags);
 		// Can't return HOOK_DENY here cuz Unreal might abort() in that case :D
 	}
+
 	return HOOK_CONTINUE;
 }
