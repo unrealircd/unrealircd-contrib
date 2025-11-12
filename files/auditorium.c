@@ -34,20 +34,23 @@ module {
 // Quality fowod declarations
 int auditorium_chmode_isok(Client *client, Channel *channel, char mode, const char *para, int checkt, int what);
 
+#if UNREAL_VERSION <= 0x06010000
+	int auditorium_hook_visibleinchan(Client *target, Channel *channel);
+#elif UNREAL_VERSION < 0x06020100
+	int auditorium_hook_visibleinchan(Client *target, Channel *channel, Member *client_member);
+#else
+	int auditorium_hook_join_data(Client *client, Channel *channel);
+#endif
+
 #if UNREAL_VERSION >= 0x06020000
 	int auditorium_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx);
 #else
 	int auditorium_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype);
 #endif
 
-#if UNREAL_VERSION <= 0x06010000
-	int auditorium_hook_visibleinchan(Client *target, Channel *channel);
-#else
-	int auditorium_hook_visibleinchan(Client *target, Channel *channel, Member *client_member);
-#endif
-
 #define CHMODE_FLAG 'u' // Good ol' +u ;];]
 #define IsAudit(x) ((x) && has_channel_mode((x), CHMODE_FLAG))
+#define CanBeVisible(cl, ch) (check_channel_access(cl, ch, "oaq") || IsULine(cl))
 
 // Muh globals
 Cmode_t extcmode_auditorium = 0L; // Store bitwise value latur
@@ -55,7 +58,7 @@ Cmode_t extcmode_auditorium = 0L; // Store bitwise value latur
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/auditorium", // Module name
-	"2.1.2", // Version
+	"2.1.3", // Version
 	"Channel mode +u to show channel events/messages to/from people with +o/+a/+q only", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -73,7 +76,12 @@ MOD_INIT() {
 
 	MARK_AS_GLOBAL_MODULE(modinfo);
 
-	HookAdd(modinfo->handle, HOOKTYPE_VISIBLE_IN_CHANNEL, 0, auditorium_hook_visibleinchan);
+	#if UNREAL_VERSION < 0x06020100
+		HookAdd(modinfo->handle, HOOKTYPE_VISIBLE_IN_CHANNEL, 0, auditorium_hook_visibleinchan);
+	#else
+		HookAdd(modinfo->handle, HOOKTYPE_JOIN_DATA, 0, auditorium_hook_join_data);
+	#endif
+
 	HookAdd(modinfo->handle, HOOKTYPE_CAN_SEND_TO_CHANNEL, 999, auditorium_hook_cansend_chan); // Low prio hook to make sure we go after everything else (like anticaps etc)
 	return MOD_SUCCESS;
 }
@@ -121,16 +129,24 @@ int auditorium_chmode_isok(Client *client, Channel *channel, char mode, const ch
 	return EX_ALLOW; // Fallthrough, like when someone attempts +u 10 it'll simply do +u
 }
 
-#if UNREAL_VERSION <= 0x06010000
-	int auditorium_hook_visibleinchan(Client *target, Channel *channel)
+#if UNREAL_VERSION < 0x06020100
+	#if UNREAL_VERSION <= 0x06010000
+		int auditorium_hook_visibleinchan(Client *target, Channel *channel)
+	#elif UNREAL_VERSION < 0x06020100
+		int auditorium_hook_visibleinchan(Client *target, Channel *channel, Member *client_member)
+	#endif
+	{
+		if(IsAudit(channel) && !CanBeVisible(client, channel)) // If channel has +u and the checked user (not you) doesn't have +o or higher...
+			return HOOK_DENY; // ...don't show in /names etc
+		return HOOK_CONTINUE;
+	}
 #else
-	int auditorium_hook_visibleinchan(Client *target, Channel *channel, Member *client_member)
+	int auditorium_hook_join_data(Client *client, Channel *channel) {
+		if(IsAudit(channel) && !CanBeVisible(client, channel)) // If channel has +u and the joining user doesn't have +o or higher...
+			set_user_invisible(client, channel, 1); // ...don't show in /names etc
+		return HOOK_CONTINUE;
+	}
 #endif
-{
-	if(IsAudit(channel) && !check_channel_access(target, channel, "oaq") && !IsULine(target)) // If channel has +u and the checked user (not you) doesn't have +o or higher...
-		return HOOK_DENY; // ...don't show in /names etc
-	return HOOK_CONTINUE;
-}
 
 #if UNREAL_VERSION >= 0x06020000
 	int auditorium_hook_cansend_chan(Client *client, Channel *channel, Membership *lp, const char **text, const char **errmsg, SendType sendtype, ClientContext *clictx)
@@ -147,7 +163,7 @@ int auditorium_chmode_isok(Client *client, Channel *channel, char mode, const ch
 	int notice = (sendtype == SEND_TYPE_NOTICE);
 	MessageTag *mtags = NULL;
 
-	if(IsAudit(channel) && IsUser(client) && !check_channel_access(client, channel, "oaq") && !IsOper(client) && !IsULine(client)) { // If channel has +u and you don't have +o or higher...
+	if(IsAudit(channel) && IsUser(client) && !CanBeVisible(client, channel)) { // If channel has +u and you don't have +o or higher...
 		// In case the user is banned just keep processing the hooks as usual, since one of them will finally interrupt and (prolly) emit a message =]
 		if(is_banned(client, channel, BANCHK_MSG, text, NULL))
 			return HOOK_CONTINUE;
