@@ -1807,3 +1807,24 @@ module "third/commandsno"
 	}
 }
 
+module "third/datemotd"
+{
+	description "Shows a specific message in the MOTD on a specific date";
+	version "1.1";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/datemotd/README.md";
+	troubleshooting "In case of problems, check the documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/datemotd.c";
+	sha256sum "09c058ffe1a41ab2b365ffa4f4f668eecb85544cb317fff48b60dad027728992";
+	last-updated "2025-11-23T12:36:02.000Z";
+	min-unrealircd-version "6.2.2";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/datemotd\";";
+		"Configure the block as described in the documentation.";
+		"Once you're good to go, type ./unrealircd rehash";
+	}
+}
+
