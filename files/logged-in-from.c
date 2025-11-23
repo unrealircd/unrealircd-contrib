@@ -80,7 +80,7 @@ int loggedinfrom_whois(Client *requester, Client *acptr, NameValuePrioList **lis
 	*/
 	list_for_each_entry(client, &client_list, client_node)
 	{
-		if (!strcasecmp(client->user->account,acptr->user->account))
+		if (IsUser(client) && !strcasecmp(client->user->account,acptr->user->account))
 		{
 			add_nvplist_numeric_fmt(list, 999900 + i, "loggedin", acptr, 320, "%s :is logged in from %s!%s@%s (%i)%s",
 									acptr->name,
