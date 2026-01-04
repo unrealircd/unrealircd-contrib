@@ -1502,6 +1502,27 @@ module "third/report"
 	}
 }
 
+module "third/haveibeenpwned"
+{
+	description "Checks haveibeenpwned for password leaks on OPER";
+	version "1.0";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/haveibeenpwned/README.md";
+	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/haveibeenpwned.c";
+	sha256sum "912bb979c97f6302a88c9142b19421d4a256de08b10465924c40d89846214c8a";
+	last-updated "2026-01-04T17:34:02.000Z";
+	min-unrealircd-version "6.1.0";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/haveibeenpwned\";";
+		"And /REHASH the IRCd.";
+		"The module does not need any other configuration.";
+	}
+}
+
 module "third/pmlist"
 {
 	description "Implements umode +P to allow only certain people to privately message you";
