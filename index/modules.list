@@ -1059,4 +1059,793 @@ module "third/kiwiirc-tags"
 	description "Provides support for KiwiIRC's MessageTags";
 	version "1.0";
 	author "Valware";
-	docum
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/kiwiirc-tags/README.md";
+	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/kiwiirc-tags.c";
+	sha256sum "28bb69cbc9157b05863d63224386f2c2e49b66fe44585c6278aaffef4d980be5";
+	last-updated "2023-11-25T16:56:24.000Z";
+	min-unrealircd-version "6.0.7";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/kiwiirc-tags\";";
+		"The module does not need any other configuration.";
+	}
+}
+
+module "third/incredibly-lazy-ops"
+{
+	description "Provides some easy commands for using extbans for lazy chanops who can't be bothered to learn extbans";
+	version "1.0";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/incredibly-lazy-ops/README.md";
+	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/incredibly-lazy-ops.c";
+	sha256sum "00108385f13581f92334d0d3b12566674e7a792de13805f6061603956501470d";
+	last-updated "2024-01-23T15:50:02.000Z";
+	min-unrealircd-version "6.*";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/incredibly-lazy-ops\";";
+		"And /REHASH the IRCd.";
+		"The module does not need any other configuration.";
+	}
+}
+
+module "third/modmanager_irc"
+{
+	description "Control Unreal's module manager through IRC";
+	version "1.1.1";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/modmanager_irc";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/modmanager_irc.c";
+	sha256sum "6fedb20bcac488a7b376f0e8468cc5b052e0602a155f1cd6c61fcc23b6329f46";
+	last-updated "2025-09-22T21:12:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/modmanager_irc\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/modmanager_irc";
+	}
+}
+
+module "third/sacmds"
+{
+	description "Implements SA* commands for privileged opers";
+	version "2.2.3";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/sacmds";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/sacmds.c";
+	sha256sum "b8493c633701faf841aefd04a12289ba25834984b14f4439a5645bf04b9ce090";
+	last-updated "2025-09-22T21:12:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/sacmds\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/sacmds";
+	}
+}
+
+module "third/block_no_tls"
+{
+	description "Allows privileged opers to temporarily block new, non-TLS (SSL) user connections";
+	version "2.1.1";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/block_no_tls";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/block_no_tls.c";
+	sha256sum "53b870571967487c19027d4f3279e93b87a5e68c99fcc9993b402611fd81486f";
+	last-updated "2025-09-22T21:12:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/block_no_tls\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/block_no_tls";
+	}
+}
+
+module "third/dictionary"
+{
+	description "Lets you and your visitors look up the definition of a word (English)";
+	version "1.0";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/dictionary/README.md";
+	troubleshooting "In case of problems, check the documentation or e-mail me at valerie@valware.co.uk";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/dictionary.c";
+	sha256sum "93541a2d7311e5fa7bcaccd1663daea4c3a93cd3d77f086508d0183702441c6a";
+	last-updated "2024-10-16T07:04:02.000Z";
+	min-unrealircd-version "6.*";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/dictionary\";";
+		"to your configuration, and then rehash your server.";
+		"The module does not need any other configuration.";
+	}
+}
+
+module "third/inchannelban-enforce"
+{
+	description "Enforce ~c bans so they can't be circumvented";
+	version "6.1";
+	author "k4be";
+	documentation "https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md#inchannelban-enforce";
+	troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/inchannelban-enforce.c";
+	sha256sum "763b7404077b9a215f145ba8a87b658085b28c8609bc8877ddcca9a10b7e128a";
+	last-updated "2023-11-25T16:56:24.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/inchannelban-enforce\";";
+		"And /REHASH the IRCd.";
+		"Optionally, you can configure this module. See documentation for help.";
+	}
+}
+
+module "third/cmdslist"
+{
+	description "Request and subscribe to commands";
+	version "1.0";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/cmdslist/README.md";
+	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/cmdslist.c";
+	sha256sum "7a198482056be217ec73662b9947a240ffd37677c990f8f2110392a520c10550";
+	last-updated "2023-11-25T16:56:24.000Z";
+	min-unrealircd-version "6.*";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/cmdslist\";";
+		"And /REHASH the IRCd.";
+		"The module does not need any other configuration.";
+	}
+}
+
+module "third/logged-in-from"
+{
+	description "Extra /WHOIS information pertaining to account usage.";
+	version "1.1";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/logged-in-from/README.md";
+	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/logged-in-from.c";
+	sha256sum "b6f52f478cc0132b8781f797b821f63cfb0432228ee8f4be80a563ea5db7bf4c";
+	last-updated "2025-11-23T08:00:02.000Z";
+	min-unrealircd-version "6.*";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/logged-in-from\";";
+		"And /REHASH the IRCd.";
+		"The module does not need any other configuration.";
+	}
+}
+
+module "third/plainusers"
+{
+	description "Allows opers to list all users NOT connected over SSL/TLS";
+	version "2.1.1";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/plainusers";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/plainusers.c";
+	sha256sum "849f002d5d6c4c4025190cc9309cb98833b3c512b1e60d0db3ab67bd35b355a2";
+	last-updated "2025-09-22T21:12:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/plainusers\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/plainusers";
+	}
+}
+
+module "third/polite-tag"
+{
+	description "+draft/polite tag - Lets a user mark their message as polite (don't highlight)";
+	version "1.0";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/polite-tag/README.md";
+	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/polite-tag.c";
+	sha256sum "9cd8fddcf25b71b55c23c1292a068522ffb46a3a625f6c41cbf9b73a858c4822";
+	last-updated "2023-11-25T16:56:24.000Z";
+	min-unrealircd-version "6.*";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/polite-tag\";";
+		"The module does not need any other configuration.";
+	}
+}
+
+module "third/rehashgem"
+{
+	description "Implements an additional rehash flag -gem (global except me)";
+	version "2.1.0";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/rehashgem";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/rehashgem.c";
+	sha256sum "05acecc87bbabb08bcd3bfb0d3ee1203ed788b53a68d7c4c284f4957157e99c5";
+	last-updated "2023-11-25T16:56:24.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/rehashgem\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/rehashgem";
+	}
+}
+
+module "third/operoverride_ext"
+{
+	description "Additional OperOverride functionality";
+	version "2.1.0";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/operoverride_ext";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/operoverride_ext.c";
+	sha256sum "6983c0eec486713ec6603516e531d06416afb946d41e8d1f655826855d36fb58";
+	last-updated "2023-11-25T16:56:24.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/operoverride_ext\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/operoverride_ext";
+	}
+}
+
+module "third/gecos_replace"
+{
+	description "Enables replacing text in the gecos field on-connect";
+	version "1.1.2";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/gecos_replace";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/gecos_replace.c";
+	sha256sum "02b7b0760cdc319bae01ab36868bdbfaa78d5666505fbdefe38776e4f0f28298";
+	last-updated "2025-09-22T21:12:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/gecos_replace\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/gecos_replace";
+	}
+}
+
+module "third/noinvite"
+{
+	description "Adds umode +N to block invites";
+	version "2.1.0";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/noinvite";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/noinvite.c";
+	sha256sum "54ae593c09e5895d7b6d09b73a6e443e6dfd485cd937e5fda1f8194ee76e0e92";
+	last-updated "2023-11-25T16:56:24.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/noinvite\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/noinvite";
+	}
+}
+
+module "third/elmer"
+{
+	description "Make people talk like Elmer";
+	version "2.3";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/elmer/README.md";
+	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/elmer.c";
+	sha256sum "87fa4a15446f2b5b939f9fd98fa04254775832d0fdaac40cc801e34b5f27c7cd";
+	last-updated "2025-09-10T13:22:03.000Z";
+	min-unrealircd-version "6.*";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/elmer\";";
+		"And /REHASH the IRCd.";
+		"The module does not need any other configuration.";
+	}
+}
+
+module "third/allsend"
+{
+	description "Adds the /allsend command which allows privileged server operators to send targetted messages";
+	version "1.00";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/allsend/README.md";
+	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/allsend.c";
+	sha256sum "78642407c84f63e7b4b9d10febef775686edd0de391794c35adf5e83911a8c7d";
+	last-updated "2024-05-11T14:36:02.000Z";
+	min-unrealircd-version "6.*";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/allsend\";";
+		"And /REHASH the IRCd.";
+		"Please see the README for operclass requirements";
+	}
+}
+
+module "third/sacycle"
+{
+	description "Force someone to part and rejoin a channel";
+	version "1.1";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/sayeet/README.md";
+	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/sacycle.c";
+	sha256sum "d07f28586855f8b2fb4c337fea1cc4761047648371f5ff7bb1032a2f7adfe68c";
+	last-updated "2023-11-25T16:56:24.000Z";
+	min-unrealircd-version "6.*";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/sacycle\";";
+		"And /REHASH the IRCd.";
+		"The module does not need any other configuration.";
+	}
+}
+
+module "third/getlegitusers"
+{
+	description "Command /getlegitusers to show user/bot count across the network";
+	version "2.1.0";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/getlegitusers";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/getlegitusers.c";
+	sha256sum "1e3067ce53490012d693f300344284f119865cc5da01f8e3e1f155a8199bdfb2";
+	last-updated "2023-11-25T16:56:24.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/getlegitusers\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/getlegitusers";
+	}
+}
+
+module "third/lockserv"
+{
+	description "Adds the /lockserv command which allows privileged server operators to prevent connections to a particular server.";
+	version "1.2";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/lockserv/README.md";
+	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/lockserv.c";
+	sha256sum "948d4bcb2e46772c44341b7d47ceac7339c32c57f145024fdff781b404c5fbb8";
+	last-updated "2025-09-10T13:22:03.000Z";
+	min-unrealircd-version "6.*";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/lockserv\";";
+		"And /REHASH the IRCd.";
+		"Please see the README for operclass requirements";
+	}
+}
+
+module "third/nopmchannel"
+{
+	description "Prevents users sharing a channel from privately messaging each other";
+	version "2.1.1";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/nopmchannel";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/nopmchannel.c";
+	sha256sum "e284fd792e72e74a6b9572eebd11406fdddc9568eedee072ad2cee4c302fe58d";
+	last-updated "2025-09-22T21:12:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/nopmchannel\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/nopmchannel";
+	}
+}
+
+module "third/report"
+{
+	description "For reporting bad stuff to the assigned IRC operators";
+	version "1.1.2";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/report";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/report.c";
+	sha256sum "ec336eb25bf5c6bb27e5ecef93776535bca28016af4ce2f3a843947e5aaf1fe1";
+	last-updated "2025-09-22T21:12:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/report\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/report";
+	}
+}
+
+module "third/haveibeenpwned"
+{
+	description "Checks haveibeenpwned for password leaks on OPER";
+	version "1.0";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/haveibeenpwned/README.md";
+	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/haveibeenpwned.c";
+	sha256sum "912bb979c97f6302a88c9142b19421d4a256de08b10465924c40d89846214c8a";
+	last-updated "2026-01-04T17:34:02.000Z";
+	min-unrealircd-version "6.1.0";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/haveibeenpwned\";";
+		"And /REHASH the IRCd.";
+		"The module does not need any other configuration.";
+	}
+}
+
+module "third/pmlist"
+{
+	description "Implements umode +P to allow only certain people to privately message you";
+	version "2.1.2";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/pmlist";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/pmlist.c";
+	sha256sum "c4cb9f6ee24f0c73f22789fa13d2ec6824421e7f69281a637a2377e4b143aed3";
+	last-updated "2025-09-22T21:12:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/pmlist\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/pmlist";
+	}
+}
+
+module "third/auditorium"
+{
+	description "Channel mode +u to show channel events/messages to/from people with +o/+a/+q only";
+	version "2.1.4";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/auditorium";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/auditorium.c";
+	sha256sum "b574e2b26bac8d8f71c0c6a5ce4d7a58bd5f539ba6f012ec205db7bcc3faa316";
+	last-updated "2025-11-12T19:52:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/auditorium\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/auditorium";
+	}
+}
+
+module "third/nicksuffix"
+{
+	description "Restrict /nick usage to suffixing your base nick";
+	version "2.1.1";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/nicksuffix";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/nicksuffix.c";
+	sha256sum "2bac1b58142f3c5a40b8f4fb14eb4bf5d5e25877f7c05c54be41c71c13707b7e";
+	last-updated "2025-09-22T21:12:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/nicksuffix\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/nicksuffix";
+	}
+}
+
+module "third/extwarn"
+{
+	description "Enables additional configuration error checking";
+	version "2.1.0";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/extwarn";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/extwarn.c";
+	sha256sum "0aac8de046d0fba7dc8e6d3a902d26320df6e6fd5759593316a2ed0019d60dc0";
+	last-updated "2023-11-25T16:56:24.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/extwarn\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/extwarn";
+	}
+}
+
+module "third/welcomemessages"
+{
+	description "Sends server custom welcome messages for differents channels";
+	version "1.0.1";
+	author "reverse";
+	documentation "https://github.com/revrsedev/UnrealIRCD-6-mods-contrib/blob/main/welcomemessages/README.md";
+	troubleshooting "In case of problems, documentation or e-mail me at mike.chevronnet@gmail.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/welcomemessages.c";
+	sha256sum "b406031187c2e6fa4c674570331b16991826a1de6fc3a3d52507d38098a79f8c";
+	last-updated "2024-06-26T15:22:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/welcomemessages\";";
+		"Add channel and custom messages to your config file";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://github.com/revrsedev/UnrealIRCD-6-mods-contrib/blob/main/welcomemessages/README.md";
+	}
+}
+
+module "third/upgrade-notify"
+{
+	description "Sends out a message to opers when there is an upgrade available for UnrealIRCd";
+	version "2.1";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/upgrade-notify/README.md";
+	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/upgrade-notify.c";
+	sha256sum "336bfe1a96425a79916bfb1eb3bafaee0190306fe142cd2900d03afc2c624699";
+	last-updated "2024-05-11T14:34:02.000Z";
+	min-unrealircd-version "6.1.3";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/upgrade-notify\";";
+		"And /REHASH the IRCd.";
+		"The module does not need any other configuration.";
+	}
+}
+
+module "third/fixhop"
+{
+	description "The +h access mode seems to be a little borked/limited, this module implements some tweaks for it";
+	version "2.3.4";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/fixhop";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/fixhop.c";
+	sha256sum "542f3d1dc8e65ec7f4393ae912d72d8e57e9d2eb3051028d0e79f7642683ba47";
+	last-updated "2025-09-22T21:12:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/fixhop\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/fixhop";
+	}
+}
+
+module "third/account-registration"
+{
+	description "Account registration functionality (IRCv3)";
+	version "0.1";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/account-registration/README.md";
+	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/account-registration.c";
+	sha256sum "f85acf44b72be94d04a3e9521f9b612432d28f3345b9fc56e8f2e605c1099204";
+	last-updated "2023-11-25T16:56:24.000Z";
+	min-unrealircd-version "6.*";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/account-registration\";";
+		"And /REHASH the IRCd.";
+		"The module does not need any other configuration.";
+	}
+}
+
+module "third/ojoin"
+{
+	description "/OJOIN Command and Channel Mode +Y (Server Operator)";
+	version "2.0";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/ojoin/README.md";
+	troubleshooting "In case of problems, email me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/ojoin.c";
+	sha256sum "b97cf1b8784a0ec8347c51fd966f209537d609e1dac2a4f36afac332cbb017b5";
+	last-updated "2025-09-12T10:08:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/ojoin\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/ojoin/";
+		"Provides the server-admin only command /OJOIN. Requires operclass permission 'ojoin'";
+	}
+}
+
+module "third/repeatprot"
+{
+	description "G(Z)-Line/kill users (or block their messages) who spam through CTCP, INVITE, NOTICE and/or PRIVMSG";
+	version "2.1.1";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/repeatprot";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/repeatprot.c";
+	sha256sum "0d4b51f4325588e1183baeb510b0b19f54238ba26077ccba5c462144deac08f0";
+	last-updated "2025-09-22T21:12:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/repeatprot\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/repeatprot";
+	}
+}
+
+module "third/listsg"
+{
+	description "Command /SG to list security groups and their members";
+	version "1.0";
+	author "reverse";
+	documentation "https://github.com/revrsedev/UnrealIRCD-6-mods-contrib/blob/main/listsg/README.md";
+	troubleshooting "In case of problems, documentation or e-mail me at mike.chevronnet@gmail.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/listsg.c";
+	sha256sum "16697a331d8f66baa8a9225a6a7896f81ce1b17b533ff9ee375acd4601acce4a";
+	last-updated "2024-06-26T15:22:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/listsg\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://github.com/revrsedev/UnrealIRCD-6-mods-contrib/blob/main/listsg/README.md";
+	}
+}
+
+module "third/display-name"
+{
+	description "+draft/display-name (IRCv3)";
+	version "1.0";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/display-name/README.md";
+	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/display-name.c";
+	sha256sum "e6ecc1dddbe699861f5ad048ed87ef96dd60114ecb7176e1552d66dbca1a1302";
+	last-updated "2023-11-25T16:56:24.000Z";
+	min-unrealircd-version "6.*";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/display-name\";";
+		"You need to restart your server for this to show up in CLIENTTAGDENY";
+		"The module does not need any other configuration.";
+	}
+}
+
+module "third/clones"
+{
+	description "Adds a command /CLONES to list all users having the same IP address matching the given options";
+	version "2.1.0";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/clones";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/clones.c";
+	sha256sum "dec7add503f12b8c6bd430c3504e336e843879f001ee4da05250a46d288b6034";
+	last-updated "2023-11-25T16:56:24.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/clones\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/clones";
+	}
+}
+
+module "third/signore"
+{
+	description "Implements an I-Line for adding server-side ignores";
+	version "2.1.2";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/signore";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/signore.c";
+	sha256sum "87fbab0ee0df00f927d63812bdaea0958f1e4263e5ec7161add0044cbc7a8f99";
+	last-updated "2025-09-22T21:12:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/signore\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/signore";
+	}
+}
+
+module "third/commandsno"
+{
+	description "Lets IRC operators see command usages";
+	version "2.1.1";
+	author "Gottem";
+	documentation "https://gottem.nl/unreal/man/commandsno";
+	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/commandsno.c";
+	sha256sum "391e2c91c13a01d6e470a3baf0868a1fc59210fc0701f6b466282b604865c0d8";
+	last-updated "2025-09-22T21:12:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/commandsno\";";
+		"Then /rehash the IRCd.";
+		"For usage information, refer to the module's documentation found at: https://gottem.nl/unreal/man/commandsno";
+	}
+}
+
+module "third/datemotd"
+{
+	description "Shows a specific message in the MOTD on a specific date";
+	version "1.1";
+	author "Valware";
+	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/datemotd/README.md";
+	troubleshooting "In case of problems, check the documentation or e-mail me at v.a.pond@outlook.com";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/datemotd.c";
+	sha256sum "09c058ffe1a41ab2b365ffa4f4f668eecb85544cb317fff48b60dad027728992";
+	last-updated "2025-11-23T12:36:02.000Z";
+	min-unrealircd-version "6.2.2";
+	max-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/datemotd\";";
+		"Configure the block as described in the documentation.";
+		"Once you're good to go, type ./unrealircd rehash";
+	}
+}
+
