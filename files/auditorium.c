@@ -60,7 +60,7 @@ Cmode_t extcmode_auditorium = 0L; // Store bitwise value latur
 // Dat dere module header
 ModuleHeader MOD_HEADER = {
 	"third/auditorium", // Module name
-	"2.1.4", // Version
+	"2.1.5", // Version
 	"Channel mode +u to show channel events/messages to/from people with +o/+a/+q only", // Description
 	"Gottem", // Author
 	"unrealircd-6", // Modversion
@@ -217,17 +217,24 @@ int auditorium_chmode_isok(Client *client, Channel *channel, char mode, const ch
 	if(!text || !*text) // If there's no text then the message is already blocked :>
 		return HOOK_CONTINUE;
 
-	int notice = (sendtype == SEND_TYPE_NOTICE);
+	int notice = sendtype == SEND_TYPE_NOTICE;
+	const char *cmd = notice ? "NOTICE" : "PRIVMSG";
+	int cap_echo = HasCapability(client, "echo-message");
 	MessageTag *mtags = NULL;
 
-	if(IsAudit(channel) && IsUser(client) && !CanBeVisible(client, channel)) { // If channel has +u and you don't have +o or higher...
-		// In case the user is banned just keep processing the hooks as usual, since one of them will finally interrupt and (prolly) emit a message =]
+	if(IsAudit(channel) && IsUser(client) && !CanBeVisible(client, channel)) { // If channel has +u and you don't have +o or higher
+		// In case the user is banned we'll just keep processing the hooks as usual, since one of them will finally interrupt and (prolly) emit a message =]
 		if(is_banned(client, channel, BANCHK_MSG, text, NULL))
 			return HOOK_CONTINUE;
 
-		// ..."relay" the message to +o etc only
+		// "Relay" the message to `+o` etc only
+		// Note that some clients supporting `echo-message` may or may not display messages sent by the user by themselves, so they could be excluded by the `+oaq` check and never see their own shit
+		// To prevent this we'll skip the initial multicast for these clients and echo the message back separately, which should still correctly prevent d00plicates (they wanna receive an echo in the first place)
 		new_message(client, NULL, &mtags);
-		sendto_channel(channel, client, NULL, "oaq", 0, SEND_ALL, mtags, ":%s %s @%s :%s", client->name, (notice ? "NOTICE" : "PRIVMSG"), channel->name, *text);
+		sendto_channel(channel, client, (cap_echo ? client : NULL), "oaq", 0, SEND_ALL, mtags, ":%s %s @%s :%s", client->name, cmd, channel->name, *text);
+		if(cap_echo)
+			sendto_one(client, mtags, ":%s %s @%s :%s", client->name, cmd, channel->name, *text);
+
 		*text = NULL;
 		free_message_tags(mtags);
 		// Can't return HOOK_DENY here cuz Unreal might abort() in that case :D
