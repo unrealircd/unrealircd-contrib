@@ -1546,13 +1546,13 @@ module "third/pmlist"
 module "third/auditorium"
 {
 	description "Channel mode +u to show channel events/messages to/from people with +o/+a/+q only";
-	version "2.1.4";
+	version "2.1.5";
 	author "Gottem";
 	documentation "https://gottem.nl/unreal/man/auditorium";
 	troubleshooting "In case of problems, check the FAQ at https://gottem.nl/unreal/halp or e-mail me at support@gottem.nl";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/auditorium.c";
-	sha256sum "b574e2b26bac8d8f71c0c6a5ce4d7a58bd5f539ba6f012ec205db7bcc3faa316";
-	last-updated "2025-11-12T19:52:02.000Z";
+	sha256sum "6c209fce800abd24428f8c383215baf2d7a2bc8fb456000c5401eadbffa5ccc1";
+	last-updated "2026-02-17T20:40:02.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
