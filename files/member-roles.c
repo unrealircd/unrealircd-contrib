@@ -927,7 +927,7 @@ int member_role_can_set_topic(Client *client, Channel *channel, const char *topi
 	if (perms && perms->can_topic)
 		return EX_ALLOW;
 	
-	return EX_ALLOW; /* Let other modules/default logic handle it */
+	return EX_CONTINUE; /* Let other modules/default logic handle it */
 }
 
 int member_role_pre_invite(Client *client, Client *target, Channel *channel, int *override)
