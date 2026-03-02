@@ -188,13 +188,13 @@ module "third/topicgreeting"
 module "third/unauthban"
 {
 	description "ExtBan ~I or ~unauth: bans that match only users that are not logged in";
-	version "6.0";
+	version "6.1";
 	author "k4be";
 	documentation "https://github.com/pirc-pl/unrealircd-modules/blob/master/README.md";
 	troubleshooting "In case of problems, contact k4be on irc.pirc.pl.";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/unauthban.c";
-	sha256sum "02f8807654ae90e11dda8dab7112dd26f0a2ddf6a3e6728bd60fae20f26b0310";
-	last-updated "2023-11-25T16:56:24.000Z";
+	sha256sum "1f1629e2a8bd41597d519318ae1cabbb0f72dc63c92bd0d17effbb5ff472b28d";
+	last-updated "2026-03-02T16:46:03.000Z";
 	min-unrealircd-version "6.*";
 	post-install-text
 	{
