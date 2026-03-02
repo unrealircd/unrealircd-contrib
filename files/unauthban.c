@@ -45,7 +45,7 @@ module
 ModuleHeader MOD_HEADER
   = {
 	"third/unauthban",
-	"6.0",
+	"6.1",
 	"ExtBan ~I or ~unauth: bans that match only users that are not logged in",
 	"k4be",
 	"unrealircd-6",
@@ -217,25 +217,9 @@ int generic_ban_is_ok(BanContext *b)
 		Extban *extban;
 		const char *nextbanstr;
 
-		/* This portion is copied from clean_ban_mask() */
+		/* This portion is inspired by cmd_mode */
 		if (is_extended_ban(b->banstr) && MyUser(b->client))
 		{
-			if (RESTRICT_EXTENDEDBANS && !ValidatePermissionsForPath("immune:restrict-extendedbans",b->client,NULL,NULL,NULL))
-			{
-				if (!strcmp(RESTRICT_EXTENDEDBANS, "*"))
-				{
-					if (b->is_ok_check == EXBCHK_ACCESS_ERR)
-						sendnotice(b->client, "Setting/removing of extended bans has been disabled");
-					return 0; /* REJECT */
-				}
-				if (strchr(RESTRICT_EXTENDEDBANS, b->banstr[1]))
-				{
-					if (b->is_ok_check == EXBCHK_ACCESS_ERR)
-						sendnotice(b->client, "Setting/removing of extended bantypes '%s' has been disabled", RESTRICT_EXTENDEDBANS);
-					return 0; /* REJECT */
-				}
-			}
-			/* And next is inspired by cmd_mode */
 			extban = findmod_by_bantype(b->banstr, &nextbanstr);
 			if (extban && extban->is_ok)
 			{
