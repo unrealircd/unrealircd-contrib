@@ -20,18 +20,23 @@ module
 
 #include "unrealircd.h"
 
+/* Permission values: 0 = unset (inherit/default), 1 = yes, 2 = deny (explicit revoke) */
+#define MRPERM_UNSET 0
+#define MRPERM_YES   1
+#define MRPERM_DENY  2
+
 /* Permissions structure */
 struct MemberRolePermissions
 {
-	unsigned can_kick:1;
-	unsigned can_topic:1;
-	unsigned can_invite:1;
-	unsigned can_override_bans:1;  /* can talk even if banned */
-	unsigned is_voice:1;           /* bypass message restrictions (+m/+n/+c/+S/+N/+C/+T/+R/+M) */
-	unsigned is_unkickable:1;      /* cannot be kicked */
-	unsigned can_see_bans:1;       /* can view +b ban list */
-	unsigned can_see_invex:1;      /* can view +I invex list */
-	unsigned can_see_excepts:1;    /* can view +e except list */
+	int can_kick;
+	int can_topic;
+	int can_invite;
+	int can_override_bans;  /* can talk even if banned */
+	int is_voice;           /* bypass message restrictions (+m/+n/+c/+S/+N/+C/+T/+R/+M) */
+	int is_unkickable;      /* cannot be kicked */
+	int can_see_bans;       /* can view +b ban list */
+	int can_see_invex;      /* can view +I invex list */
+	int can_see_excepts;    /* can view +e except list */
 	char *can_set;      /* modes this role can set (all channel modes) */
 	char *can_unset;    /* modes this role can unset (all channel modes) */
 };
@@ -52,6 +57,37 @@ struct MemberRoleDirectPerms
 	unsigned can_unset:1;
 };
 
+/* Helper: parse a tri-state permission value */
+static int parse_permission_value(const char *value)
+{
+	if (!strcmp(value, "yes"))
+		return MRPERM_YES;
+	else if (!strcmp(value, "deny"))
+		return MRPERM_DENY;
+	return MRPERM_UNSET;
+}
+
+/* Helper: merge a tri-state permission (deny wins over yes, yes wins over unset) */
+static int merge_permission(int child, int parent)
+{
+	if (child == MRPERM_DENY || parent == MRPERM_DENY)
+		return MRPERM_DENY;
+	if (child == MRPERM_YES || parent == MRPERM_YES)
+		return MRPERM_YES;
+	return MRPERM_UNSET;
+}
+
+/* Helper: return string representation of permission value */
+static const char *perm_to_str(int perm)
+{
+	switch (perm)
+	{
+		case MRPERM_YES: return "yes";
+		case MRPERM_DENY: return "deny";
+		default: return "no";
+	}
+}
+
 /* Member role definition */
 struct MemberRole
 {
@@ -65,11 +101,48 @@ struct MemberRole
 	struct MemberRolePermissions permissions;
 	struct MemberRoleDirectPerms direct;  /* track which perms are directly set */
 	Cmode *cmode;  /* pointer to registered cmode */
+	unsigned is_builtin:1;  /* 1 if this is a built-in default role (q/a/o/h/v) */
 };
 
 static struct MemberRole *member_roles = NULL;
 static struct MemberRolePermissions default_permissions;
 static int have_default_permissions = 0;
+static int using_builtin_defaults = 0;  /* 1 if only built-in defaults are loaded (no custom config) */
+static int config_block_seen = 0;       /* 1 if a member-roles {} block was found in config (even if empty) */
+static Module *module_handle = NULL;    /* stored module handle for dynamic mode registration */
+
+/* Built-in default role definitions mirroring stock channel modes (q/a/o/h/v).
+ * These are loaded when no member-roles {} config block is present,
+ * replacing the need for chanowner.c, chanadmin.c, chanop.c, halfop.c, voice.c.
+ */
+struct BuiltinRoleDef {
+	const char *name;
+	char mode;
+	char prefix;
+	char sjoin_prefix;
+	int rank;
+	int can_kick;
+	int can_topic;
+	int can_invite;
+	int can_override_bans;
+	int is_voice;
+	int is_unkickable;
+	int can_see_bans;
+	int can_see_invex;
+	int can_see_excepts;
+	const char *can_set;
+	const char *can_unset;
+};
+
+static struct BuiltinRoleDef builtin_role_defs[] = {
+	/*         name         mode pfx  sjoin rank  kick  topic inv   bans  voice unkick seeb  seei  seee  set   unset */
+	{ "chanowner",  'q', '~', '*', 4000, MRPERM_YES, MRPERM_YES, MRPERM_YES, MRPERM_YES, MRPERM_YES, MRPERM_UNSET, MRPERM_YES, MRPERM_YES, MRPERM_YES, "*", "*" },
+	{ "chanadmin",  'a', '&', '~', 3000, MRPERM_YES, MRPERM_YES, MRPERM_YES, MRPERM_YES, MRPERM_YES, MRPERM_UNSET, MRPERM_YES, MRPERM_YES, MRPERM_YES, "*", "*" },
+	{ "chanop",     'o', '@', '@', 2000, MRPERM_YES, MRPERM_YES, MRPERM_YES, MRPERM_YES, MRPERM_YES, MRPERM_UNSET, MRPERM_YES, MRPERM_YES, MRPERM_YES, "*", "*" },
+	{ "halfop",     'h', '%', '%', 1000, MRPERM_YES, MRPERM_YES, MRPERM_YES, MRPERM_YES, MRPERM_YES, MRPERM_UNSET, MRPERM_YES, MRPERM_YES, MRPERM_YES, "*", "*" },
+	{ "voice",      'v', '+', '+',   -1, MRPERM_UNSET, MRPERM_UNSET, MRPERM_UNSET, MRPERM_UNSET, MRPERM_YES, MRPERM_UNSET, MRPERM_UNSET, MRPERM_UNSET, MRPERM_UNSET, NULL, NULL },
+};
+#define NUM_BUILTIN_ROLES (sizeof(builtin_role_defs) / sizeof(builtin_role_defs[0]))
 
 #define OURCONF "member-roles"
 
@@ -91,8 +164,6 @@ int member_role_pre_invite(Client *client, Client *target, Channel *channel, int
 int member_role_can_send_to_channel(Client *client, Channel *channel, Membership *lp, const char **msg, const char **errmsg, SendType sendtype, ClientContext *clictx);
 int member_role_can_bypass_channel_message_restriction(Client *client, Channel *channel, BypassChannelMessageRestrictionType bypass_type);
 int member_role_check_mode_access(Client *client, Channel *channel, MessageTag *mtags, const char *modebuf, const char *parabuf, time_t sendts, int samode);
-int member_role_check_mode_access(Client *client, Channel *channel, MessageTag *mtags, const char *modebuf, const char *parabuf, time_t sendts, int samode);
-int member_role_list_mode_request(Client *client, Channel *channel, const char *req);
 const char *extban_automode_conv_param(BanContext *b, Extban *extban);
 int extban_automode_is_ok(BanContext *b);
 int automode_join(Client *client, Channel *channel, MessageTag *mtags);
@@ -100,6 +171,12 @@ CMD_FUNC(cmd_memberroles);
 int member_roles_packet(Client *from, Client *to, Client *intended_to, char **msg, int *length);
 int member_roles_reparsemode(Client *client, char **msg, int *length);
 static struct MemberRolePermissions *get_effective_permissions(Client *client, Channel *channel);
+static void ensure_builtin_defaults(void);
+static int has_nonstock_roles(void);
+static int register_member_modes(void);
+int member_roles_server_synced(Client *client);
+RPC_CALL_FUNC(rpc_member_roles_list);
+RPC_CALL_FUNC(rpc_member_roles_get);
 
 ModuleHeader MOD_HEADER =
 {
@@ -114,8 +191,10 @@ MOD_INIT()
 {
 	CmodeInfo creq;
 	ExtbanInfo extban_req;
+	RPCHandlerInfo r;
 	
 	MARK_AS_GLOBAL_MODULE(modinfo);
+	module_handle = modinfo->handle;
 	
 	/* Register extban */
 	memset(&extban_req, 0, sizeof(extban_req));
@@ -142,20 +221,86 @@ MOD_INIT()
 	HookAdd(modinfo->handle, HOOKTYPE_LOCAL_JOIN, 0, automode_join);
 	HookAdd(modinfo->handle, HOOKTYPE_REMOTE_JOIN, 0, automode_join);
 	HookAdd(modinfo->handle, HOOKTYPE_PACKET, 0, member_roles_packet);
+	HookAdd(modinfo->handle, HOOKTYPE_SERVER_SYNCED, 0, member_roles_server_synced);
 	
 	/* Add command for listing roles */
 	CommandAdd(modinfo->handle, "MEMBERROLES", cmd_memberroles, 0, CMD_USER);
 	
+	/* Register RPC handlers */
+	memset(&r, 0, sizeof(r));
+	r.method = "member_roles.list";
+	r.loglevel = ULOG_DEBUG;
+	r.call = rpc_member_roles_list;
+	if (!RPCHandlerAdd(modinfo->handle, &r))
+	{
+		config_error("[member-roles] Could not register RPC handler member_roles.list");
+		return MOD_FAILED;
+	}
+	memset(&r, 0, sizeof(r));
+	r.method = "member_roles.get";
+	r.loglevel = ULOG_DEBUG;
+	r.call = rpc_member_roles_get;
+	if (!RPCHandlerAdd(modinfo->handle, &r))
+	{
+		config_error("[member-roles] Could not register RPC handler member_roles.get");
+		return MOD_FAILED;
+	}
+
 	return MOD_SUCCESS;
 }
 
 MOD_LOAD()
 {
+	/* If no member-roles {} block was found in config, load built-in defaults.
+	 * This is the fallback for users who load the module without any config.
+	 */
+	if (!config_block_seen)
+	{
+		ensure_builtin_defaults();
+		if (register_member_modes() != MOD_SUCCESS)
+			return MOD_FAILED;
+	}
+	else if (config_block_seen && member_roles == NULL)
+	{
+		/* Empty config block: check if any currently linked server needs compat.
+		 * This handles the rehash case where servers are already linked.
+		 */
+		Client *acptr;
+		list_for_each_entry(acptr, &global_server_list, client_node)
+		{
+			if (acptr->server && acptr->server->features.protocol < 6100)
+			{
+				unreal_log(ULOG_WARNING, "member-roles", "MEMBER_ROLES_COMPAT_OVERRIDE", acptr,
+				    "[member-roles] Server $client has protocol < 6100. "
+				    "Loading built-in default roles for compatibility despite empty config block.");
+				ensure_builtin_defaults();
+				if (register_member_modes() != MOD_SUCCESS)
+					return MOD_FAILED;
+				break;
+			}
+		}
+	}
+
+	/* Track whether we're running purely on built-in defaults */
+	using_builtin_defaults = (member_roles != NULL) && !has_nonstock_roles();
+
+	return MOD_SUCCESS;
+}
+
+/* Register all member_roles as channel prefix modes via CmodeAdd.
+ * Skips roles that already have a cmode pointer (already registered).
+ * Returns MOD_SUCCESS or MOD_FAILED.
+ */
+static int register_member_modes(void)
+{
 	CmodeInfo creq;
 	struct MemberRole *role;
-    /* Register all configured member roles as prefix modes */
+
 	for (role = member_roles; role; role = role->next)
 	{
+		if (role->cmode)
+			continue; /* already registered */
+
 		memset(&creq, 0, sizeof(creq));
 		creq.paracount = 1;
 		creq.is_ok = member_role_is_ok;
@@ -166,7 +311,7 @@ MOD_LOAD()
 		creq.unset_with_param = 1;
 		creq.type = CMODE_MEMBER;
 		
-		role->cmode = CmodeAdd(modinfo->handle, creq, NULL);
+		role->cmode = CmodeAdd(module_handle, creq, NULL);
 		if (!role->cmode)
 		{
 			config_error("[member-roles] Failed to register mode +%c (prefix %c) for role '%s' - mode may already exist",
@@ -174,6 +319,7 @@ MOD_LOAD()
 			return MOD_FAILED;
 		}
 	}
+	
 	return MOD_SUCCESS;
 }
 
@@ -265,16 +411,16 @@ static void resolve_role_inheritance(struct MemberRole *role, int depth)
 	/* Recursively resolve parent's inheritance first */
 	resolve_role_inheritance(parent, depth + 1);
 	
-	/* Merge boolean permissions (OR logic) */
-	role->permissions.can_kick |= parent->permissions.can_kick;
-	role->permissions.can_topic |= parent->permissions.can_topic;
-	role->permissions.can_invite |= parent->permissions.can_invite;
-	role->permissions.can_override_bans |= parent->permissions.can_override_bans;
-	role->permissions.is_voice |= parent->permissions.is_voice;
-	role->permissions.is_unkickable |= parent->permissions.is_unkickable;
-	role->permissions.can_see_bans |= parent->permissions.can_see_bans;
-	role->permissions.can_see_invex |= parent->permissions.can_see_invex;
-	role->permissions.can_see_excepts |= parent->permissions.can_see_excepts;
+	/* Merge boolean permissions (deny wins over yes, yes wins over unset) */
+	role->permissions.can_kick = merge_permission(role->permissions.can_kick, parent->permissions.can_kick);
+	role->permissions.can_topic = merge_permission(role->permissions.can_topic, parent->permissions.can_topic);
+	role->permissions.can_invite = merge_permission(role->permissions.can_invite, parent->permissions.can_invite);
+	role->permissions.can_override_bans = merge_permission(role->permissions.can_override_bans, parent->permissions.can_override_bans);
+	role->permissions.is_voice = merge_permission(role->permissions.is_voice, parent->permissions.is_voice);
+	role->permissions.is_unkickable = merge_permission(role->permissions.is_unkickable, parent->permissions.is_unkickable);
+	role->permissions.can_see_bans = merge_permission(role->permissions.can_see_bans, parent->permissions.can_see_bans);
+	role->permissions.can_see_invex = merge_permission(role->permissions.can_see_invex, parent->permissions.can_see_invex);
+	role->permissions.can_see_excepts = merge_permission(role->permissions.can_see_excepts, parent->permissions.can_see_excepts);
 	
 	/* Merge can_set modes */
 	if (parent->permissions.can_set)
@@ -411,9 +557,9 @@ int member_roles_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs
 						    !strcmp(ceppp->name, "can_see_invex") ||
 						    !strcmp(ceppp->name, "can_see_excepts"))
 						{
-							if (!ceppp->value || (strcmp(ceppp->value, "yes") && strcmp(ceppp->value, "no")))
+							if (!ceppp->value || (strcmp(ceppp->value, "yes") && strcmp(ceppp->value, "no") && strcmp(ceppp->value, "deny")))
 							{
-								config_error("%s:%i: %s::default::permissions::%s must be 'yes' or 'no'",
+								config_error("%s:%i: %s::default::permissions::%s must be 'yes', 'no', or 'deny'",
 								            ceppp->file->filename, ceppp->line_number, OURCONF, ceppp->name);
 								errors++;
 							}
@@ -522,9 +668,9 @@ int member_roles_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs
 					    !strcmp(ceppp->name, "can_see_invex") ||
 					    !strcmp(ceppp->name, "can_see_excepts"))
 					{
-						if (!ceppp->value || (strcmp(ceppp->value, "yes") && strcmp(ceppp->value, "no")))
+						if (!ceppp->value || (strcmp(ceppp->value, "yes") && strcmp(ceppp->value, "no") && strcmp(ceppp->value, "deny")))
 						{
-							config_error("%s:%i: %s::%s::permissions::%s must be 'yes' or 'no'",
+							config_error("%s:%i: %s::%s::permissions::%s must be 'yes', 'no', or 'deny'",
 							            ceppp->file->filename, ceppp->line_number, OURCONF, role_name, ceppp->name);
 							errors++;
 						}
@@ -593,6 +739,70 @@ int member_roles_configtest(ConfigFile *cf, ConfigEntry *ce, int type, int *errs
 		}
 	}
 
+	/* Cross-role collision detection: check for duplicate mode letters, prefixes, and ranks */
+	{
+		ConfigEntry *cep2, *cepp2;
+		for (cep = ce->items; cep; cep = cep->next)
+		{
+			char *name1 = cep->name;
+			char mode1 = 0, prefix1 = 0;
+			int rank1 = 0;
+			
+			if (!name1 || !strcmp(name1, "default"))
+				continue;
+			
+			/* Extract mode, prefix, rank from this role */
+			for (cepp = cep->items; cepp; cepp = cepp->next)
+			{
+				if (!strcmp(cepp->name, "mode") && cepp->value && strlen(cepp->value) == 1)
+					mode1 = cepp->value[0];
+				else if (!strcmp(cepp->name, "prefix") && cepp->value && strlen(cepp->value) == 1)
+					prefix1 = cepp->value[0];
+				else if (!strcmp(cepp->name, "rank") && cepp->value)
+					rank1 = atoi(cepp->value);
+			}
+			
+			/* Compare against all subsequent roles */
+			for (cep2 = cep->next; cep2; cep2 = cep2->next)
+			{
+				char *name2 = cep2->name;
+				char mode2 = 0, prefix2 = 0;
+				int rank2 = 0;
+				
+				if (!name2 || !strcmp(name2, "default"))
+					continue;
+				
+				for (cepp2 = cep2->items; cepp2; cepp2 = cepp2->next)
+				{
+					if (!strcmp(cepp2->name, "mode") && cepp2->value && strlen(cepp2->value) == 1)
+						mode2 = cepp2->value[0];
+					else if (!strcmp(cepp2->name, "prefix") && cepp2->value && strlen(cepp2->value) == 1)
+						prefix2 = cepp2->value[0];
+					else if (!strcmp(cepp2->name, "rank") && cepp2->value)
+						rank2 = atoi(cepp2->value);
+				}
+				
+				if (mode1 && mode2 && mode1 == mode2)
+				{
+					config_error("%s:%i: %s::%s and %s::%s both use mode letter '%c'",
+					            cep2->file->filename, cep2->line_number, OURCONF, name1, OURCONF, name2, mode1);
+					errors++;
+				}
+				if (prefix1 && prefix2 && prefix1 == prefix2)
+				{
+					config_error("%s:%i: %s::%s and %s::%s both use prefix character '%c'",
+					            cep2->file->filename, cep2->line_number, OURCONF, name1, OURCONF, name2, prefix1);
+					errors++;
+				}
+				if (rank1 > 0 && rank2 > 0 && rank1 == rank2)
+				{
+					config_warn("%s:%i: %s::%s and %s::%s both use rank %d (may cause undefined precedence)",
+					           cep2->file->filename, cep2->line_number, OURCONF, name1, OURCONF, name2, rank1);
+				}
+			}
+		}
+	}
+
 	*errs = errors;
 	return errors ? -1 : 1;
 }
@@ -611,6 +821,8 @@ int member_roles_configrun(ConfigFile *cf, ConfigEntry *ce, int type)
 	if (strcmp(ce->name, OURCONF))
 		return 0;
 
+	config_block_seen = 1;
+
 	/* Parse each role definition and add to linked list */
 	for (cep = ce->items; cep; cep = cep->next)
 	{
@@ -626,23 +838,23 @@ int member_roles_configrun(ConfigFile *cf, ConfigEntry *ce, int type)
 					for (ceppp = cepp->items; ceppp; ceppp = ceppp->next)
 					{
 						if (!strcmp(ceppp->name, "can_kick"))
-							default_permissions.can_kick = !strcmp(ceppp->value, "yes");
+							default_permissions.can_kick = parse_permission_value(ceppp->value);
 						else if (!strcmp(ceppp->name, "can_topic"))
-							default_permissions.can_topic = !strcmp(ceppp->value, "yes");
+							default_permissions.can_topic = parse_permission_value(ceppp->value);
 						else if (!strcmp(ceppp->name, "can_invite"))
-							default_permissions.can_invite = !strcmp(ceppp->value, "yes");
+							default_permissions.can_invite = parse_permission_value(ceppp->value);
 						else if (!strcmp(ceppp->name, "can_override_bans"))
-							default_permissions.can_override_bans = !strcmp(ceppp->value, "yes");
+							default_permissions.can_override_bans = parse_permission_value(ceppp->value);
 						else if (!strcmp(ceppp->name, "is_voice"))
-							default_permissions.is_voice = !strcmp(ceppp->value, "yes");
+							default_permissions.is_voice = parse_permission_value(ceppp->value);
 						else if (!strcmp(ceppp->name, "is_unkickable"))
-							default_permissions.is_unkickable = !strcmp(ceppp->value, "yes");
+							default_permissions.is_unkickable = parse_permission_value(ceppp->value);
 						else if (!strcmp(ceppp->name, "can_see_bans"))
-							default_permissions.can_see_bans = !strcmp(ceppp->value, "yes");
+							default_permissions.can_see_bans = parse_permission_value(ceppp->value);
 						else if (!strcmp(ceppp->name, "can_see_invex"))
-							default_permissions.can_see_invex = !strcmp(ceppp->value, "yes");
+							default_permissions.can_see_invex = parse_permission_value(ceppp->value);
 						else if (!strcmp(ceppp->name, "can_see_excepts"))
-							default_permissions.can_see_excepts = !strcmp(ceppp->value, "yes");
+							default_permissions.can_see_excepts = parse_permission_value(ceppp->value);
 						else if (!strcmp(ceppp->name, "can_set"))
 							safe_strdup(default_permissions.can_set, ceppp->value);
 						else if (!strcmp(ceppp->name, "can_unset"))
@@ -659,7 +871,6 @@ int member_roles_configrun(ConfigFile *cf, ConfigEntry *ce, int type)
 		safe_strdup(role->name, cep->name);
 		
 		/* Set defaults */
-		role->sjoin_prefix = '!';
 		role->permissions.can_kick = 0;
 		role->permissions.can_topic = 0;
 		role->permissions.can_invite = 0;
@@ -694,47 +905,47 @@ int member_roles_configrun(ConfigFile *cf, ConfigEntry *ce, int type)
 				{
 					if (!strcmp(ceppp->name, "can_kick"))
 					{
-						role->permissions.can_kick = !strcmp(ceppp->value, "yes");
+						role->permissions.can_kick = parse_permission_value(ceppp->value);
 						role->direct.can_kick = 1;
 					}
 					else if (!strcmp(ceppp->name, "can_topic"))
 					{
-						role->permissions.can_topic = !strcmp(ceppp->value, "yes");
+						role->permissions.can_topic = parse_permission_value(ceppp->value);
 						role->direct.can_topic = 1;
 					}
 					else if (!strcmp(ceppp->name, "can_invite"))
 					{
-						role->permissions.can_invite = !strcmp(ceppp->value, "yes");
+						role->permissions.can_invite = parse_permission_value(ceppp->value);
 						role->direct.can_invite = 1;
 					}
 					else if (!strcmp(ceppp->name, "can_override_bans"))
 					{
-						role->permissions.can_override_bans = !strcmp(ceppp->value, "yes");
+						role->permissions.can_override_bans = parse_permission_value(ceppp->value);
 						role->direct.can_override_bans = 1;
 					}
 					else if (!strcmp(ceppp->name, "is_voice"))
 					{
-						role->permissions.is_voice = !strcmp(ceppp->value, "yes");
+						role->permissions.is_voice = parse_permission_value(ceppp->value);
 						role->direct.is_voice = 1;
 					}
 					else if (!strcmp(ceppp->name, "is_unkickable"))
 					{
-						role->permissions.is_unkickable = !strcmp(ceppp->value, "yes");
+						role->permissions.is_unkickable = parse_permission_value(ceppp->value);
 						role->direct.is_unkickable = 1;
 					}
 					else if (!strcmp(ceppp->name, "can_see_bans"))
 					{
-						role->permissions.can_see_bans = !strcmp(ceppp->value, "yes");
+						role->permissions.can_see_bans = parse_permission_value(ceppp->value);
 						role->direct.can_see_bans = 1;
 					}
 					else if (!strcmp(ceppp->name, "can_see_invex"))
 					{
-						role->permissions.can_see_invex = !strcmp(ceppp->value, "yes");
+						role->permissions.can_see_invex = parse_permission_value(ceppp->value);
 						role->direct.can_see_invex = 1;
 					}
 					else if (!strcmp(ceppp->name, "can_see_excepts"))
 					{
-						role->permissions.can_see_excepts = !strcmp(ceppp->value, "yes");
+						role->permissions.can_see_excepts = parse_permission_value(ceppp->value);
 						role->direct.can_see_excepts = 1;
 					}
 					else if (!strcmp(ceppp->name, "can_set"))
@@ -759,11 +970,23 @@ int member_roles_configrun(ConfigFile *cf, ConfigEntry *ce, int type)
 	}
 
 	/* After all roles are loaded, resolve inheritance */
-	struct MemberRole *role;
-	for (role = member_roles; role; role = role->next)
 	{
-		resolve_role_inheritance(role, 0);
+		struct MemberRole *role;
+		for (role = member_roles; role; role = role->next)
+		{
+			resolve_role_inheritance(role, 0);
+		}
 	}
+
+	/* Add built-in defaults for any stock modes not overridden by config.
+	 * Skipped if block is empty (no roles) to honor "empty = no modes".
+	 */
+	if (member_roles != NULL)
+		ensure_builtin_defaults();
+
+	/* Register modes now (during CONFIGRUN, before MOD_LOAD) */
+	if (register_member_modes() != MOD_SUCCESS)
+		return -1;
 
 	return 1;
 }
@@ -827,27 +1050,232 @@ void free_all_roles(void)
 	safe_free(default_permissions.can_set);
 	safe_free(default_permissions.can_unset);
 	have_default_permissions = 0;
+	using_builtin_defaults = 0;
+	config_block_seen = 0;
 	memset(&default_permissions, 0, sizeof(default_permissions));
 }
 
+/* Create built-in default roles for any stock mode letters (q/a/o/h/v)
+ * not already defined by user configuration.
+ * This replaces the need for chanowner.c, chanadmin.c, chanop.c, halfop.c, voice.c.
+ */
+static void ensure_builtin_defaults(void)
+{
+	int i;
+	for (i = 0; i < (int)NUM_BUILTIN_ROLES; i++)
+	{
+		struct BuiltinRoleDef *def = &builtin_role_defs[i];
+		struct MemberRole *role;
+		
+		/* Skip if a role with this mode letter already exists (user-configured override) */
+		if (find_role_by_mode(def->mode))
+			continue;
+		
+		role = safe_alloc(sizeof(struct MemberRole));
+		safe_strdup(role->name, def->name);
+		role->mode = def->mode;
+		role->prefix = def->prefix;
+		role->sjoin_prefix = def->sjoin_prefix;
+		role->rank = def->rank;
+		role->is_builtin = 1;
+		role->permissions.can_kick = def->can_kick;
+		role->permissions.can_topic = def->can_topic;
+		role->permissions.can_invite = def->can_invite;
+		role->permissions.can_override_bans = def->can_override_bans;
+		role->permissions.is_voice = def->is_voice;
+		role->permissions.is_unkickable = def->is_unkickable;
+		role->permissions.can_see_bans = def->can_see_bans;
+		role->permissions.can_see_invex = def->can_see_invex;
+		role->permissions.can_see_excepts = def->can_see_excepts;
+		if (def->can_set)
+			safe_strdup(role->permissions.can_set, def->can_set);
+		if (def->can_unset)
+			safe_strdup(role->permissions.can_unset, def->can_unset);
+		
+		AddListItem(role, member_roles);
+	}
+}
+
+/* Check if we have custom (non-stock) roles that would be incompatible with older servers.
+ * Returns 1 if any role uses a mode letter outside the stock set {q, a, o, h, v}.
+ */
+static int has_nonstock_roles(void)
+{
+	struct MemberRole *role;
+	for (role = member_roles; role; role = role->next)
+	{
+		if (role->mode != 'q' && role->mode != 'a' && role->mode != 'o'
+		    && role->mode != 'h' && role->mode != 'v')
+			return 1;
+	}
+	return 0;
+}
+
+/* HOOKTYPE_SERVER_SYNCED: Check linked server protocol compatibility.
+ * If a server has protocol < 6100 and we have non-stock custom roles,
+ * log an error since the remote server won't understand our custom modes.
+ */
+int member_roles_server_synced(Client *client)
+{
+	int protocol_version;
+	
+	if (!client || !client->server)
+		return 0;
+	
+	protocol_version = client->server->features.protocol;
+	
+	/* If we have no modes at all (empty config block) and an incompatible server links,
+	 * force-load built-in defaults so the remote server's q/a/o/h/v modes are understood.
+	 */
+	if (protocol_version < 6100 && member_roles == NULL && config_block_seen)
+	{
+		unreal_log(ULOG_WARNING, "member-roles", "MEMBER_ROLES_COMPAT_OVERRIDE", client,
+		    "[member-roles] Server $client has protocol version $protocol_version (< 6100). "
+		    "Loading built-in default roles (q/a/o/h/v) for compatibility despite empty config block.",
+		    log_data_integer("protocol_version", protocol_version));
+		
+		ensure_builtin_defaults();
+		using_builtin_defaults = 1;
+		
+		if (register_member_modes() != MOD_SUCCESS)
+		{
+			unreal_log(ULOG_ERROR, "member-roles", "MEMBER_ROLES_COMPAT_FAILED", client,
+			    "[member-roles] Failed to register built-in default modes for compatibility.");
+		}
+		else
+		{
+			extcmodes_check_for_changes();
+			isupport_check_for_changes();
+		}
+		return 0;
+	}
+	
+	if (protocol_version < 6100 && has_nonstock_roles())
+	{
+		unreal_log(ULOG_ERROR, "member-roles", "MEMBER_ROLES_INCOMPATIBLE_SERVER", client,
+		    "[member-roles] Server $client has protocol version $protocol_version (< 6100) and is incompatible "
+		    "with custom member roles. Custom mode letters unknown to the remote server will not "
+		    "function correctly. Either upgrade the remote server or remove custom member-roles "
+		    "configuration.",
+		    log_data_integer("protocol_version", protocol_version));
+	}
+	
+	return 0;
+}
+
+/* Helper: merge a mode string (can_set/can_unset) from source into dest.
+ * dest is a static buffer of size bufsize. Adds unique characters from source.
+ */
+static void merge_mode_string(char *dest, size_t bufsize, const char *source)
+{
+	const char *p;
+	size_t len;
+	
+	if (!source || !*source)
+		return;
+	
+	/* Wildcard overrides everything */
+	if (strchr(source, '*') || strchr(dest, '*'))
+	{
+		dest[0] = '*';
+		dest[1] = '\0';
+		return;
+	}
+	
+	len = strlen(dest);
+	for (p = source; *p && len < bufsize - 1; p++)
+	{
+		if (!strchr(dest, *p))
+		{
+			dest[len] = *p;
+			dest[len + 1] = '\0';
+			len++;
+		}
+	}
+}
+
 /* Helper: get the effective permissions for a user in a channel.
- * Returns the user's highest custom role's permissions, or the
- * default permissions if configured, or NULL if neither applies.
+ * Aggregates permissions from ALL custom roles the user holds (not just the highest).
+ * Boolean permissions use merge_permission (deny > yes > unset).
+ * can_set/can_unset strings are merged (union of all allowed modes).
+ * Returns a pointer to a static struct, or NULL if no permissions apply.
  */
 static struct MemberRolePermissions *get_effective_permissions(Client *client, Channel *channel)
 {
-	struct MemberRole *role = find_highest_role(client, channel);
-	if (role)
-		return &role->permissions;
-	if (have_default_permissions && IsMember(client, channel))
-		return &default_permissions;
-	return NULL;
+	static struct MemberRolePermissions merged;
+	static char merged_can_set[256];
+	static char merged_can_unset[256];
+	struct MemberRole *role;
+	const char *modes;
+	const char *p;
+	int found_any = 0;
+	
+	if (!IsMember(client, channel))
+	{
+		if (have_default_permissions)
+			return &default_permissions;
+		return NULL;
+	}
+	
+	modes = get_channel_access(client, channel);
+	if (!modes || !*modes)
+	{
+		if (have_default_permissions)
+			return &default_permissions;
+		return NULL;
+	}
+	
+	/* Initialize merged struct */
+	memset(&merged, 0, sizeof(merged));
+	merged_can_set[0] = '\0';
+	merged_can_unset[0] = '\0';
+	
+	/* Iterate all modes the user has and merge permissions from matching roles */
+	for (p = modes; *p; p++)
+	{
+		role = find_role_by_mode(*p);
+		if (!role)
+			continue;
+		
+		found_any = 1;
+		
+		/* Merge boolean permissions */
+		merged.can_kick = merge_permission(merged.can_kick, role->permissions.can_kick);
+		merged.can_topic = merge_permission(merged.can_topic, role->permissions.can_topic);
+		merged.can_invite = merge_permission(merged.can_invite, role->permissions.can_invite);
+		merged.can_override_bans = merge_permission(merged.can_override_bans, role->permissions.can_override_bans);
+		merged.is_voice = merge_permission(merged.is_voice, role->permissions.is_voice);
+		merged.is_unkickable = merge_permission(merged.is_unkickable, role->permissions.is_unkickable);
+		merged.can_see_bans = merge_permission(merged.can_see_bans, role->permissions.can_see_bans);
+		merged.can_see_invex = merge_permission(merged.can_see_invex, role->permissions.can_see_invex);
+		merged.can_see_excepts = merge_permission(merged.can_see_excepts, role->permissions.can_see_excepts);
+		
+		/* Merge mode strings */
+		if (role->permissions.can_set)
+			merge_mode_string(merged_can_set, sizeof(merged_can_set), role->permissions.can_set);
+		if (role->permissions.can_unset)
+			merge_mode_string(merged_can_unset, sizeof(merged_can_unset), role->permissions.can_unset);
+	}
+	
+	if (!found_any)
+	{
+		if (have_default_permissions)
+			return &default_permissions;
+		return NULL;
+	}
+	
+	/* Point the struct's string pointers to the static buffers (or NULL if empty) */
+	merged.can_set = merged_can_set[0] ? merged_can_set : NULL;
+	merged.can_unset = merged_can_unset[0] ? merged_can_unset : NULL;
+	
+	return &merged;
 }
 
 int member_role_is_ok(Client *client, Channel *channel, char mode, const char *param, int type, int what)
 {
 	Client *target;
 	struct MemberRole *client_role, *mode_role;
+	struct MemberRolePermissions *perms;
 	
 	if ((type == EXCHK_ACCESS) || (type == EXCHK_ACCESS_ERR))
 	{
@@ -864,24 +1292,32 @@ int member_role_is_ok(Client *client, Channel *channel, char mode, const char *p
 		if (!mode_role)
 			return EX_DENY;
 		
-		/* Find client's highest role */
+		/* Get aggregated permissions and highest role for rank check */
+		perms = get_effective_permissions(client, channel);
 		client_role = find_highest_role(client, channel);
 		
 		/* Check if client has permission to set/unset this mode */
-		if (client_role)
+		if (perms)
 		{
-			const char *allowed_modes = (what == MODE_ADD) ? client_role->permissions.can_set : client_role->permissions.can_unset;
+			const char *allowed_modes = (what == MODE_ADD) ? perms->can_set : perms->can_unset;
 			if (allowed_modes && (strchr(allowed_modes, mode) || strchr(allowed_modes, '*')))
 			{
 				/* Check if they have sufficient rank */
-				if (client_role->rank >= mode_role->rank)
+				int client_rank = client_role ? client_role->rank : 0;
+				if (client_rank >= mode_role->rank)
 					return EX_ALLOW;
 			}
 		}
 		
 		/* Custom member roles require explicit permission - no fallback to chanop */
 		if (type == EXCHK_ACCESS_ERR)
+		{
 			sendnumeric(client, ERR_CHANOPRIVSNEEDED, channel->name);
+			unreal_log(ULOG_INFO, "member-roles", "MEMBER_ROLE_MODE_DENIED", client,
+			    "[member-roles] $client.details denied setting member mode +$mode_char on $channel (insufficient role)",
+			    log_data_char("mode_char", mode),
+			    log_data_string("channel", channel->name));
+		}
 		return EX_DENY;
 	}
 
@@ -897,7 +1333,7 @@ int member_role_can_kick(Client *client, Client *victim, Channel *channel, const
 	
 	/* Check if victim has is_unkickable permission */
 	victim_perms = get_effective_permissions(victim, channel);
-	if (victim_perms && victim_perms->is_unkickable && !IsULine(client))
+	if (victim_perms && victim_perms->is_unkickable == MRPERM_YES && !IsULine(client))
 	{
 		ircsnprintf(errmsg, sizeof(errmsg), ":%s %d %s %s :%s",
 		            me.name, ERR_CANNOTDOCOMMAND, client->name, "KICK",
@@ -908,12 +1344,17 @@ int member_role_can_kick(Client *client, Client *victim, Channel *channel, const
 		    "*** %s tried to kick you from channel %s (%s)",
 		    client->name, channel->name, comment);
 		
+		unreal_log(ULOG_INFO, "member-roles", "MEMBER_ROLE_KICK_DENIED", client,
+		    "[member-roles] $client.details tried to kick unkickable user $victim from $channel",
+		    log_data_string("victim", victim->name),
+		    log_data_string("channel", channel->name));
+		
 		return EX_ALWAYS_DENY;
 	}
 	
 	/* Check if client has can_kick permission */
 	client_perms = get_effective_permissions(client, channel);
-	if (client_perms && client_perms->can_kick)
+	if (client_perms && client_perms->can_kick == MRPERM_YES)
 		return EX_ALLOW;
 	
 	return EX_ALLOW; /* Let other modules/default logic handle it */
@@ -924,10 +1365,10 @@ int member_role_can_set_topic(Client *client, Channel *channel, const char *topi
 	struct MemberRolePermissions *perms;
 	
 	perms = get_effective_permissions(client, channel);
-	if (perms && perms->can_topic)
+	if (perms && perms->can_topic == MRPERM_YES)
 		return EX_ALLOW;
 	
-	return EX_CONTINUE; /* Let other modules/default logic handle it */
+	return EX_ALLOW; /* Let other modules/default logic handle it */
 }
 
 int member_role_pre_invite(Client *client, Client *target, Channel *channel, int *override)
@@ -935,7 +1376,7 @@ int member_role_pre_invite(Client *client, Client *target, Channel *channel, int
 	struct MemberRolePermissions *perms;
 	
 	perms = get_effective_permissions(client, channel);
-	if (perms && perms->can_invite)
+	if (perms && perms->can_invite == MRPERM_YES)
 		return HOOK_ALLOW;
 	
 	return HOOK_CONTINUE; /* Let other modules/default logic handle it */
@@ -961,7 +1402,7 @@ int member_role_can_send_to_channel(Client *client, Channel *channel, Membership
 	 * If our role has can_override_bans, we check if they're banned
 	 * and allow them to speak anyway by not setting the error.
 	 */
-	if (perms->can_override_bans)
+	if (perms->can_override_bans == MRPERM_YES)
 	{
 		/* Check if they would be banned */
 		if (is_banned(client, channel, BANCHK_MSG, msg, &ban_msg))
@@ -985,7 +1426,7 @@ int member_role_can_bypass_channel_message_restriction(Client *client, Channel *
 		return HOOK_CONTINUE;
 	
 	/* Check is_voice permission - it bypasses ALL message restrictions */
-	if (perms->is_voice)
+	if (perms->is_voice == MRPERM_YES)
 		return HOOK_ALLOW;
 	
 	return HOOK_CONTINUE;
@@ -1042,10 +1483,12 @@ int member_role_check_mode_access(Client *client, Channel *channel, MessageTag *
 		if (!strchr(allowed_modes, *m) && !strchr(allowed_modes, '*'))
 		{
 			/* Not allowed - send error and deny */
-			if (cm->type == CMODE_MEMBER)
-				sendnumeric(client, ERR_CHANOPRIVSNEEDED, channel->name);
-			else
-				sendnumeric(client, ERR_CHANOPRIVSNEEDED, channel->name);
+			sendnumeric(client, ERR_CHANOPRIVSNEEDED, channel->name);
+			unreal_log(ULOG_INFO, "member-roles", "MEMBER_ROLE_CHANMODE_DENIED", client,
+			    "[member-roles] $client.details denied setting channel mode $mode_dir$mode_char on $channel",
+			    log_data_char("mode_char", *m),
+			    log_data_string("mode_dir", (what == '+') ? "+" : "-"),
+			    log_data_string("channel", channel->name));
 			return HOOK_DENY;
 		}
 		
@@ -1058,6 +1501,11 @@ int member_role_check_mode_access(Client *client, Channel *channel, MessageTag *
 			if (target_role && client_rank < target_role->rank)
 			{
 				sendnumeric(client, ERR_CHANOPRIVSNEEDED, channel->name);
+				unreal_log(ULOG_INFO, "member-roles", "MEMBER_ROLE_CHANMODE_DENIED", client,
+				    "[member-roles] $client.details denied setting channel mode $mode_dir$mode_char on $channel (rank too low)",
+				    log_data_char("mode_char", *m),
+				    log_data_string("mode_dir", (what == '+') ? "+" : "-"),
+				    log_data_string("channel", channel->name));
 				return HOOK_DENY;
 			}
 		}
@@ -1070,29 +1518,49 @@ CMD_FUNC(cmd_memberroles)
 {
 	struct MemberRole *role;
 	struct MemberRole *parent;
+	int is_oper = IsOper(client);
 	
-	if (!IsOper(client))
+	sendnotice(client, "*** Member Roles%s:", using_builtin_defaults ? " (built-in defaults)" : "");
+	
+	/* Non-opers get a summary view (name, mode, prefix, rank only) */
+	if (!is_oper)
 	{
-		sendnumeric(client, ERR_NOPRIVILEGES);
+		if (!member_roles && !have_default_permissions)
+		{
+			sendnotice(client, "No member roles configured.");
+			return;
+		}
+		
+		if (have_default_permissions)
+			sendnotice(client, "Role: default (users with no channel mode)");
+		
+		for (role = member_roles; role; role = role->next)
+		{
+			sendnotice(client, "Role: %s  Mode: +%c  Prefix: %c  Rank: %d%s",
+			          role->name, role->mode, role->prefix, role->rank,
+			          role->is_builtin ? " (built-in)" : "");
+		}
+		
+		sendnotice(client, "*** End of member roles list (use as oper for full details)");
 		return;
 	}
 	
-	sendnotice(client, "*** Member Roles:");
+	/* Opers get full details */
 	
 	/* Show default permissions if configured */
 	if (have_default_permissions)
 	{
 		sendnotice(client, "Role: default (users with no channel mode)");
 		sendnotice(client, "  Permissions:");
-		sendnotice(client, "    can_kick: %s", default_permissions.can_kick ? "yes" : "no");
-		sendnotice(client, "    can_topic: %s", default_permissions.can_topic ? "yes" : "no");
-		sendnotice(client, "    can_invite: %s", default_permissions.can_invite ? "yes" : "no");
-		sendnotice(client, "    can_override_bans: %s", default_permissions.can_override_bans ? "yes" : "no");
-		sendnotice(client, "    is_voice: %s", default_permissions.is_voice ? "yes" : "no");
-		sendnotice(client, "    is_unkickable: %s", default_permissions.is_unkickable ? "yes" : "no");
-		sendnotice(client, "    can_see_bans: %s", default_permissions.can_see_bans ? "yes" : "no");
-		sendnotice(client, "    can_see_invex: %s", default_permissions.can_see_invex ? "yes" : "no");
-		sendnotice(client, "    can_see_excepts: %s", default_permissions.can_see_excepts ? "yes" : "no");
+		sendnotice(client, "    can_kick: %s", perm_to_str(default_permissions.can_kick));
+		sendnotice(client, "    can_topic: %s", perm_to_str(default_permissions.can_topic));
+		sendnotice(client, "    can_invite: %s", perm_to_str(default_permissions.can_invite));
+		sendnotice(client, "    can_override_bans: %s", perm_to_str(default_permissions.can_override_bans));
+		sendnotice(client, "    is_voice: %s", perm_to_str(default_permissions.is_voice));
+		sendnotice(client, "    is_unkickable: %s", perm_to_str(default_permissions.is_unkickable));
+		sendnotice(client, "    can_see_bans: %s", perm_to_str(default_permissions.can_see_bans));
+		sendnotice(client, "    can_see_invex: %s", perm_to_str(default_permissions.can_see_invex));
+		sendnotice(client, "    can_see_excepts: %s", perm_to_str(default_permissions.can_see_excepts));
 		sendnotice(client, "    can_set: %s", default_permissions.can_set ? default_permissions.can_set : "(none)");
 		sendnotice(client, "    can_unset: %s", default_permissions.can_unset ? default_permissions.can_unset : "(none)");
 	}
@@ -1105,8 +1573,8 @@ CMD_FUNC(cmd_memberroles)
 	
 	for (role = member_roles; role; role = role->next)
 	{
-		sendnotice(client, "Role: %s", role->name);
-		sendnotice(client, "  Mode: +%c  Prefix: %c  Rank: %d", role->mode, role->prefix, role->rank);
+		sendnotice(client, "Role: %s%s", role->name, role->is_builtin ? " (built-in)" : "");
+		sendnotice(client, "  Mode: +%c  Prefix: %c  SJOIN prefix: %c  Rank: %d", role->mode, role->prefix, role->sjoin_prefix, role->rank);
 		
 		if (role->inherit)
 			sendnotice(client, "  Inherits from: %s", role->inherit);
@@ -1116,11 +1584,11 @@ CMD_FUNC(cmd_memberroles)
 		/* Helper macro for boolean permissions */
 		#define SHOW_BOOL_PERM(perm, name, direct_flag) \
 			do { \
-				if (role->permissions.perm) { \
+				if (role->permissions.perm != MRPERM_UNSET) { \
 					if (role->inherit && !role->direct.direct_flag) { \
-						sendnotice(client, "    %s: yes (inherited from %s)", name, role->inherit); \
+						sendnotice(client, "    %s: %s (inherited from %s)", name, perm_to_str(role->permissions.perm), role->inherit); \
 					} else { \
-						sendnotice(client, "    %s: yes", name); \
+						sendnotice(client, "    %s: %s", name, perm_to_str(role->permissions.perm)); \
 					} \
 				} else { \
 					sendnotice(client, "    %s: no", name); \
@@ -1417,6 +1885,28 @@ int automode_join(Client *client, Channel *channel, MessageTag *mtags)
 	
 	safe_free(b);
 	
+	/* Filter out modes the user already has (e.g. from services or other modules) */
+	if (modes_len > 0)
+	{
+		const char *existing_modes = get_channel_access(client, channel);
+		if (existing_modes && *existing_modes)
+		{
+			char filtered[256];
+			int flen = 0;
+			int i;
+			for (i = 0; i < modes_len; i++)
+			{
+				if (!strchr(existing_modes, modes_buf[i]))
+				{
+					filtered[flen++] = modes_buf[i];
+				}
+			}
+			filtered[flen] = '\0';
+			strlcpy(modes_buf, filtered, sizeof(modes_buf));
+			modes_len = flen;
+		}
+	}
+	
 	/* Now set all modes at once if any were collected */
 	if (modes_len > 0)
 	{
@@ -1439,6 +1929,124 @@ int automode_join(Client *client, Channel *channel, MessageTag *mtags)
 	return 0;
 }
 
+/* Helper: serialize a role's permissions into a JSON object */
+static json_t *permissions_to_json(struct MemberRolePermissions *perms)
+{
+	json_t *obj = json_object();
+	
+	json_object_set_new(obj, "can_kick", json_string(perm_to_str(perms->can_kick)));
+	json_object_set_new(obj, "can_topic", json_string(perm_to_str(perms->can_topic)));
+	json_object_set_new(obj, "can_invite", json_string(perm_to_str(perms->can_invite)));
+	json_object_set_new(obj, "can_override_bans", json_string(perm_to_str(perms->can_override_bans)));
+	json_object_set_new(obj, "is_voice", json_string(perm_to_str(perms->is_voice)));
+	json_object_set_new(obj, "is_unkickable", json_string(perm_to_str(perms->is_unkickable)));
+	json_object_set_new(obj, "can_see_bans", json_string(perm_to_str(perms->can_see_bans)));
+	json_object_set_new(obj, "can_see_invex", json_string(perm_to_str(perms->can_see_invex)));
+	json_object_set_new(obj, "can_see_excepts", json_string(perm_to_str(perms->can_see_excepts)));
+	json_object_set_new(obj, "can_set", perms->can_set ? json_string(perms->can_set) : json_null());
+	json_object_set_new(obj, "can_unset", perms->can_unset ? json_string(perms->can_unset) : json_null());
+	
+	return obj;
+}
+
+/* Helper: serialize a single role into a JSON object */
+static json_t *role_to_json(struct MemberRole *role)
+{
+	char mode_str[2] = { role->mode, '\0' };
+	char prefix_str[2] = { role->prefix, '\0' };
+	char sjoin_str[2] = { role->sjoin_prefix, '\0' };
+	json_t *obj = json_object();
+	
+	json_object_set_new(obj, "name", json_string(role->name));
+	json_object_set_new(obj, "mode", json_string(mode_str));
+	json_object_set_new(obj, "prefix", json_string(prefix_str));
+	json_object_set_new(obj, "sjoin_prefix", json_string(sjoin_str));
+	json_object_set_new(obj, "rank", json_integer(role->rank));
+	json_object_set_new(obj, "is_builtin", json_boolean(role->is_builtin));
+	
+	if (role->inherit)
+		json_object_set_new(obj, "inherits_from", json_string(role->inherit));
+	else
+		json_object_set_new(obj, "inherits_from", json_null());
+	
+	json_object_set_new(obj, "permissions", permissions_to_json(&role->permissions));
+	
+	return obj;
+}
+
+/* RPC: member_roles.list - List all configured member roles */
+RPC_CALL_FUNC(rpc_member_roles_list)
+{
+	json_t *result, *list, *item;
+	struct MemberRole *role;
+	
+	result = json_object();
+	list = json_array();
+	
+	/* Include default role if configured */
+	if (have_default_permissions)
+	{
+		item = json_object();
+		json_object_set_new(item, "name", json_string("default"));
+		json_object_set_new(item, "mode", json_null());
+		json_object_set_new(item, "prefix", json_null());
+		json_object_set_new(item, "rank", json_null());
+		json_object_set_new(item, "inherits_from", json_null());
+		json_object_set_new(item, "permissions", permissions_to_json(&default_permissions));
+		json_array_append_new(list, item);
+	}
+	
+	for (role = member_roles; role; role = role->next)
+	{
+		json_array_append_new(list, role_to_json(role));
+	}
+	
+	json_object_set_new(result, "list", list);
+	rpc_response(client, request, result);
+	json_decref(result);
+}
+
+/* RPC: member_roles.get - Get details of a specific member role by name */
+RPC_CALL_FUNC(rpc_member_roles_get)
+{
+	json_t *result;
+	const char *role_name;
+	struct MemberRole *role;
+	
+	REQUIRE_PARAM_STRING("name", role_name);
+	
+	/* Handle "default" specially */
+	if (!strcmp(role_name, "default"))
+	{
+		if (!have_default_permissions)
+		{
+			rpc_error(client, request, JSON_RPC_ERROR_NOT_FOUND, "No default role configured");
+			return;
+		}
+		result = json_object();
+		json_object_set_new(result, "name", json_string("default"));
+		json_object_set_new(result, "mode", json_null());
+		json_object_set_new(result, "prefix", json_null());
+		json_object_set_new(result, "rank", json_null());
+		json_object_set_new(result, "inherits_from", json_null());
+		json_object_set_new(result, "permissions", permissions_to_json(&default_permissions));
+		rpc_response(client, request, result);
+		json_decref(result);
+		return;
+	}
+	
+	role = find_role_by_name(role_name);
+	if (!role)
+	{
+		rpc_error(client, request, JSON_RPC_ERROR_NOT_FOUND, "Role not found");
+		return;
+	}
+	
+	result = role_to_json(role);
+	rpc_response(client, request, result);
+	json_decref(result);
+}
+
 /* Helper: check if a user with only custom member roles can see a given list type.
  * Returns 1 if they can see it, 0 if they cannot.
  * Users with built-in hoaq access always see lists via normal IRCd logic,
@@ -1454,9 +2062,9 @@ static int member_roles_can_see_list(Client *client, Channel *channel, char list
 
 	switch (list_type)
 	{
-		case 'b': return perms->can_see_bans;
-		case 'e': return perms->can_see_excepts;
-		case 'I': return perms->can_see_invex;
+		case 'b': return (perms->can_see_bans == MRPERM_YES);
+		case 'e': return (perms->can_see_excepts == MRPERM_YES);
+		case 'I': return (perms->can_see_invex == MRPERM_YES);
 		default:  return 0;
 	}
 }
@@ -1652,11 +2260,11 @@ int member_roles_reparsemode(Client *client, char **msg, int *length)
 			int can_see;
 
 			if (pm.modechar == 'b')
-				can_see = perms && perms->can_see_bans;
+				can_see = perms && (perms->can_see_bans == MRPERM_YES);
 			else if (pm.modechar == 'e')
-				can_see = perms && perms->can_see_excepts;
+				can_see = perms && (perms->can_see_excepts == MRPERM_YES);
 			else /* 'I' */
-				can_see = perms && perms->can_see_invex;
+				can_see = perms && (perms->can_see_invex == MRPERM_YES);
 
 			if (!can_see)
 				continue; /* hide this mode change */
