@@ -189,7 +189,6 @@ ModuleHeader MOD_HEADER =
 
 MOD_INIT()
 {
-	CmodeInfo creq;
 	ExtbanInfo extban_req;
 	RPCHandlerInfo r;
 	
