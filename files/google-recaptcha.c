@@ -7,7 +7,7 @@
 module
 {
 		documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/google-recaptcha/google-recaptcha.md";
-		troubleshooting "In case of problems, check the documentation or e-mail me at v.a.pond@outlook.com";
+		troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
 		min-unrealircd-version "6.1.8";
 		max-unrealircd-version "6.*";
 		post-install-text {
@@ -25,7 +25,7 @@ module
 ModuleHeader MOD_HEADER
 ={
 	"third/google-recaptcha",
-	"0.9",
+	"1.0",
 	"Protect your UnrealIRCd network with Google reCAPTCHA",
 	"Valware",
 	"unrealircd-6",

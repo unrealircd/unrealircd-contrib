@@ -9,7 +9,7 @@
 module
 {
 		documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/lockserv/README.md";
-		troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+		troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
 		min-unrealircd-version "6.*";
 		max-unrealircd-version "6.*";
 		post-install-text {
@@ -26,7 +26,7 @@ module
 
 ModuleHeader MOD_HEADER = {
 	"third/lockserv",
-	"1.2",
+	"1.3",
 	"Adds the /lockserv command which allows privileged server operators to prevent connections to a particular server.",
 	"Valware",
 	"unrealircd-6",
@@ -148,15 +148,14 @@ MOD_INIT() {
 	HookAdd(modinfo->handle, HOOKTYPE_PRE_LOCAL_CONNECT, 0, lockserv_connect);
 	CommandAdd(modinfo->handle, MSG_LOCKSERV, cmd_lockserv, MAXPARA, CMD_OPER | CMD_SERVER);
 	CommandAdd(modinfo->handle, MSG_UNLOCKSERV, cmd_unlockserv, 1, CMD_OPER | CMD_SERVER);
-	CommandOverrideAdd(modinfo->handle, "CAP", 0, lockserv_cap_ovr);
-	CommandOverrideAdd(modinfo->handle, "AUTH", 0, lockserv_cap_ovr);
-
 
 	return MOD_SUCCESS;
 }
 /** Called upon module load */
 MOD_LOAD()
 {
+	CommandOverrideAdd(modinfo->handle, "CAP", 0, lockserv_cap_ovr);
+	CommandOverrideAdd(modinfo->handle, "AUTH", 0, lockserv_cap_ovr);
 	return MOD_SUCCESS;
 }
 /** Called upon unload */

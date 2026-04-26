@@ -8,7 +8,7 @@
 module
 {
 		documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/allsend/README.md";
-		troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+		troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
 		min-unrealircd-version "6.*";
 		max-unrealircd-version "6.*";
 		post-install-text {
@@ -27,7 +27,7 @@ module
 
 ModuleHeader MOD_HEADER = {
 	"third/allsend",
-	"1.00",
+	"1.01",
 	"Adds the /allsend command which allows privileged server operators to send targetted messages",
 	"Valware",
 	"unrealircd-6",

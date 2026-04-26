@@ -6,7 +6,7 @@
 module
 {
         documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/datemotd/README.md";
-        troubleshooting "In case of problems, check the documentation or e-mail me at v.a.pond@outlook.com";
+        troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
         min-unrealircd-version "6.2.2";
         max-unrealircd-version "6.*";
         post-install-text
@@ -47,7 +47,7 @@ int motd_hook(Client *client);
 
 ModuleHeader MOD_HEADER = {
 	"third/datemotd",
-	"1.1",
+	"1.2",
 	"Shows a specific message in the MOTD on a specific date",
 	"Valware",
 	"unrealircd-6"

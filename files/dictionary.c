@@ -9,7 +9,7 @@ Author: Valware
 module
 {
 		documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/dictionary/README.md";
-		troubleshooting "In case of problems, check the documentation or e-mail me at valerie@valware.co.uk";
+		troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
 		min-unrealircd-version "6.*";
 		max-unrealircd-version "6.*";
 		post-install-text {
@@ -71,7 +71,7 @@ void query_api(char *endpoint, const char *callback, const char *uid)
 ModuleHeader MOD_HEADER
   = {
 	"third/dictionary",
-	"1.0",
+	"1.1",
 	"Lets you and your visitors look up the definition of a word (English)",
 	"Valware",
 	"unrealircd-6",

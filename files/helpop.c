@@ -13,7 +13,7 @@
 module
 {
         documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/helpop/README.md";
-	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
         min-unrealircd-version "6.*";
         max-unrealircd-version "6.*";
         post-install-text {
@@ -50,7 +50,7 @@ CMD_FUNC(REPORT);
 
 ModuleHeader MOD_HEADER = {
 	"third/helpop", // Module name
-	"1.5", // Module Version
+	"1.6", // Module Version
 	"HelpOp - Provides usermode h (HelpOp) and swhois line, channelmode g (HelpOp-only room), and command /HELPOPS", // Description
 	"Valware", // Author
 	"unrealircd-6", // Unreal Version

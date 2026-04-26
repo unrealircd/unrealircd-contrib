@@ -8,7 +8,7 @@
 /*** <<<MODULE MANAGER START>>>
 module {
 	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/ojoin/README.md";
-	troubleshooting "In case of problems, email me at v.a.pond@outlook.com";
+	troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
 	min-unrealircd-version "6.*";
 	//max-unrealircd-version "6.*";
 	post-install-text {
@@ -47,7 +47,7 @@ static struct configstruct conf;
 
 ModuleHeader MOD_HEADER = {
 	"third/ojoin",
-	"2.0",
+	"2.1",
 	"/OJOIN Command and Channel Mode +Y (Server Operator)",
 	"Valware",
 	"unrealircd-6",

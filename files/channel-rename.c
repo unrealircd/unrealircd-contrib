@@ -6,7 +6,7 @@
 module
 {
         documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/channel-rename/README.md";
-        troubleshooting "In case of problems, check the documentation or e-mail me at v.a.pond@outlook.com";
+        troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
         min-unrealircd-version "6.1.0";
         max-unrealircd-version "6.*";
         post-install-text {
@@ -83,7 +83,7 @@ static struct MyConfStruct MyConf;
 ModuleHeader MOD_HEADER
 = {
     "third/channel-rename", /* Name of module */
-    "1.0.0", /* Version */
+    "1.0.1", /* Version */
     "Adds draft/channel-rename functionality (IRCv3)", /* Short description of module */
     "Valware", /* Author */
     "unrealircd-6", /* Version of UnrealIRCd */

@@ -14,7 +14,7 @@
 module
 {
         documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/elmer/README.md";
-		troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+		troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
         min-unrealircd-version "6.*";
         max-unrealircd-version "6.*";
         post-install-text {
@@ -33,7 +33,7 @@ ModDataInfo *elmer_md;
 
 ModuleHeader MOD_HEADER = {
 	"third/elmer",
-	"2.3",
+	"2.4",
 	"Make people talk like Elmer",
 	"Valware",
 	"unrealircd-6",

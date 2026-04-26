@@ -5,7 +5,7 @@
 module
 {
 	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/haveibeenpwned/README.md";
-	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
 	min-unrealircd-version "6.1.0";
 	max-unrealircd-version "6.*";
 	post-install-text {
@@ -24,7 +24,7 @@ module
 ModuleHeader MOD_HEADER
 = {
 	"third/haveibeenpwned",	/* Name of module */
-	"1.0", /* Version */
+	"1.1", /* Version */
 	"Checks haveibeenpwned for password leaks on OPER", /* Short description of module */
 	"Valware", /* Author */
 	"unrealircd-6",
