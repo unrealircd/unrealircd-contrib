@@ -14,7 +14,7 @@
 /*** <<<MODULE MANAGER START>>>
 module {
 	documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/chgswhois/README.md";
-	troubleshooting "In case of problems, check the README or e-mail me at v.a.pond@outlook.com";
+	troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
 	min-unrealircd-version "6.*";
 	
 	post-install-text {
@@ -46,7 +46,7 @@ CMD_FUNC(DELSWHOIS);
 
 ModuleHeader MOD_HEADER = {
 	"third/chgswhois",
-	"1.0",
+	"1.1",
 	"Provides command /CHGSWHOIS and /DELSWHOIS for priviledged IRCops to change a users \"special whois\" line.",
 	"Valware",
 	"unrealircd-6",

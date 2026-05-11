@@ -3,7 +3,7 @@
 module
 {
 		documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/upgrade-notify/README.md";
-		troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+		troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
 		min-unrealircd-version "6.1.3";
 		max-unrealircd-version "6.*";
 		post-install-text {
@@ -26,7 +26,7 @@ EVENT(check_for_updates);
 ModuleHeader MOD_HEADER
 = {
 	"third/upgrade-notify",	/* Name of module */
-	"2.1", /* Version */
+	"2.2", /* Version */
 	"Sends out a message to opers when there is an upgrade available for UnrealIRCd", /* Short description of module */
 	"Valware",
 	"unrealircd-6",

@@ -10,7 +10,7 @@
 module
 {
 		documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/filehost/README.md";
-		troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+		troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
 		min-unrealircd-version "6.*";
 		max-unrealircd-version "6.*";
 		post-install-text {
@@ -44,7 +44,7 @@ void freeconf(void);
 ModuleHeader MOD_HEADER
   = {
 	"third/filehost",
-	"1.1",
+	"1.2",
 	"IRCv3 draft/FILEHOST - Provides users with an ISUPPORT token with a URL to your file upload service",
 	"Valware",
 	"unrealircd-6",

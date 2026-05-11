@@ -8,7 +8,7 @@
 module
 {
 		documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/logged-in-from/README.md";
-		troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+		troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
 		min-unrealircd-version "6.*";
 		max-unrealircd-version "6.*";
 		post-install-text {
@@ -29,7 +29,7 @@ int loggedinfrom_whois(Client *requester, Client *acptr, NameValuePrioList **lis
 /* Our module header */
 ModuleHeader MOD_HEADER = {
 	"third/logged-in-from",
-	"1.1",
+	"1.2",
 	"Extra /WHOIS information pertaining to account usage.",
 	"Valware",
 	"unrealircd-6",

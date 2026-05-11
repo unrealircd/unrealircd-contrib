@@ -9,7 +9,7 @@
 module
 {
 		documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/email/README.md";
-		troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+		troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
 		min-unrealircd-version "6.1.8.1";
 		max-unrealircd-version "6.*";
 		post-install-text {
@@ -28,7 +28,7 @@ module
 ModuleHeader MOD_HEADER
 = {
 	"third/smtp-email",	/* Name of module */
-	"1.0", /* Version */
+	"1.1", /* Version */
 	"Send emails about chosen logs using SMTP", /* Short description of module */
 	"Valware",
 	"unrealircd-6",

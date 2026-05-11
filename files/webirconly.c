@@ -6,7 +6,7 @@
 module
 {
         documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/webirconly/README.md";
-        troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+        troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
         min-unrealircd-version "6.*";
         max-unrealircd-version "6.*";
         post-install-text {
@@ -31,7 +31,7 @@ static int webircchecklol(Client *cptr);
 
 ModuleHeader MOD_HEADER = {
 	"third/webirconly", // Module name
-	"1.1", // Module Version
+	"1.2", // Module Version
 	"WebIRC Only - Provides channelmode W (webirc only channel)", // Description
 	"Valware", // Author
 	"unrealircd-6", // Unreal Version

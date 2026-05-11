@@ -8,7 +8,7 @@
 module
 {
         documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/incredibly-lazy-ops/README.md";
-		troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+		troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
         min-unrealircd-version "6.*";
         max-unrealircd-version "6.*";
         post-install-text {
@@ -28,7 +28,7 @@ CMD_FUNC(cmd_qban);
 
 ModuleHeader MOD_HEADER = {
 	"third/incredibly-lazy-ops",
-	"1.0",
+	"1.1",
 	"Provides some easy commands for using extbans for lazy chanops who can't be bothered to learn extbans",
 	"Valware",
 	"unrealircd-6",

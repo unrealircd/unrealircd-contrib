@@ -11,7 +11,7 @@
 module
 {
         documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/sayeet/README.md";
-	troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+	troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
         min-unrealircd-version "6.*";
         max-unrealircd-version "6.*";
         post-install-text {
@@ -42,7 +42,7 @@ CMD_FUNC(yeetus);
 
 ModuleHeader MOD_HEADER = {
 	"third/sacycle",
-	"1.1",
+	"1.2",
 	"Force someone to part and rejoin a channel",
 	"Valware",
 	"unrealircd-6",

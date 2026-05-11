@@ -12,7 +12,7 @@
 module
 {
 		documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/restrict-chans/README.md";
-		troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+		troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
 		min-unrealircd-version "6.*";
 		max-unrealircd-version "6.1.6";
 		post-install-text {
@@ -30,7 +30,7 @@ int isreg_check_join(Client *client, Channel *channel, const char *key, char **e
 ModuleHeader MOD_HEADER =
 {
 	"third/restrict-chans",
-	"1.3",
+	"1.4",
 	"Restrict channel creation to logged-in users",
 	"Valware",
 	"unrealircd-6",

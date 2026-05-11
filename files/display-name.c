@@ -8,7 +8,7 @@
 module
 {
 		documentation "https://github.com/ValwareIRC/valware-unrealircd-mods/blob/main/display-name/README.md";
-		troubleshooting "In case of problems, documentation or e-mail me at v.a.pond@outlook.com";
+		troubleshooting "In case of problems, please file a bug report at https://github.com/ValwareIRC/valware-unrealircd-mods/issues/new?template=bug_report.md";
 		min-unrealircd-version "6.*";
 		max-unrealircd-version "6.*";
 		post-install-text {
@@ -27,7 +27,7 @@ module
 ModuleHeader MOD_HEADER =
 {
 	"third/display-name",
-	"1.0",
+	"1.1",
 	"+draft/display-name (IRCv3)",
 	"Valware",
 	"unrealircd-6",
