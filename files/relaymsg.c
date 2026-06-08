@@ -292,6 +292,15 @@ CMD_FUNC(cmd_relaymsg)
 
 	sendto_channel(channel, &me, NULL, NULL, 0, SEND_LOCAL, mtags,
 						":%s!%s PRIVMSG %s :%s", parv[2], MyConf.hostmask, parv[1], parv[3]);
+	/* sendto_channel() delivers straight to members and skips the CHANMSG
+	 * history hook, so relayed lines never reach +H storage -- record them
+	 * here ourselves or they are absent from CHATHISTORY playback. */
+	if (has_channel_mode(channel, 'H'))
+	{
+		char histbuf[512];
+		ircsnprintf(histbuf, sizeof(histbuf), ":%s!%s PRIVMSG %s :%s", parv[2], MyConf.hostmask, parv[1], parv[3]);
+		history_add(channel->name, mtags, histbuf);
+	}
 	sendto_server(NULL, 0, 0, mtags,
 						 ":%s RRELAYMSG %s %s %s :%s", me.name, client->id, parv[1], parv[2], parv[3]);
 }
@@ -317,6 +326,12 @@ CMD_FUNC(cmd_rrelaymsg)
 	
 	sendto_channel(channel, &me, NULL, NULL, 0, SEND_LOCAL, recv_mtags,
 				 ":%s!%s PRIVMSG %s :%s", parv[2], MyConf.hostmask, parv[3], parv[4]);
+	if (has_channel_mode(channel, 'H'))
+	{
+		char histbuf[512];
+		ircsnprintf(histbuf, sizeof(histbuf), ":%s!%s PRIVMSG %s :%s", parv[2], MyConf.hostmask, parv[3], parv[4]);
+		history_add(channel->name, recv_mtags, histbuf);
+	}
 	sendto_server(client, 0, 0, recv_mtags,
 				 ":%s RRELAYMSG %s %s %s :%s", me.name, parv[1], parv[2], parv[3], parv[4]);
 }
