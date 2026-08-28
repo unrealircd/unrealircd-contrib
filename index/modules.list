@@ -472,6 +472,26 @@ module "third/message_commonchans"
 	}
 }
 
+module "third/callerid"
+{
+	description "User Mode +g (CALLERID / server-side whitelist)";
+	version "1.0";
+	author "PeGaSuS";
+	documentation "https://git.0bin.xyz/pegasus/unrealircd-modules/src/branch/main/callerid";
+	troubleshooting "In case of problems, check the module's README or open an issue on Forgejo";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/callerid.c";
+	sha256sum "98d2638a7fc9cc2e6811749cc636400ad368f69c8a3c6644a485f08d8343a0d8";
+	last-updated "2026-08-28T13:22:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed, now all you need to do is add a 'loadmodule' line to your config file:";
+		"loadmodule \"third/callerid\";";
+		"Then /rehash the IRCd.";
+		"Optionally add a 'set { callerid { ... }; };' block - see the top of the module source for details.";
+	}
+}
+
 module "third/banfix_voice"
 {
 	description "Correct some odd behaviour in regards to banned-but-voiced users";
