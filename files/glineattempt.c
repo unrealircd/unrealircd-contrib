@@ -20,7 +20,7 @@ module
 
 #include "unrealircd.h"
 
-#define GLINEATTEMPT_VERSION "1.0"
+#define GLINEATTEMPT_VERSION "1.1"
 
 ModuleHeader MOD_HEADER
   = {
