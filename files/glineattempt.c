@@ -4,6 +4,20 @@
  * Logs clients rejected because they are G-Lined.
  */
 
+/*** <<<MODULE MANAGER START>>>
+module
+{
+        min-unrealircd-version "6.*";
+        post-install-text {
+                "The module is installed. Now all you need to do is add a loadmodule line:";
+                "loadmodule \"third/glineattempt\";";
+                "And /REHASH the IRCd.";
+                "The module does not need any other configuration.";
+        }
+}
+*** <<<MODULE MANAGER END>>>
+*/
+
 #include "unrealircd.h"
 
 #define GLINEATTEMPT_VERSION "1.0"
@@ -27,17 +41,16 @@ int glineattempt_banned_client(Client *client, const char *bantype,
         return 0;
 
     unreal_log(ULOG_INFO, "glineattempt", "GLINE_CONNECTION_REJECTED",
-            client,
-            "GLINE rejected connection from $client.details - reason: $reason",
-            log_data_string("ip", client->ip),
-            log_data_string("reason", reason));
+               client,
+               "GLINE rejected connection from $client.details - reason: $reason",
+               log_data_string("ip", client->ip),
+               log_data_string("reason", reason));
 
     return 0;
 }
 
 MOD_TEST()
 {
-    MARK_AS_OFFICIAL_MODULE(modinfo);
     return MOD_SUCCESS;
 }
 
