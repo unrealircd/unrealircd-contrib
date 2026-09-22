@@ -12,15 +12,6 @@
 
 #include "unrealircd.h"
 
-ModuleHeader MOD_HEADER
-  = {
-        "third/glineattempt", /* name */
-        "1.1.0", /* version */
-        "Enable being able to see attempted gline connection requests", /* description */
-        "Kelerion", /* author */
-        "unrealircd-6",
-    };
-
 /*** <<<MODULE MANAGER START>>>
 module
 {
@@ -45,7 +36,7 @@ ModuleHeader MOD_HEADER
     "third/glineattempt",
     GLINEATTEMPT_VERSION,
     "Log failed GLINE connection attempts",
-    "xxxchat",
+    "Kelerion",
     "unrealircd-6",
   };
 
