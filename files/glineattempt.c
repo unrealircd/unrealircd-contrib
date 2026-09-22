@@ -10,10 +10,24 @@
  * Logs clients rejected because they are G-Lined.
  */
 
+#include "unrealircd.h"
+
+ModuleHeader MOD_HEADER
+  = {
+        "third/glineattempt", /* name */
+        "1.1.0", /* version */
+        "Enable being able to see attempted gline connection requests", /* description */
+        "Kelerion", /* author */
+        "unrealircd-6",
+    };
+
 /*** <<<MODULE MANAGER START>>>
 module
 {
+        documentation "https://www.unrealircd.org";
+        troubleshooting "In case of problems, e-mail me at kelerion@8010.co.uk";
         min-unrealircd-version "6.*";
+
         post-install-text {
                 "The module is installed. Now all you need to do is add a loadmodule line:";
                 "loadmodule \"third/glineattempt\";";
@@ -22,8 +36,7 @@ module
         }
 }
 *** <<<MODULE MANAGER END>>>
-
-#include "unrealircd.h"
+*/
 
 #define GLINEATTEMPT_VERSION "1.1"
 
