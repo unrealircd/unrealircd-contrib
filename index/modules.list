@@ -290,6 +290,26 @@ module "third/restrict-chans"
 	}
 }
 
+module "third/glineattempt"
+{
+	description "Kelerion";
+	version "Log failed GLINE connection attempts";
+	author "unrealircd-6";
+	documentation "https://www.unrealircd.org";
+	troubleshooting "In case of problems, e-mail me at kelerion@8010.co.uk";
+	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/glineattempt.c";
+	sha256sum "4517049da43e51d0eed43eeae06e0e3c618155becb7a51c969746bdd74613f05";
+	last-updated "2026-09-22T17:08:02.000Z";
+	min-unrealircd-version "6.*";
+	post-install-text
+	{
+		"The module is installed. Now all you need to do is add a loadmodule line:";
+		"loadmodule \"third/glineattempt\";";
+		"And /REHASH the IRCd.";
+		"The module does not need any other configuration.";
+	}
+}
+
 module "third/nocolors"
 {
 	description "Usermode +C - Strip colors and formatting from incoming messages";
