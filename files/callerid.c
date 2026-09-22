@@ -8,6 +8,7 @@ module {
 		"loadmodule \"third/callerid\";";
 		"Then /rehash the IRCd.";
 		"Optionally add a 'set { callerid { ... }; };' block - see the top of the module source for details.";
+		"Documentation: https://git.0bin.xyz/pegasus/unrealircd-modules/src/branch/main/callerid";
 	}
 }
 *** <<<MODULE MANAGER END>>>
