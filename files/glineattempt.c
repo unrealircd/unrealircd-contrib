@@ -1,3 +1,9 @@
+*/
+/* Copyright (C) All Rights Reserved
+** Written by Kelerion <kelerion@8010.co.uk>
+** Licensed under the GNU General Public License v3.0
+** License: https://gnu.org
+*/
 /*
  * glineattempt.c
  *
@@ -16,7 +22,6 @@ module
         }
 }
 *** <<<MODULE MANAGER END>>>
-*/
 
 #include "unrealircd.h"
 
