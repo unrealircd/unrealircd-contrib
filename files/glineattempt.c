@@ -28,12 +28,10 @@ module
 *** <<<MODULE MANAGER END>>>
 */
 
-#define GLINEATTEMPT_VERSION "1.1"
-
 ModuleHeader MOD_HEADER
   = {
     "third/glineattempt",
-    GLINEATTEMPT_VERSION,
+    "1.1",
     "Log failed GLINE connection attempts",
     "Kelerion",
     "unrealircd-6",
