@@ -292,15 +292,15 @@ module "third/restrict-chans"
 
 module "third/glineattempt"
 {
-	description "Kelerion";
-	version "Log failed GLINE connection attempts";
-	author "unrealircd-6";
+	description "Log failed GLINE connection attempts";
+	version "1.1";
+	author "Kelerion";
 	documentation "https://www.unrealircd.org";
 	troubleshooting "In case of problems, e-mail me at kelerion@8010.co.uk";
 	source "https://raw.githubusercontent.com/unrealircd/unrealircd-contrib/unreal6/files/glineattempt.c";
-	sha256sum "4517049da43e51d0eed43eeae06e0e3c618155becb7a51c969746bdd74613f05";
-	last-updated "2026-09-22T17:08:02.000Z";
-	min-unrealircd-version "6.*";
+	sha256sum "08baade00881f470e365a9a240126b3d34eafd0772bc52010860f8091accaa17";
+	last-updated "2026-10-03T13:02:03.000Z";
+	min-unrealircd-version "6.2.*";
 	post-install-text
 	{
 		"The module is installed. Now all you need to do is add a loadmodule line:";
