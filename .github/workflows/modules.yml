@@ -1,0 +1,83 @@
+name: Module CI
+
+on:
+  pull_request:
+    branches: ["unreal6"]
+
+permissions:
+  contents: read
+
+jobs:
+  modules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout contrib
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: contrib
+          persist-credentials: false
+          # depth 2 is required: we diff the merge commit against its first parent
+          fetch-depth: 2
+
+      - name: Determine which modules the PR touches
+        id: changed
+        run: |
+          git -C contrib diff --name-only --diff-filter=d HEAD^1 HEAD -- 'files/*.c' > "$RUNNER_TEMP/changed.txt"
+          cat "$RUNNER_TEMP/changed.txt"
+          if [ -s "$RUNNER_TEMP/changed.txt" ]; then
+            echo "any=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "any=false" >>"$GITHUB_OUTPUT"
+            echo "No module sources changed, nothing to do."
+          fi
+
+      - name: Checkout UnrealIRCd
+        if: steps.changed.outputs.any == 'true'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: unrealircd/unrealircd
+          ref: unreal60_dev
+          path: unrealircd
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Install dependencies
+        if: steps.changed.outputs.any == 'true'
+        run: |
+          sudo rm -f /var/lib/man-db/auto-update
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libssl-dev libpcre2-dev libargon2-dev \
+            libsodium-dev libc-ares-dev libcurl4-openssl-dev libjansson-dev
+
+      - name: Put the changed modules in src/modules/third
+        if: steps.changed.outputs.any == 'true'
+        run: |
+          while read -r f; do
+            cp "$GITHUB_WORKSPACE/contrib/$f" unrealircd/src/modules/third/
+          done < "$RUNNER_TEMP/changed.txt"
+
+      - name: Build UnrealIRCd, this compiles the modules as well
+        if: steps.changed.outputs.any == 'true'
+        run: |
+          cd unrealircd
+          extras/build-tests/nix/build
+
+      - name: Check that the modules compiled and the header parses
+        if: steps.changed.outputs.any == 'true'
+        run: |
+          cd unrealircd
+          fail=0
+          while read -r f; do
+            name=`basename "$f" .c`
+            echo "=== third/$name"
+            if [ ! -f "src/modules/third/$name.so" ]; then
+              echo "FAILED: third/$name did not compile"
+              fail=1
+              continue
+            fi
+            ./unrealircd module parse-c-file "$GITHUB_WORKSPACE/contrib/$f" || fail=1
+          done < "$RUNNER_TEMP/changed.txt"
+          exit $fail
