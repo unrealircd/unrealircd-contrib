@@ -16,7 +16,7 @@ module
 {
         documentation "https://www.unrealircd.org";
         troubleshooting "In case of problems, e-mail me at kelerion@8010.co.uk";
-        min-unrealircd-version "6.*";
+        min-unrealircd-version "6.2.*";
 
         post-install-text {
                 "The module is installed. Now all you need to do is add a loadmodule line:";
@@ -28,12 +28,10 @@ module
 *** <<<MODULE MANAGER END>>>
 */
 
-#define GLINEATTEMPT_VERSION "1.1"
-
 ModuleHeader MOD_HEADER
   = {
     "third/glineattempt",
-    GLINEATTEMPT_VERSION,
+    "1.1",
     "Log failed GLINE connection attempts",
     "Kelerion",
     "unrealircd-6",
